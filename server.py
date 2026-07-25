@@ -695,6 +695,79 @@ def compare(old: str, new: str, unit: int) -> dict:
         items.append(item)
     return {"old": old, "new": new, "unit": unit, "items": items, "summary": {"R": sum(i["comparison"] == "R" for i in items), "NI": sum(i["comparison"] == "NI" for i in items)}}
 
+DATAPOINT_MM = 0.125
+
+def normalize_location(location: str) -> tuple[str, float | None]:
+    match = re.match(r"^\s*(P\d+)\s*(?:\+\s*([-+]?\d+(?:\.\d+)?))?\s*(?:mm)?\s*$", str(location or ""), re.I)
+    return (match.group(1).upper(), number(match.group(2), float)) if match else ((str(location or "").strip(), None))
+
+def is_real_defect(row) -> bool:
+    indication = str(row["indication"] or "").strip().upper()
+    return bool(indication) and indication != "NDD" and bool(row["datapoint"] and row["datapoint"] > 0)
+
+def defect_match_key(row, shift_mm: float = 0) -> tuple[str, float]:
+    zone, offset = normalize_location(row.get("location", ""))
+    if offset is None:
+        offset = (row.get("datapoint") or 0) * DATAPOINT_MM
+    return zone, round(float(offset) - float(shift_mm or 0), 2)
+
+def annotate_evolution(rows: list[dict]) -> list[dict]:
+    grouped: dict[str, list[dict]] = {}
+    for row in rows: grouped.setdefault(row["outage"], []).append(row)
+    baseline: set[tuple[str, float]] = set(); blocked = False
+    for outage in sorted(grouped, key=outage_sort_key):
+        group = grouped[outage]; state = group[0].get("state", "normal"); shift = group[0].get("offset_mm", 0)
+        defects = [row for row in group if is_real_defect(row)]
+        for row in group:
+            row["comparison"] = "堵管后不比对" if blocked else ("无缺陷" if not defects else "")
+        if blocked: continue
+        if state == "replaced": baseline = set()
+        for row in defects:
+            row["comparison"] = "R" if baseline and defect_match_key(row, shift if state == "shifted" else 0) in baseline else "NI"
+        if state == "plugged":
+            blocked = True
+            continue
+        if defects:
+            baseline = {defect_match_key(row) for row in defects}
+    return rows
+
+def outage_sort_key(outage: str):
+    match = re.search(r"^[A-Z](\d)(\d{2})$", str(outage or "").upper())
+    return (int(match.group(1)), int(match.group(2))) if match else (999, 999)
+
+def tube_history(site: str, unit: int, thimble: int) -> dict:
+    with connect() as db:
+        rows = [dict(row) for row in db.execute("""SELECT f.*, COALESCE(s.state,'normal') state,
+            COALESCE(s.offset_mm,0) offset_mm, COALESCE(s.note,'') note
+            FROM findings f LEFT JOIN tube_states s ON s.outage=f.outage AND s.unit_id=f.unit_id
+            AND s.thimble_id=f.thimble_id WHERE f.unit_id=? AND f.thimble_id=?
+            AND SUBSTR(f.outage,1,1)=? ORDER BY f.outage""", (unit, thimble, site.upper()))]
+    rows.sort(key=lambda row: outage_sort_key(row["outage"]))
+    annotate_evolution(rows)
+    return {"site": site.upper(), "unit": unit, "thimble": thimble, "items": rows}
+
+def unit_evolution(site: str, unit: int) -> dict:
+    with connect() as db:
+        thimbles = [row[0] for row in db.execute("SELECT DISTINCT thimble_id FROM findings WHERE unit_id=? AND SUBSTR(outage,1,1)=? ORDER BY thimble_id", (unit, site.upper()))]
+    return {"site": site.upper(), "unit": unit, "tubes": [tube_history(site, unit, thimble) for thimble in thimbles]}
+
+def export_evolution_excel(site: str, unit: int) -> dict:
+    data = unit_evolution(site, unit)
+    book = Workbook(); sheet = book.active; sheet.title = "指套管纵向演变"
+    sheet.append(["基地", "机组", "套管", "大修", "状态", "位置", "数据点", "磨损深度", "判定", "备注"])
+    for tube in data["tubes"]:
+        previous = []
+        for row in tube["items"]:
+            defects = [item for item in [row] if is_real_defect(item)]
+            state = row["state"]
+            comparison = row.get("comparison", "无缺陷")
+            for item in defects or [row]:
+                sheet.append([site, unit, tube["thimble"], row["outage"], state, item["location"], item["datapoint"], item["percent"], comparison, row["note"]])
+            if state == "plugged": break
+            if defects: previous = defects
+    for cell in sheet[1]: cell.font = Font(bold=True)
+    return workbook_result(f"{site}{unit}_指套管纵向演变_{datetime.now():%Y%m%d_%H%M%S}.xlsx", book)
+
 
 def workbook_result(filename: str, book: Workbook) -> dict:
     EXCEL_DIR.mkdir(parents=True, exist_ok=True)
@@ -790,6 +863,10 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             if parsed.path == "/api/overview": return self.json_response(overview())
             if parsed.path == "/api/findings": return self.json_response(query_findings(parse_qs(parsed.query)))
+            if parsed.path == "/api/tube-history":
+                q = parse_qs(parsed.query); return self.json_response(tube_history(q.get("site", [""])[0], int(q.get("unit", ["0"])[0]), int(q.get("thimble", ["0"])[0])))
+            if parsed.path == "/api/unit-evolution":
+                q = parse_qs(parsed.query); return self.json_response(unit_evolution(q.get("site", [""])[0], int(q.get("unit", ["0"])[0])))
             if parsed.path == "/api/compare":
                 q = parse_qs(parsed.query)
                 return self.json_response(compare(q.get("old", [""])[0], q.get("new", [""])[0], int(q.get("unit", ["0"])[0])))
@@ -807,6 +884,7 @@ class Handler(SimpleHTTPRequestHandler):
             if self.path == "/api/import": return self.json_response(import_directory(data.get("path", ""), data.get("reports")))
             if self.path == "/api/import-excel": return self.json_response(import_excel_file(data.get("path", "")))
             if self.path == "/api/export-comparison": return self.json_response(export_comparison_excel(data.get("old", ""), data.get("new", ""), int(data.get("unit", 0))))
+            if self.path == "/api/export-evolution": return self.json_response(export_evolution_excel(data.get("site", ""), int(data.get("unit", 0))))
             if self.path == "/api/export-report": return self.json_response(export_inspection_report(data.get("outage", ""), int(data.get("unit", 0)), data.get("metadata") or {}))
             if self.path == "/api/clear":
                 with connect() as db:
