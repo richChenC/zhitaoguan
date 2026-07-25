@@ -1,0 +1,9 @@
+data/
+output/
+report-extract/
+tmp/
+node_modules/
+__pycache__/
+tests/__pycache__/
+*.log
+*.pyc
