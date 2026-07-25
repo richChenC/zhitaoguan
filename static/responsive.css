@@ -5,6 +5,11 @@ main{height:calc(100vh - 58px);height:calc(100dvh - 58px);overflow:auto;scrollba
 .metrics{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
 .split{grid-template-columns:minmax(0,1.45fr) minmax(360px,.85fr)}
 .table-panel,.core-panel,.three-layout,.report-workspace,.settings-grid{min-width:0}
+.split.empty-results{grid-template-columns:minmax(0,1fr);align-items:start}
+.split.empty-results .table-panel{display:none}
+.split.empty-results .core-panel{width:min(100%,980px);margin:0 auto}
+.split.empty-results .core-map{width:min(100%,min(72vh,760px));max-height:none;margin:16px auto 22px}
+.split.empty-results .detail{min-height:0;margin-top:8px}
 .table-wrap{max-height:calc(100dvh - 310px)}
 .core-map{width:min(100%,clamp(330px,36vw,620px));max-height:calc(100dvh - 350px)}
 .three-layout{height:calc(100dvh - 174px);min-height:500px}
