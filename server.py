@@ -679,12 +679,14 @@ def compare(old: str, new: str, unit: int) -> dict:
     if old[:1].upper() != new[:1].upper() or infer_unit(old, "") != unit or infer_unit(new, "") != unit:
         raise ValueError("仅允许对比相同基地、相同机组的不同大修")
     with connect() as db:
-        old_rows = db.execute("SELECT * FROM findings WHERE outage=? AND unit_id=?", (old, unit)).fetchall()
-        new_rows = db.execute("SELECT f.*,COALESCE(s.state,'normal') state,COALESCE(s.offset_mm,0) offset_mm FROM findings f LEFT JOIN tube_states s ON s.outage=f.outage AND s.unit_id=f.unit_id AND s.thimble_id=f.thimble_id WHERE f.outage=? AND f.unit_id=?", (new, unit)).fetchall()
-    old_by_key = {(r["thimble_id"], r["location"], round((r["datapoint"] or 0), -2)): r for r in old_rows}
+        old_rows = [dict(row) for row in db.execute("SELECT * FROM findings WHERE outage=? AND unit_id=?", (old, unit)).fetchall()]
+        new_rows = [dict(row) for row in db.execute("SELECT f.*,COALESCE(s.state,'normal') state,COALESCE(s.offset_mm,0) offset_mm,COALESCE(s.note,'') note FROM findings f LEFT JOIN tube_states s ON s.outage=f.outage AND s.unit_id=f.unit_id AND s.thimble_id=f.thimble_id WHERE f.outage=? AND f.unit_id=?", (new, unit)).fetchall()]
+    new_rows = [row for row in new_rows if is_real_defect(row) and row["state"] != "plugged"]
+    offsets = {row["thimble_id"]: float(row.get("offset_mm") or 0) for row in new_rows if row["state"] == "shifted"}
+    old_by_key = {(row["thimble_id"], *defect_match_key(row, -offsets.get(row["thimble_id"], 0))): row for row in old_rows if is_real_defect(row)}
     items = []
     for row in new_rows:
-        key = (row["thimble_id"], row["location"], round((row["datapoint"] or 0) - row["offset_mm"], -2))
+        key = (row["thimble_id"], *defect_match_key(row))
         item = dict(row)
         previous = old_by_key.get(key)
         item["comparison"] = "NI" if row["state"] == "replaced" or previous is None else "R"
