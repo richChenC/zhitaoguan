@@ -80,26 +80,23 @@ function clearModel() {
 
 function addPlate(y, name) {
   const board = new THREE.Group();
-  const material = new THREE.MeshStandardMaterial({color: 0x4c6d7b, transparent: true, opacity: 0.54, roughness: 0.72, metalness: 0.2});
-  const edge = new THREE.LineBasicMaterial({color: 0x9cc3d2, transparent: true, opacity: 0.72});
-  const widths = [3, 7, 9, 11, 13, 13, 15, 15, 15, 13, 13, 11, 9, 7, 3];
-  widths.forEach((width, row) => {
-    const start = Math.floor((15 - width) / 2);
-    for (let offset = 0; offset < width; offset += 1) {
-      const geometry = new THREE.BoxGeometry(1.14, 0.18, 1.14);
-      const cell = new THREE.Mesh(geometry, material); cell.position.set((start + offset - 7) * 1.18, y, (row - 7) * 1.18); board.add(cell);
-      const outline = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), edge); outline.position.copy(cell.position); board.add(outline);
-    }
-  });
+  const plate = new THREE.Mesh(new THREE.CylinderGeometry(9.35, 9.35, 0.22, 72), new THREE.MeshStandardMaterial({color: 0x426977, transparent: true, opacity: 0.74, metalness: 0.28, roughness: 0.48}));
+  plate.position.y = y; board.add(plate);
+  const face = new THREE.Mesh(new THREE.CircleGeometry(9.28, 72), new THREE.MeshBasicMaterial({color: 0x79a6b6, transparent: true, opacity: 0.16, depthWrite: false}));
+  face.rotation.x = -Math.PI / 2; face.position.y = y + 0.13; board.add(face);
+  const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(Array.from({length: 73}, (_, index) => { const angle = index / 72 * Math.PI * 2; return new THREE.Vector3(Math.cos(angle) * 9.35, y + 0.15, Math.sin(angle) * 9.35); })), new THREE.LineBasicMaterial({color: 0x9ed7e8, transparent: true, opacity: 0.9}));
+  board.add(edge);
   board.name = name; model.add(board);
 }
 
 function addLayers() {
   Object.entries(P_LEVELS).forEach(([zone, y]) => {
     const color = P_COLORS[zone];
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(9.2, 0.035, 8, 72), new THREE.MeshBasicMaterial({color, transparent: true, opacity: 0.9}));
-    ring.rotation.x = Math.PI / 2; ring.position.y = y; model.add(ring);
-    const tag = label(zone, `#${color.toString(16).padStart(6, '0')}`, '#122a35'); tag.position.set(10.2, y, 0); tag.scale.set(0.82, 0.4, 1); model.add(tag);
+    const plane = new THREE.Mesh(new THREE.CircleGeometry(9.12, 72), new THREE.MeshBasicMaterial({color, transparent: true, opacity: 0.045, side: THREE.DoubleSide, depthWrite: false}));
+    plane.rotation.x = -Math.PI / 2; plane.position.y = y; model.add(plane);
+    const edge = new THREE.Mesh(new THREE.TorusGeometry(9.12, 0.026, 8, 72), new THREE.MeshBasicMaterial({color, transparent: true, opacity: 0.92}));
+    edge.rotation.x = Math.PI / 2; edge.position.y = y; model.add(edge);
+    const tag = label(zone, `#${color.toString(16).padStart(6, '0')}`, '#122a35'); tag.position.set(9.9, y, 0); tag.scale.set(0.72, 0.34, 1); model.add(tag);
   });
 }
 
