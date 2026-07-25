@@ -1,0 +1,2 @@
+.core-boundary .tube.full-hit{background:color-mix(in srgb,var(--tube-color) calc(var(--hit)*100%),white)}
+html,body{max-width:100%;overflow-x:hidden}
