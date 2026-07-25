@@ -62,6 +62,7 @@ function init() {
   controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE; controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN; controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
   raycaster = new THREE.Raycaster(); pointer = new THREE.Vector2();
   renderer.domElement.addEventListener('click', pick);
+  renderer.domElement.addEventListener('dblclick', resetTopView);
   new ResizeObserver(resize).observe(host); window.addEventListener('resize', resize);
   renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
   resize();
@@ -80,13 +81,29 @@ function clearModel() {
 
 function addPlate(y, name) {
   const board = new THREE.Group();
-  const plate = new THREE.Mesh(new THREE.CylinderGeometry(9.35, 9.35, 0.22, 72), new THREE.MeshStandardMaterial({color: 0x426977, transparent: true, opacity: 0.74, metalness: 0.28, roughness: 0.48}));
-  plate.position.y = y; board.add(plate);
-  const face = new THREE.Mesh(new THREE.CircleGeometry(9.28, 72), new THREE.MeshBasicMaterial({color: 0x79a6b6, transparent: true, opacity: 0.16, depthWrite: false}));
-  face.rotation.x = -Math.PI / 2; face.position.y = y + 0.13; board.add(face);
-  const edge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(Array.from({length: 73}, (_, index) => { const angle = index / 72 * Math.PI * 2; return new THREE.Vector3(Math.cos(angle) * 9.35, y + 0.15, Math.sin(angle) * 9.35); })), new THREE.LineBasicMaterial({color: 0x9ed7e8, transparent: true, opacity: 0.9}));
-  board.add(edge);
+  const material = new THREE.MeshStandardMaterial({color: 0x487483, roughness: 0.5, metalness: 0.24});
+  const edge = new THREE.LineBasicMaterial({color: 0xb1d9e5, transparent: true, opacity: 0.68});
+  const widths = [3, 7, 9, 11, 13, 13, 15, 15, 15, 13, 13, 11, 9, 7, 3];
+  widths.forEach((width, row) => {
+    const start = Math.floor((15 - width) / 2);
+    for (let offset = 0; offset < width; offset += 1) {
+      const geometry = new THREE.BoxGeometry(1.12, 0.19, 1.12);
+      const cell = new THREE.Mesh(geometry, material);
+      cell.position.set((start + offset - 7) * 1.18, y, (row - 7) * 1.18); board.add(cell);
+      const outline = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), edge);
+      outline.position.copy(cell.position); board.add(outline);
+    }
+  });
+  [['180', 0, -10.1], ['0', 0, 10.1], ['90', -10.1, 0], ['270', 10.1, 0]].forEach(([text, x, z]) => {
+    const angle = label(`${text}°`, '#d5f1fa', '#102c38'); angle.position.set(x, y + 0.28, z); angle.scale.set(0.54, 0.27, 1); board.add(angle);
+  });
   board.name = name; model.add(board);
+}
+
+function resetTopView() {
+  camera.position.set(0, 27, 0.1);
+  controls.target.set(0, 4.5, 0);
+  controls.update();
 }
 
 function addLayers() {
@@ -153,10 +170,11 @@ async function load(scope) {
   activeScope = scope || activeScope || readWorkspaceScope(); const params = new URLSearchParams({page: '1', size: '200'});
   ['site', 'unit', 'outage'].forEach(key => { if (activeScope[key]) params.set(key, activeScope[key]); });
   const result = await fetch(`/api/findings?${params}`).then(response => response.json()); activeRows = result.items || [];
+  const selectedRows = Array.isArray(activeScope.selectedItems) ? activeScope.selectedItems : [];
   const unit = Number(activeScope.unit || activeRows[0]?.unit_id || 0); const outage = activeScope.outage || activeRows[0]?.outage || '';
   scopeText.textContent = unit && outage ? `${outage} · ${unit}号机 · 工作台筛选数据` : '请先在数据工作台选择机组和大修';
   parityText.textContent = unit ? `${unit % 2 ? '奇数' : '偶数'}机组映射 · 50根指套管` : '工作台筛选驱动';
-  clearModel(); addPlate(9, 'top-plate'); addPlate(0, 'bottom-plate'); addLayers(); if (unit) { addTubes(unit); addDefects(activeRows); } showStats(activeRows, unit, outage);
+  clearModel(); addPlate(9, 'top-plate'); addPlate(0, 'bottom-plate'); addLayers(); if (unit) { addTubes(unit); addDefects(selectedRows.length ? selectedRows : activeRows); } showStats(activeRows, unit, outage);
 }
 
 function readWorkspaceScope() { return {site: document.querySelector('#site')?.value || '', unit: document.querySelector('#unit')?.value || '', outage: document.querySelector('#outage')?.value || ''}; }
