@@ -2,7 +2,7 @@ import * as THREE from '/vendor/three.module.min.js';
 import { OrbitControls } from '/vendor/OrbitControls.js';
 
 const ODD_POSITIONS='L11 G14 N7 H13 J12 R8 N12 N10 L14 J15 H11 F13 J7 L5 N5 L8 N8 L6 J10 L9 F9 C12 G7 L4 J5 M3 G9 E11 F11 D12 F6 B10 D7 E5 H3 J3 H6 H4 F8 D10 B7 B5 D3 D5 F2 H1 B8 F4 C8 A9'.split(' ');
-const EVEN_POSITIONS='B5 C8 E11 D10 D12 C12 B10 B7 A9 B8 D5 D3 F6 H13 F9 G14 F13 E5 F11 D7 G7 F2 H6 H11 J10 J12 J15 G9 F8 F4 H3 H1 J3 N12 L9 L11 L14 J5 J7 H4 M3 M5 R8 N7 N8 N10 L5 L8 L6 L4'.split(' ');
+const EVEN_POSITIONS='B5 C8 E11 D10 D12 C12 B10 B7 A9 B8 D5 D3 F6 H13 F9 G14 F13 E5 F11 D7 G7 F2 H6 H11 J10 J12 J15 G9 F8 F4 H3 H1 J3 N12 L9 L11 L14 J5 J7 H4 M3 N5 R8 N7 N8 N10 L5 L8 L6 L4'.split(' ');
 let POSITIONS=ODD_POSITIONS;
 const COLS='RPNMLKJHGFEDCBA'.split('');
 const CORE_ROWS=[
@@ -25,8 +25,8 @@ const key=new THREE.DirectionalLight(0xffffff,4);key.position.set(15,24,18);scen
 const rim=new THREE.DirectionalLight(0xd7ef4a,2.2);rim.position.set(-16,8,-12);scene.add(rim);
 
 const root=new THREE.Group();scene.add(root);
-const coreGroup=new THREE.Group(),tubesGroup=new THREE.Group(),structureGroup=new THREE.Group(),labelsGroup=new THREE.Group(),externalGroup=new THREE.Group();
-root.add(coreGroup,tubesGroup,structureGroup,labelsGroup,externalGroup);
+const coreGroup=new THREE.Group(),tubesGroup=new THREE.Group(),structureGroup=new THREE.Group(),labelsGroup=new THREE.Group(),externalGroup=new THREE.Group(),dataDefectsGroup=new THREE.Group();
+root.add(coreGroup,tubesGroup,structureGroup,labelsGroup,externalGroup,dataDefectsGroup);
 const tubeGroups=[];let selected=0,scanning=false,coreVisible=true,labelsVisible=true,cameraTween=null,currentCamera='overview';
 
 const metal=new THREE.MeshStandardMaterial({color:0x8f9b96,metalness:.82,roughness:.28});
@@ -37,6 +37,7 @@ const tubeMaterial=new THREE.MeshPhysicalMaterial({color:0xaebbb5,metalness:.78,
 const sleeveMaterial=new THREE.MeshPhysicalMaterial({color:0x53605b,metalness:.68,roughness:.3,transparent:true,opacity:.56});
 const signalMaterial=new THREE.MeshStandardMaterial({color:0xd7ef4a,emissive:0x829500,emissiveIntensity:1.5,metalness:.25,roughness:.28});
 const hotMaterial=new THREE.MeshStandardMaterial({color:0xe45b4e,emissive:0x6d1710,emissiveIntensity:.65,metalness:.35,roughness:.3});
+const supportMaterials=[];
 
 function coordinate(position){const m=position.match(/([A-Z])(\d+)/);return{x:(COLS.indexOf(m[1])-7)*1.08,z:(+m[2]-8)*1.08}}
 function cylinder(radius,height,material,segments=20){return new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,height,segments),material)}
@@ -49,10 +50,11 @@ function buildCore(){
 }
 
 function buildInternalStructures(){
-  const lowerGrid=new THREE.Mesh(new THREE.CylinderGeometry(8.55,8.55,.22,72),darkMetal);lowerGrid.position.y=.96;structureGroup.add(lowerGrid);
-  const supportPlate=new THREE.Mesh(new THREE.CylinderGeometry(8.2,8.2,.5,72),metal);supportPlate.position.y=-.05;structureGroup.add(supportPlate);
-  for(let i=0;i<12;i++){const a=i/12*Math.PI*2,col=cylinder(.24,2.5,darkMetal,16);col.position.set(Math.cos(a)*6.4,-1.55,Math.sin(a)*6.4);structureGroup.add(col)}
-  const gridPlate=new THREE.Mesh(new THREE.CylinderGeometry(7.65,7.65,.24,72),metal);gridPlate.position.y=-2.78;structureGroup.add(gridPlate);
+  const plateMetal=metal.clone(),plateDark=darkMetal.clone();supportMaterials.push(plateMetal,plateDark);
+  const lowerGrid=new THREE.Mesh(new THREE.CylinderGeometry(8.55,8.55,.22,72),plateDark);lowerGrid.position.y=.96;structureGroup.add(lowerGrid);
+  const supportPlate=new THREE.Mesh(new THREE.CylinderGeometry(8.2,8.2,.5,72),plateMetal);supportPlate.position.y=-.05;structureGroup.add(supportPlate);
+  for(let i=0;i<12;i++){const a=i/12*Math.PI*2,col=cylinder(.24,2.5,plateDark,16);col.position.set(Math.cos(a)*6.4,-1.55,Math.sin(a)*6.4);structureGroup.add(col)}
+  const gridPlate=new THREE.Mesh(new THREE.CylinderGeometry(7.65,7.65,.24,72),plateMetal);gridPlate.position.y=-2.78;structureGroup.add(gridPlate);
   const vesselWall=new THREE.Mesh(new THREE.CylinderGeometry(9.5,9.5,8.3,72,1,true,Math.PI*.18,Math.PI*1.42),shellMaterial);vesselWall.position.y=-.2;structureGroup.add(vesselWall);
   const lowerHead=new THREE.Mesh(new THREE.SphereGeometry(9.5,72,28,Math.PI*.18,Math.PI*1.42,Math.PI/2,Math.PI/2),shellMaterial);lowerHead.scale.y=.48;lowerHead.position.y=-4.35;structureGroup.add(lowerHead);
 }
@@ -115,6 +117,22 @@ function applyParity(value){
   tubeGroups.forEach((group,index)=>{const {x,z}=coordinate(POSITIONS[index]);group.userData.position=POSITIONS[index];group.children.forEach(mesh=>{mesh.position.x=x;mesh.position.z=z})});
   setSelected(selected);
 }
+
+function isDefect(row){const indication=String(row.indication||'').trim().toUpperCase();return Boolean(indication)&&indication!=='NDD'&&(Number(row.percent||0)>0||Number(row.datapoint||0)>0)}
+function defectY(location){const match=String(location||'').match(/(P[1-6])(?:\s*\+\s*([-+]?\d+(?:\.\d+)?))?/i),zone=(match?.[1]||'P3').toUpperCase(),offset=Math.max(0,Math.min(400,Number(match?.[2]||0))),index=Math.max(0,pointDefinitions.findIndex(item=>item[0]===zone)),base=pointDefinitions[index][1],next=pointDefinitions[index+1]?.[1]??-5.25;return base-(offset/400)*(base-next)}
+function renderDataDefects(rows=[]){
+  dataDefectsGroup.clear();const grouped=new Map();rows.filter(isDefect).forEach(row=>{const key=`${row.thimble_id}|${row.location}`;if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(row)});
+  grouped.forEach(records=>{const row=records.reduce((best,item)=>Number(item.percent||0)>Number(best.percent||0)?item:best,records[0]),position=row.position||POSITIONS[Number(row.thimble_id)-1],{x,z}=coordinate(position),percent=Number(row.percent||0),color=percent>=40?0xe45b4e:percent>=20?0xd9a441:0xd7ef4a,point=new THREE.Mesh(new THREE.SphereGeometry(.13,18,12),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.85}));point.position.set(x,defectY(row.location),z);point.userData={records,id:Number(row.thimble_id),position};dataDefectsGroup.add(point)});
+}
+
+async function applyWorkspaceScope(scope={}){
+  const unit=Number(scope.unit||0);if(unit){const parity=unit%2?'odd':'even';document.querySelector('#paritySelect').value=parity;applyParity(parity)}
+  let rows=Array.isArray(scope.selectedItems)&&scope.selectedItems.length?scope.selectedItems:null;
+  if(!rows&&unit&&scope.outage){const params=new URLSearchParams({page:'1',size:'200',unit:String(unit),outage:scope.outage});if(scope.site)params.set('site',scope.site);const response=await fetch(`/api/findings?${params}`);rows=(await response.json()).items||[]}
+  renderDataDefects(rows||[]);
+}
+
+window.addEventListener('message',event=>{if(event.origin!==location.origin)return;const message=event.data||{};if(message.type==='thimble-scope')applyWorkspaceScope(message.scope);if(message.type==='thimble-focus'){setSelected(Number(message.thimble||1)-1)}});
 setSelected(0);
 
 const presets={overview:{p:[43,22,49],t:[8,1,0]},section:{p:[40,9,43],t:[8,-.8,0]},plate:{p:[0,37,.01],t:[0,2,0]},tube:{p:[36,3,27],t:[13,-3.2,0]}};
@@ -129,6 +147,7 @@ document.querySelector('#tubeSelect').oninput=e=>setSelected(+e.target.value-1);
 document.querySelector('#paritySelect').onchange=e=>applyParity(e.target.value);
 document.querySelector('#layerSelect').onchange=updateArtificialDefect;document.querySelector('#offsetInput').oninput=updateArtificialDefect;document.querySelector('#defectColor').oninput=updateArtificialDefect;document.querySelector('#defectSize').oninput=updateArtificialDefect;
 document.querySelector('#coreOpacity').oninput=e=>{fuelMaterial.opacity=Number(e.target.value)/100;document.querySelector('#coreOpacityOutput').textContent=`${e.target.value}%`};
+document.querySelector('#plateOpacity').oninput=e=>{const opacity=Number(e.target.value)/100;supportMaterials.forEach(material=>{material.transparent=opacity<1;material.opacity=opacity;material.depthWrite=opacity>.45;material.needsUpdate=true});document.querySelector('#plateOpacityOutput').textContent=`${e.target.value}%`};
 document.querySelector('#toggleCore').onclick=e=>{coreVisible=!coreVisible;coreGroup.visible=currentCamera!=='tube'&&coreVisible;e.currentTarget.classList.toggle('active',coreVisible)};
 document.querySelector('#toggleLabels').onclick=e=>{labelsVisible=!labelsVisible;labelsGroup.visible=labelsVisible;e.currentTarget.classList.toggle('active',labelsVisible)};
 document.querySelector('#toggleDefect').onclick=e=>{defectPreview.visible=!defectPreview.visible;e.currentTarget.classList.toggle('active',defectPreview.visible)};
