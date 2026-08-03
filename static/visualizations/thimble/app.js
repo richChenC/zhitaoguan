@@ -44,7 +44,7 @@ const hotMaterial=new THREE.MeshStandardMaterial({color:0xe45b4e,emissive:0x6d17
 const supportMaterials=[];
 
 function coordinate(position){const m=position.match(/([A-Z])(\d+)/);return{x:(COLS.indexOf(m[1])-7)*1.08,z:(+m[2]-8)*1.08}}
-function cylinder(radius,height,material,segments=20){return new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,height,segments),material)}
+function cylinder(radius,height,material,segments=32){return new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,height,segments),material)}
 function horizontalCylinder(radius,length,material){const mesh=cylinder(radius,length,material,24);mesh.rotation.z=Math.PI/2;return mesh}
 function tubeFrom(points,radius,material,segments=48){return new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),segments,radius,14,false),material)}
 function makeLabel(text,color='#d7ef4a'){const wide=text.length>4,c=document.createElement('canvas');c.width=wide?440:180;c.height=58;const x=c.getContext('2d');x.fillStyle='#111716e8';x.fillRect(0,0,c.width,c.height);x.strokeStyle=color;x.strokeRect(1,1,c.width-2,c.height-2);x.fillStyle='#eef2ed';x.font='700 24px Microsoft YaHei';x.textAlign='center';x.textBaseline='middle';x.fillText(text,c.width/2,30);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));s.scale.set(wide?4.3:1.75,.56,1);return s}
@@ -56,19 +56,19 @@ function buildCore(){
 
 function buildInternalStructures(){
   const plateMetal=metal.clone(),plateDark=darkMetal.clone();supportMaterials.push(plateMetal,plateDark);
-  const lowerGrid=new THREE.Mesh(new THREE.CylinderGeometry(8.55,8.55,.22,72),plateDark);lowerGrid.position.y=.96;structureGroup.add(lowerGrid);
-  const supportPlate=new THREE.Mesh(new THREE.CylinderGeometry(8.2,8.2,.5,72),plateMetal);supportPlate.position.y=-.05;structureGroup.add(supportPlate);
+  const lowerGrid=new THREE.Mesh(new THREE.CylinderGeometry(8.55,8.55,.22,96),plateDark);lowerGrid.position.y=.96;structureGroup.add(lowerGrid);
+  const supportPlate=new THREE.Mesh(new THREE.CylinderGeometry(8.2,8.2,.5,96),plateMetal);supportPlate.position.y=-.05;structureGroup.add(supportPlate);
   for(let i=0;i<12;i++){const a=i/12*Math.PI*2,col=cylinder(.24,2.5,plateDark,16);col.position.set(Math.cos(a)*6.4,-1.55,Math.sin(a)*6.4);structureGroup.add(col)}
-  const gridPlate=new THREE.Mesh(new THREE.CylinderGeometry(7.65,7.65,.24,72),plateMetal);gridPlate.position.y=-2.78;structureGroup.add(gridPlate);
-  const vesselWall=new THREE.Mesh(new THREE.CylinderGeometry(9.5,9.5,8.3,72,1,true),shellMaterial);vesselWall.position.y=-.2;shellGroup.add(vesselWall);
-  const lowerHead=new THREE.Mesh(new THREE.SphereGeometry(9.5,72,28,0,Math.PI*2,Math.PI/2,Math.PI/2),shellMaterial);lowerHead.scale.y=.48;lowerHead.position.y=-4.35;shellGroup.add(lowerHead);
+  const gridPlate=new THREE.Mesh(new THREE.CylinderGeometry(7.65,7.65,.24,96),plateMetal);gridPlate.position.y=-2.78;structureGroup.add(gridPlate);
+  const vesselWall=new THREE.Mesh(new THREE.CylinderGeometry(9.5,9.5,8.32,96,1,true),shellMaterial);vesselWall.position.y=-.19;shellGroup.add(vesselWall);
+  const lowerHead=new THREE.Mesh(new THREE.SphereGeometry(9.5,96,36,0,Math.PI*2,Math.PI/2,Math.PI/2),shellMaterial);lowerHead.scale.y=.48;lowerHead.position.y=-4.35;shellGroup.add(lowerHead);
 }
 
 function buildThimbles(){
   POSITIONS.forEach((position,index)=>{const{x,z}=coordinate(position),g=new THREE.Group();g.userData={index,position};
-    const straight=cylinder(.095,EMBEDDED?8:13.25,tubeMaterial,14);straight.position.set(x,EMBEDDED?-.8:2.575,z);g.add(straight);
-    const tip=new THREE.Mesh(new THREE.SphereGeometry(.095,14,8,0,Math.PI*2,0,Math.PI/2),tubeMaterial);tip.position.set(x,EMBEDDED?3.2:9.2,z);g.add(tip);
-    const guide=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,4.7,18,1,true),sleeveMaterial);guide.position.set(x,-1.65,z);g.add(guide);
+    const straight=cylinder(.095,EMBEDDED?8:13.25,tubeMaterial,24);straight.position.set(x,EMBEDDED?-.8:2.575,z);g.add(straight);
+    const tip=new THREE.Mesh(new THREE.SphereGeometry(.095,24,12,0,Math.PI*2,0,Math.PI/2),tubeMaterial);tip.position.set(x,EMBEDDED?3.2:9.2,z);g.add(tip);
+    const guide=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,4.7,28,1,true),sleeveMaterial);guide.position.set(x,-1.65,z);g.add(guide);
     const nozzle=cylinder(.32,1.25,darkMetal,18);nozzle.position.set(x,-4.32,z);g.add(nozzle);
     tubesGroup.add(g);tubeGroups.push(g);
   });
@@ -88,7 +88,7 @@ function updateTubeNumberOverlay(){
     occupied.push({x,y});element.hidden=false;element.classList.toggle('selected',index===selected);element.style.transform=`translate(${x}px,${y}px) translate(-50%, -50%)`;
   });
 }
-function buildOrientation(){orientationGroup.clear();[['180°',0,-9.25],['0°',0,9.25],['90°',-9.25,0],['270°',9.25,0]].forEach(([text,x,z])=>{const marker=makeLabel(text,'#d7ef4a');marker.position.set(x,1.18,z);marker.scale.set(.82,.34,1);orientationGroup.add(marker)})}
+function buildOrientation(){orientationGroup.clear();[['180°',0,-8.85],['0°',0,8.85],['90°',-8.85,0],['270°',8.85,0]].forEach(([text,x,z])=>{const marker=makeLabel(text,'#d7ef4a');marker.position.set(x,1.22,z);marker.scale.set(1.5,.58,1);orientationGroup.add(marker)})}
 
 const pointDefinitions=[
   ['P1',.9,'下栅格板'],['P2',.2,'支撑板上表面'],['P3',-.3,'支撑板下表面'],
