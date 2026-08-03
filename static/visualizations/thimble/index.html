@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>核电站堆芯中子通量指套管 | 三维结构</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/thimble-visualization.css">
+  <link rel="stylesheet" href="/visualizations/thimble/styles.css">
+  <link rel="stylesheet" href="/visualizations/thimble/manual-settings.css">
   <style>
     #scene { z-index: 0; }
     .topbar, .intro, .camera-rail, .inspector, .axis, .gesture { pointer-events: auto; }
@@ -45,9 +46,22 @@
       </dl>
       <div class="control-group"><label for="tubeSelect">指套管编号</label><input id="tubeSelect" type="range" min="1" max="50" value="1"><output id="tubeOutput">01</output></div>
       <div class="control-group"><label for="detectorDepth">探测器位置</label><input id="detectorDepth" type="range" min="0" max="100" value="74"><output id="depthOutput">74%</output></div>
+      <section class="manual-settings" aria-label="人工缺陷设置">
+        <div class="settings-title"><b>人工缺陷设置</b><span>MODEL SETUP</span></div>
+        <div class="setting-grid">
+          <label>机组映射<select id="paritySelect"><option value="odd">奇数机组</option><option value="even">偶数机组</option></select></label>
+          <label>缺陷层<select id="layerSelect"><option>P1</option><option>P2</option><option>P3</option><option>P4</option><option>P5</option><option>P6</option></select></label>
+          <label>层内偏移<input id="offsetInput" type="number" min="0" max="400" step="1" value="10"><span class="unit">mm</span></label>
+          <label>缺陷颜色<input id="defectColor" type="color" value="#e45b4e"></label>
+        </div>
+        <div class="control-group compact"><label for="defectSize">缺陷点大小</label><input id="defectSize" type="range" min="6" max="22" value="11"><output id="defectSizeOutput">11</output></div>
+        <div class="control-group compact"><label for="coreOpacity">堆芯透明度</label><input id="coreOpacity" type="range" min="0" max="70" value="20"><output id="coreOpacityOutput">20%</output></div>
+        <div class="preview-status"><span>当前预览</span><b id="defectSummary">01号管 · P1 + 10 mm</b></div>
+      </section>
       <div class="toggles">
         <button id="toggleCore" class="active" type="button">堆芯结构</button>
         <button id="toggleLabels" class="active" type="button">轴向标记</button>
+        <button id="toggleDefect" class="active" type="button">缺陷点</button>
         <button id="autoScan" type="button">自动扫描</button>
       </div>
       <p class="note">概念可视化用于结构理解，不作为核电厂设计、验收或维修判据。</p>
@@ -55,6 +69,6 @@
     <div class="axis"><span>N / 180°</span><i></i><span>S / 0°</span></div>
     <div class="gesture">拖动旋转 · 滚轮缩放 · 点击套管选择</div>
   </main>
-  <script type="module" src="/thimble-visualization.js"></script>
+  <script type="module" src="/visualizations/thimble/app.js"></script>
 </body>
 </html>
