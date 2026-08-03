@@ -22,6 +22,8 @@ const scene=new THREE.Scene();scene.background=new THREE.Color(0x080b0c);scene.f
 const camera=new THREE.PerspectiveCamera(34,1,.1,220);camera.position.set(32,18,37);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;host.append(renderer.domElement);
 const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(4,2,0);controls.enableDamping=true;controls.dampingFactor=.065;controls.minDistance=10;controls.maxDistance=85;
+// 中键拖动用于平移模型，滚轮仍负责缩放，左键负责旋转。
+controls.mouseButtons.MIDDLE=THREE.MOUSE.PAN;
 scene.add(new THREE.HemisphereLight(0xe8f1ed,0x111716,2.2));
 const key=new THREE.DirectionalLight(0xffffff,4);key.position.set(15,24,18);scene.add(key);
 const rim=new THREE.DirectionalLight(0xd7ef4a,2.2);rim.position.set(-16,8,-12);scene.add(rim);
