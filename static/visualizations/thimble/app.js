@@ -27,8 +27,8 @@ const key=new THREE.DirectionalLight(0xffffff,4);key.position.set(15,24,18);scen
 const rim=new THREE.DirectionalLight(0xd7ef4a,2.2);rim.position.set(-16,8,-12);scene.add(rim);
 
 const root=new THREE.Group();scene.add(root);
-const coreGroup=new THREE.Group(),tubesGroup=new THREE.Group(),structureGroup=new THREE.Group(),shellGroup=new THREE.Group(),labelsGroup=new THREE.Group(),numberGroup=new THREE.Group(),externalGroup=new THREE.Group(),dataDefectsGroup=new THREE.Group();
-root.add(coreGroup,tubesGroup,structureGroup,shellGroup,labelsGroup,numberGroup,externalGroup,dataDefectsGroup);
+const coreGroup=new THREE.Group(),tubesGroup=new THREE.Group(),structureGroup=new THREE.Group(),shellGroup=new THREE.Group(),labelsGroup=new THREE.Group(),numberGroup=new THREE.Group(),orientationGroup=new THREE.Group(),externalGroup=new THREE.Group(),dataDefectsGroup=new THREE.Group();
+root.add(coreGroup,tubesGroup,structureGroup,shellGroup,labelsGroup,numberGroup,orientationGroup,externalGroup,dataDefectsGroup);
 const tubeGroups=[];let selected=0,scanning=false,coreVisible=true,labelsVisible=true,shellVisible=true,numbersVisible=true,cameraTween=null,currentCamera='overview';
 
 const metal=new THREE.MeshStandardMaterial({color:0x8f9b96,metalness:.82,roughness:.28});
@@ -73,13 +73,14 @@ function buildThimbles(){
 }
 
 function makeTubeNumber(text){const canvas=document.createElement('canvas');canvas.width=64;canvas.height=40;const context=canvas.getContext('2d');context.fillStyle='#101716e8';context.fillRect(1,1,62,38);context.strokeStyle='#d7ef4a';context.lineWidth=2;context.strokeRect(1,1,62,38);context.fillStyle='#f4f7f5';context.font='700 20px Consolas';context.textAlign='center';context.textBaseline='middle';context.fillText(text,32,21);const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(canvas),transparent:true,depthTest:false}));sprite.scale.set(.46,.29,1);sprite.renderOrder=40;return sprite}
-function buildTubeNumbers(){numberGroup.clear();POSITIONS.forEach((position,index)=>{const{x,z}=coordinate(position),number=makeTubeNumber(String(index+1));number.position.set(x,1.23,z);number.userData={index,position};numberGroup.add(number)})}
+function buildTubeNumbers(){numberGroup.clear();POSITIONS.forEach((position,index)=>{const{x,z}=coordinate(position),number=makeTubeNumber(String(index+1));number.position.set(x,1.12,z);number.userData={index,position};numberGroup.add(number)})}
+function buildOrientation(){orientationGroup.clear();[['180°',0,-9.25],['0°',0,9.25],['90°',-9.25,0],['270°',9.25,0]].forEach(([text,x,z])=>{const marker=makeLabel(text,'#d7ef4a');marker.position.set(x,1.18,z);marker.scale.set(.82,.34,1);orientationGroup.add(marker)})}
 
 const pointDefinitions=[
   ['P1',.9,'下栅格板'],['P2',.2,'支撑板上表面'],['P3',-.3,'支撑板下表面'],
   ['P4',-2.65,'支撑柱与格架板'],['P5',-3.7,'支撑柱与RPV管座'],['P6',-4.75,'RPV管座与导向管']
 ];
-function buildPointLabels(){pointDefinitions.forEach(([p,y,label],i)=>{const color=i===0||i===3?'#e45b4e':'#d7ef4a';const line=new THREE.Mesh(new THREE.BoxGeometry(2.35,.032,.032),new THREE.MeshBasicMaterial({color}));line.position.set(9.4,y,0);labelsGroup.add(line);const sprite=makeLabel(`${p} ${label}`,color);sprite.position.set(11.8,y,0);if(EMBEDDED)sprite.scale.set(5.1,.68,1);labelsGroup.add(sprite)})}
+function buildPointLabels(){pointDefinitions.forEach(([p,y],i)=>{const color=i===0||i===3?'#e45b4e':'#d7ef4a';const line=new THREE.Mesh(new THREE.BoxGeometry(1.25,.032,.032),new THREE.MeshBasicMaterial({color}));line.position.set(9.15,y,0);labelsGroup.add(line);const sprite=makeLabel(p,color);sprite.position.set(10.15,y,0);sprite.scale.set(.9,.36,1);labelsGroup.add(sprite)})}
 
 function addValve(group,x,label,automatic=false){
   const body=horizontalCylinder(.42,1.05,darkMetal);body.position.set(x,-5.6,0);group.add(body);
@@ -98,7 +99,7 @@ function buildExternalPath(){
   const drive=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.35,1.25),darkMetal);drive.position.set(25,-5.6,0);externalGroup.add(drive);const driveTag=makeLabel('传送装置');driveTag.position.set(25,-6.5,0);externalGroup.add(driveTag);
 }
 
-buildCore();buildInternalStructures();buildThimbles();buildTubeNumbers();buildPointLabels();externalGroup.visible=!EMBEDDED;
+buildCore();buildInternalStructures();buildThimbles();buildTubeNumbers();buildOrientation();buildPointLabels();externalGroup.visible=!EMBEDDED;
 const detector=cylinder(.05,.7,signalMaterial,14);root.add(detector);const detectorGlow=new THREE.PointLight(0xd7ef4a,8,3);root.add(detectorGlow);
 detector.visible=!EMBEDDED;detectorGlow.visible=!EMBEDDED;
 const defectMaterial=new THREE.MeshStandardMaterial({color:0xe45b4e,emissive:0x7a1912,emissiveIntensity:1.15,metalness:.22,roughness:.26});
@@ -144,12 +145,13 @@ async function applyWorkspaceScope(scope={}){
 window.addEventListener('message',event=>{if(event.origin!==location.origin)return;const message=event.data||{};if(message.type==='thimble-scope')applyWorkspaceScope(message.scope);if(message.type==='thimble-focus'){setSelected(Number(message.thimble||1)-1)}});
 setSelected(0);
 
-const presets={overview:{p:EMBEDDED?[27,12,31]:[43,22,49],t:EMBEDDED?[3,-1.1,0]:[8,1,0]},section:{p:[32,7,35],t:[5,-1.8,0]},plate:{p:[0,28,.01],t:[0,-1.5,0]},tube:{p:[28,2,22],t:[9,-2.2,0]}};
-function setCamera(name){currentCamera=name;const single=name==='tube';let preset=presets[name];if(single){const{x,z}=coordinate(POSITIONS[selected]);preset={p:[x+9,3,z+12],t:[x,-.7,z]}}tubeGroups.forEach((g,i)=>g.visible=!single||i===selected);coreGroup.visible=!single&&coreVisible;structureGroup.visible=!single;shellGroup.visible=!single&&shellVisible;labelsGroup.visible=!single&&labelsVisible;numberGroup.visible=!single&&numbersVisible;dataDefectsGroup.children.forEach(point=>point.visible=!single||Number(point.userData.id)===selected+1);cameraTween={start:performance.now(),fromP:camera.position.clone(),fromT:controls.target.clone(),toP:new THREE.Vector3(...preset.p),toT:new THREE.Vector3(...preset.t)};document.querySelectorAll('[data-camera],[data-embedded-view]').forEach(b=>b.classList.toggle('active',(b.dataset.camera||b.dataset.embeddedView)===name))}
+const presets={overview:{p:EMBEDDED?[27,12,31]:[43,22,49],t:EMBEDDED?[3,-1.1,0]:[8,1,0]},section:{p:[32,7,35],t:[5,-1.8,0]},plate:{p:[0,34,.01],t:[0,0,0]},tube:{p:[28,2,22],t:[9,-2.2,0]}};
+function setCamera(name){currentCamera=name;const single=name==='tube',plate=name==='plate';let preset=presets[name];if(single){const{x,z}=coordinate(POSITIONS[selected]);preset={p:[x+9,3,z+12],t:[x,-.7,z]}}camera.up.set(0,plate?0:1,plate?-1:0);tubeGroups.forEach((g,i)=>g.visible=!single||i===selected);coreGroup.visible=!single&&coreVisible;structureGroup.visible=!single;shellGroup.visible=!single&&shellVisible;labelsGroup.visible=!single&&!plate&&labelsVisible;numberGroup.visible=!single&&numbersVisible;orientationGroup.visible=!single;dataDefectsGroup.children.forEach(point=>point.visible=!single||Number(point.userData.id)===selected+1);cameraTween={start:performance.now(),fromP:camera.position.clone(),fromT:controls.target.clone(),toP:new THREE.Vector3(...preset.p),toT:new THREE.Vector3(...preset.t)};document.querySelectorAll('[data-camera],[data-embedded-view]').forEach(b=>b.classList.toggle('active',(b.dataset.camera||b.dataset.embeddedView)===name))}
 function enter(){document.querySelector('.intro').classList.add('dismissed');document.querySelector('.inspector').classList.add('visible')}
 function resize(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}new ResizeObserver(resize).observe(host);resize();
 
 const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();renderer.domElement.addEventListener('pointerdown',event=>{const r=renderer.domElement.getBoundingClientRect();pointer.set((event.clientX-r.left)/r.width*2-1,-(event.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects(tubeGroups,true)[0];if(hit){let o=hit.object;while(o.parent&&!o.userData.position)o=o.parent;if(o.userData.position)setSelected(o.userData.index)}});
+renderer.domElement.addEventListener('dblclick',()=>setCamera('plate'));
 document.querySelector('#enter').onclick=()=>{enter();setCamera('overview')};
 document.querySelectorAll('[data-camera]').forEach(b=>b.onclick=()=>{enter();setCamera(b.dataset.camera)});
 document.querySelectorAll('[data-embedded-view]').forEach(button=>button.onclick=()=>setCamera(button.dataset.embeddedView));
