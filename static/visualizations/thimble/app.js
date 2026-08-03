@@ -21,9 +21,10 @@ const host=document.querySelector('#scene');
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x080b0c);scene.fog=new THREE.FogExp2(0x080b0c,.012);
 const camera=new THREE.PerspectiveCamera(34,1,.1,220);camera.position.set(32,18,37);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;host.append(renderer.domElement);
-const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(4,2,0);controls.enableDamping=true;controls.dampingFactor=.18;controls.rotateSpeed=.55;controls.panSpeed=.42;controls.zoomSpeed=.72;controls.minDistance=10;controls.maxDistance=85;
-// 左键和中键旋转，右键平移，避免中键误平移导致模型突然飘出视野。
-controls.mouseButtons.MIDDLE=THREE.MOUSE.ROTATE;
+const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(4,2,0);controls.enableDamping=true;controls.dampingFactor=.24;controls.rotateSpeed=.22;controls.panSpeed=.48;controls.zoomSpeed=.72;controls.minDistance=10;controls.maxDistance=85;
+// 左键低速旋转，中键和右键平移，滚轮缩放。
+controls.mouseButtons.MIDDLE=THREE.MOUSE.PAN;
+controls.mouseButtons.RIGHT=THREE.MOUSE.PAN;
 scene.add(new THREE.HemisphereLight(0xe8f1ed,0x111716,2.2));
 const key=new THREE.DirectionalLight(0xffffff,4);key.position.set(15,24,18);scene.add(key);
 const rim=new THREE.DirectionalLight(0xd7ef4a,2.2);rim.position.set(-16,8,-12);scene.add(rim);
