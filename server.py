@@ -15,6 +15,11 @@ from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
+
+VENDOR_DIR = Path(__file__).resolve().parent / ".vendor"
+if VENDOR_DIR.is_dir():
+    sys.path.insert(0, str(VENDOR_DIR))
+
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
@@ -934,6 +939,7 @@ class Handler(SimpleHTTPRequestHandler):
         if not target.is_file(): return self.send_error(HTTPStatus.NOT_FOUND)
         payload = target.read_bytes(); self.send_response(200)
         self.send_header("Content-Type", mimetypes.guess_type(target.name)[0] or "application/octet-stream")
+        self.send_header("Cache-Control", "no-store, max-age=0")
         self.send_header("Content-Length", str(len(payload))); self.end_headers(); self.wfile.write(payload)
 
 

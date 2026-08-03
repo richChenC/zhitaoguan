@@ -6,26 +6,16 @@
   if (duplicateImport) duplicateImport.remove();
   if (navFooter) navFooter.remove();
 
-  const metrics = document.querySelector('.metrics');
-  if (metrics) metrics.remove();
-
-  const tableTitle = document.querySelector('.table-panel .panel-title');
-  if (tableTitle && !$('#pageSize')) {
-    const control = document.createElement('label');
-    control.className = 'page-size';
-    control.innerHTML = '每页 <select id="pageSize"><option value="10">10</option><option value="20">20</option><option value="30">30</option><option value="40">40</option><option value="50" selected>50</option></select> 条';
-    tableTitle.append(control);
-    $('#pageSize').addEventListener('change', event => {
-      window.workspaceSetPageSize?.(Number(event.target.value));
-    });
-  }
-
   const table = document.querySelector('.table-panel table');
-  if (table) {
-    const header = table.querySelector('thead tr');
-    if (header && header.children.length > 9) header.children[8].remove();
+  const dataPointHeader = [...(table?.querySelectorAll('thead th') || [])].find(cell => cell.textContent.trim() === '数据点');
+  dataPointHeader?.remove();
+  const pager = document.querySelector('.table-panel .pager');
+  if (pager && !document.querySelector('#pageSize')) {
+    pager.innerHTML = '<div class="pager-left"><label for="pageSize">每页显示</label><select id="pageSize"><option value="10">10</option><option value="20">20</option><option value="50" selected>50</option><option value="100">100</option></select><span>条</span></div><div class="pager-right"><button id="prevBtn">上一页</button><span id="pageInfo">1 / 1</span><button id="nextBtn">下一页</button></div>';
+    $('#pageSize').addEventListener('change', event => window.workspaceSetPageSize?.(Number(event.target.value)));
+    $('#prevBtn').addEventListener('click', () => window.workspaceMovePage?.(-1));
+    $('#nextBtn').addEventListener('click', () => window.workspaceMovePage?.(1));
   }
-
   if (navImport) navImport.title = '导入检测文件夹或 Excel 数据';
 
   document.querySelector('#rows')?.addEventListener('click', () => {
