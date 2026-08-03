@@ -20,7 +20,7 @@ const CORE_ROWS=[
 const host=document.querySelector('#scene');
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x080b0c);scene.fog=new THREE.FogExp2(0x080b0c,.012);
 const camera=new THREE.PerspectiveCamera(34,1,.1,220);camera.position.set(32,18,37);
-const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;host.append(renderer.domElement);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(Math.max(devicePixelRatio,1)*2,3));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;host.append(renderer.domElement);
 const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,-.6,0);controls.enableDamping=true;controls.dampingFactor=.28;controls.rotateSpeed=.3;controls.panSpeed=.48;controls.zoomSpeed=.72;controls.minDistance=10;controls.maxDistance=85;controls.minPolarAngle=.06;controls.maxPolarAngle=Math.PI-.06;
 // 左键低速旋转，中键和右键平移，滚轮缩放。
 controls.mouseButtons.MIDDLE=THREE.MOUSE.PAN;
@@ -69,10 +69,10 @@ function buildInternalStructures(){
 
 function buildThimbles(){
   POSITIONS.forEach((position,index)=>{const{x,z}=coordinate(position),g=new THREE.Group();g.userData={index,position};
-    const straight=cylinder(.095,EMBEDDED?10.7:13.25,tubeMaterial,24);straight.position.set(x,EMBEDDED?-.7:2.575,z);g.add(straight);
-    const tip=new THREE.Mesh(new THREE.SphereGeometry(.095,24,12,0,Math.PI*2,0,Math.PI/2),tubeMaterial);tip.position.set(x,EMBEDDED?4.65:9.2,z);g.add(tip);
-    const guide=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,6.7,28,1,true),sleeveMaterial);guide.position.set(x,-2.15,z);g.add(guide);
-    const nozzle=cylinder(.32,1.25,darkMetal,18);nozzle.position.set(x,-5.5,z);g.add(nozzle);
+    const straight=cylinder(.095,EMBEDDED?10.7:13.25,tubeMaterial,40);straight.position.set(x,EMBEDDED?-.7:2.575,z);g.add(straight);
+    const tip=new THREE.Mesh(new THREE.SphereGeometry(.095,36,18,0,Math.PI*2,0,Math.PI/2),tubeMaterial);tip.position.set(x,EMBEDDED?4.65:9.2,z);g.add(tip);
+    const guide=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,6.7,40,1,true),sleeveMaterial);guide.position.set(x,-2.15,z);g.add(guide);
+    const nozzle=cylinder(.32,1.25,darkMetal,32);nozzle.position.set(x,-5.5,z);g.add(nozzle);
     tubesGroup.add(g);tubeGroups.push(g);
   });
 }
