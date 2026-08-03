@@ -5,7 +5,8 @@ const path = require('node:path');
 const fs = require('node:fs');
 
 const ROOT = path.resolve(__dirname, '..');
-const URL = 'http://127.0.0.1:8765';
+const PORT = '18765';
+const URL = `http://127.0.0.1:${PORT}`;
 let serverProcess = null;
 let mainWindow = null;
 
@@ -37,7 +38,8 @@ async function ensureServer() {
   serverProcess = spawn(command, ['server.py'], {
     cwd: ROOT,
     windowsHide: true,
-    stdio: 'ignore'
+    stdio: 'ignore',
+    env: { ...process.env, THIMBLE_PORT: PORT }
   });
   serverProcess.once('error', error => { spawnError = error; });
   for (let attempt = 0; attempt < 30; attempt += 1) {

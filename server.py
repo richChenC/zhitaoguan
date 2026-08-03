@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import mimetypes
+import os
 import re
 import sqlite3
 import sys
@@ -139,6 +140,17 @@ def position_for(unit_id: int, thimble_id: int) -> str:
 def split_location(location: str) -> tuple[str, float | None]:
     match = re.match(r"^\s*(P\d+)\s*(?:\+\s*([-+]?\d+(?:\.\d+)?))?\s*$", location or "", re.I)
     return (match.group(1).upper(), number(match.group(2), float)) if match else ((location or "").strip(), None)
+
+
+def format_location(location: str) -> str:
+    zone, offset = split_location(location)
+    if not zone:
+        return "-"
+    if not re.fullmatch(r"P[1-6]", zone, re.I):
+        return zone
+    value = 0 if offset is None else offset
+    rendered = str(int(value)) if float(value).is_integer() else f"{value:g}"
+    return f"{zone.upper()} + {rendered} mm"
 
 
 def normalize_header(value_) -> str:
@@ -654,7 +666,9 @@ def query_findings(params: dict[str, list[str]]) -> dict:
     items = []
     for row in rows:
         item = dict(row)
-        item["p_zone"], item["p_offset"] = split_location(item.get("location", ""))
+        item["location_raw"] = item.get("location", "")
+        item["p_zone"], item["p_offset"] = split_location(item["location_raw"])
+        item["location"] = format_location(item["location_raw"])
         items.append(item)
     return {"items": items, "total": total, "page": page, "size": size, "pages": max(1, (total + size - 1) // size)}
 
@@ -671,7 +685,6 @@ def overview() -> dict:
                       COUNT(*) findings, COUNT(DISTINCT thimble_id) tubes,
                       COUNT(DISTINCT analyst) analysts
                  FROM findings
-                WHERE outage <> '' AND outage <> 'UNKNOWN'
                 GROUP BY outage, unit_id
                 ORDER BY site, unit_id, outage"""
         )]
@@ -751,6 +764,9 @@ def tube_history(site: str, unit: int, thimble: int) -> dict:
             AND SUBSTR(f.outage,1,1)=? ORDER BY f.outage""", (unit, thimble, site.upper()))]
     rows.sort(key=lambda row: outage_sort_key(row["outage"]))
     annotate_evolution(rows)
+    for row in rows:
+        row["location_raw"] = row.get("location", "")
+        row["location"] = format_location(row["location_raw"])
     return {"site": site.upper(), "unit": unit, "thimble": thimble, "items": rows}
 
 def unit_evolution(site: str, unit: int) -> dict:
@@ -945,8 +961,9 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     init_db()
-    server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
-    print("指套管检测数据管理系统: http://127.0.0.1:8765", flush=True)
+    port = int(os.environ.get("THIMBLE_PORT", "8765"))
+    server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    print(f"指套管检测数据管理系统: http://127.0.0.1:{port}", flush=True)
     server.serve_forever()
 
 
