@@ -7,6 +7,7 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/visualizations/thimble/styles.css">
   <link rel="stylesheet" href="/visualizations/thimble/manual-settings.css">
+  <link rel="stylesheet" href="/visualizations/thimble/embedded.css">
   <style>
     #scene { z-index: 0; }
     .topbar, .intro, .camera-rail, .inspector, .axis, .gesture { pointer-events: auto; }
@@ -68,6 +69,7 @@
       <p class="note">概念可视化用于结构理解，不作为核电厂设计、验收或维修判据。</p>
     </aside>
     <div class="axis"><span>N / 180°</span><i></i><span>S / 0°</span></div>
+    <div class="fixed-orientation" aria-label="固定方位"><span class="north">180°</span><span class="south">0°</span><span class="west">90°</span><span class="east">270°</span><i></i></div>
     <div class="gesture">拖动旋转 · 滚轮缩放 · 点击套管选择</div>
   </main>
   <script type="module" src="/visualizations/thimble/app.js"></script>

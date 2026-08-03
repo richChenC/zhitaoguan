@@ -1,5 +1,7 @@
 import * as THREE from '/vendor/three.module.min.js';
 import { OrbitControls } from '/vendor/OrbitControls.js';
+const EMBEDDED=new URLSearchParams(location.search).get('embedded')==='1';
+if(EMBEDDED)document.body.classList.add('embedded');
 
 const ODD_POSITIONS='L11 G14 N7 H13 J12 R8 N12 N10 L14 J15 H11 F13 J7 L5 N5 L8 N8 L6 J10 L9 F9 C12 G7 L4 J5 M3 G9 E11 F11 D12 F6 B10 D7 E5 H3 J3 H6 H4 F8 D10 B7 B5 D3 D5 F2 H1 B8 F4 C8 A9'.split(' ');
 const EVEN_POSITIONS='B5 C8 E11 D10 D12 C12 B10 B7 A9 B8 D5 D3 F6 H13 F9 G14 F13 E5 F11 D7 G7 F2 H6 H11 J10 J12 J15 G9 F8 F4 H3 H1 J3 N12 L9 L11 L14 J5 J7 H4 M3 N5 R8 N7 N8 N10 L5 L8 L6 L4'.split(' ');
@@ -25,8 +27,8 @@ const key=new THREE.DirectionalLight(0xffffff,4);key.position.set(15,24,18);scen
 const rim=new THREE.DirectionalLight(0xd7ef4a,2.2);rim.position.set(-16,8,-12);scene.add(rim);
 
 const root=new THREE.Group();scene.add(root);
-const coreGroup=new THREE.Group(),tubesGroup=new THREE.Group(),structureGroup=new THREE.Group(),labelsGroup=new THREE.Group(),externalGroup=new THREE.Group(),dataDefectsGroup=new THREE.Group();
-root.add(coreGroup,tubesGroup,structureGroup,labelsGroup,externalGroup,dataDefectsGroup);
+const coreGroup=new THREE.Group(),tubesGroup=new THREE.Group(),structureGroup=new THREE.Group(),labelsGroup=new THREE.Group(),numberGroup=new THREE.Group(),externalGroup=new THREE.Group(),dataDefectsGroup=new THREE.Group();
+root.add(coreGroup,tubesGroup,structureGroup,labelsGroup,numberGroup,externalGroup,dataDefectsGroup);
 const tubeGroups=[];let selected=0,scanning=false,coreVisible=true,labelsVisible=true,cameraTween=null,currentCamera='overview';
 
 const metal=new THREE.MeshStandardMaterial({color:0x8f9b96,metalness:.82,roughness:.28});
@@ -46,7 +48,8 @@ function tubeFrom(points,radius,material,segments=48){return new THREE.Mesh(new 
 function makeLabel(text,color='#d7ef4a'){const wide=text.length>4,c=document.createElement('canvas');c.width=wide?440:180;c.height=58;const x=c.getContext('2d');x.fillStyle='#111716e8';x.fillRect(0,0,c.width,c.height);x.strokeStyle=color;x.strokeRect(1,1,c.width-2,c.height-2);x.fillStyle='#eef2ed';x.font='700 24px Microsoft YaHei';x.textAlign='center';x.textBaseline='middle';x.fillText(text,c.width/2,30);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));s.scale.set(wide?4.3:1.75,.56,1);return s}
 
 function buildCore(){
-  CORE_ROWS.forEach(row=>row.split(' ').forEach(cell=>{const{x,z}=coordinate(cell);const a=new THREE.Mesh(new THREE.BoxGeometry(.96,8.2,.96),fuelMaterial);a.position.set(x,5.2,z);a.userData.cell=cell;coreGroup.add(a)}));
+  const height=EMBEDDED?2.5:8.2,center=EMBEDDED?2.22:5.2;
+  CORE_ROWS.forEach(row=>row.split(' ').forEach(cell=>{const{x,z}=coordinate(cell);const a=new THREE.Mesh(new THREE.BoxGeometry(.96,height,.96),fuelMaterial);a.position.set(x,center,z);a.userData.cell=cell;coreGroup.add(a)}));
 }
 
 function buildInternalStructures(){
@@ -61,19 +64,22 @@ function buildInternalStructures(){
 
 function buildThimbles(){
   POSITIONS.forEach((position,index)=>{const{x,z}=coordinate(position),g=new THREE.Group();g.userData={index,position};
-    const straight=cylinder(.095,13.25,tubeMaterial,14);straight.position.set(x,2.575,z);g.add(straight);
-    const tip=new THREE.Mesh(new THREE.SphereGeometry(.095,14,8,0,Math.PI*2,0,Math.PI/2),tubeMaterial);tip.position.set(x,9.2,z);g.add(tip);
+    const straight=cylinder(.095,EMBEDDED?8:13.25,tubeMaterial,14);straight.position.set(x,EMBEDDED?-.8:2.575,z);g.add(straight);
+    const tip=new THREE.Mesh(new THREE.SphereGeometry(.095,14,8,0,Math.PI*2,0,Math.PI/2),tubeMaterial);tip.position.set(x,EMBEDDED?3.2:9.2,z);g.add(tip);
     const guide=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,4.7,18,1,true),sleeveMaterial);guide.position.set(x,-1.65,z);g.add(guide);
     const nozzle=cylinder(.32,1.25,darkMetal,18);nozzle.position.set(x,-4.32,z);g.add(nozzle);
     tubesGroup.add(g);tubeGroups.push(g);
   });
 }
 
+function makeTubeNumber(text){const canvas=document.createElement('canvas');canvas.width=64;canvas.height=40;const context=canvas.getContext('2d');context.fillStyle='#101716e8';context.fillRect(1,1,62,38);context.strokeStyle='#d7ef4a';context.lineWidth=2;context.strokeRect(1,1,62,38);context.fillStyle='#f4f7f5';context.font='700 20px Consolas';context.textAlign='center';context.textBaseline='middle';context.fillText(text,32,21);const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(canvas),transparent:true,depthTest:false}));sprite.scale.set(.46,.29,1);sprite.renderOrder=40;return sprite}
+function buildTubeNumbers(){numberGroup.clear();POSITIONS.forEach((position,index)=>{const{x,z}=coordinate(position),number=makeTubeNumber(String(index+1));number.position.set(x,1.23,z);number.userData={index,position};numberGroup.add(number)})}
+
 const pointDefinitions=[
   ['P1',.9,'下栅格板'],['P2',.2,'支撑板上表面'],['P3',-.3,'支撑板下表面'],
   ['P4',-2.65,'支撑柱与格架板'],['P5',-3.7,'支撑柱与RPV管座'],['P6',-4.75,'RPV管座与导向管']
 ];
-function buildPointLabels(){pointDefinitions.forEach(([p,y,label],i)=>{const color=i===0||i===3?'#e45b4e':'#d7ef4a';const line=new THREE.Mesh(new THREE.BoxGeometry(2.1,.025,.025),new THREE.MeshBasicMaterial({color}));line.position.set(9.3,y,0);labelsGroup.add(line);const sprite=makeLabel(`${p} ${label}`,color);sprite.position.set(11.5,y,0);labelsGroup.add(sprite)})}
+function buildPointLabels(){pointDefinitions.forEach(([p,y,label],i)=>{const color=i===0||i===3?'#e45b4e':'#d7ef4a';const line=new THREE.Mesh(new THREE.BoxGeometry(2.35,.032,.032),new THREE.MeshBasicMaterial({color}));line.position.set(9.4,y,0);labelsGroup.add(line);const sprite=makeLabel(`${p} ${label}`,color);sprite.position.set(11.8,y,0);if(EMBEDDED)sprite.scale.set(5.1,.68,1);labelsGroup.add(sprite)})}
 
 function addValve(group,x,label,automatic=false){
   const body=horizontalCylinder(.42,1.05,darkMetal);body.position.set(x,-5.6,0);group.add(body);
@@ -92,8 +98,9 @@ function buildExternalPath(){
   const drive=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.35,1.25),darkMetal);drive.position.set(25,-5.6,0);externalGroup.add(drive);const driveTag=makeLabel('传送装置');driveTag.position.set(25,-6.5,0);externalGroup.add(driveTag);
 }
 
-buildCore();buildInternalStructures();buildThimbles();buildPointLabels();
+buildCore();buildInternalStructures();buildThimbles();buildTubeNumbers();buildPointLabels();externalGroup.visible=!EMBEDDED;
 const detector=cylinder(.05,.7,signalMaterial,14);root.add(detector);const detectorGlow=new THREE.PointLight(0xd7ef4a,8,3);root.add(detectorGlow);
+detector.visible=!EMBEDDED;detectorGlow.visible=!EMBEDDED;
 const defectMaterial=new THREE.MeshStandardMaterial({color:0xe45b4e,emissive:0x7a1912,emissiveIntensity:1.15,metalness:.22,roughness:.26});
 const defectPreview=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),defectMaterial);root.add(defectPreview);
 
@@ -115,6 +122,7 @@ function updateArtificialDefect(){
 function applyParity(value){
   POSITIONS=value==='even'?EVEN_POSITIONS:ODD_POSITIONS;
   tubeGroups.forEach((group,index)=>{const {x,z}=coordinate(POSITIONS[index]);group.userData.position=POSITIONS[index];group.children.forEach(mesh=>{mesh.position.x=x;mesh.position.z=z})});
+  buildTubeNumbers();
   setSelected(selected);
 }
 
@@ -135,7 +143,7 @@ async function applyWorkspaceScope(scope={}){
 window.addEventListener('message',event=>{if(event.origin!==location.origin)return;const message=event.data||{};if(message.type==='thimble-scope')applyWorkspaceScope(message.scope);if(message.type==='thimble-focus'){setSelected(Number(message.thimble||1)-1)}});
 setSelected(0);
 
-const presets={overview:{p:[43,22,49],t:[8,1,0]},section:{p:[40,9,43],t:[8,-.8,0]},plate:{p:[0,37,.01],t:[0,2,0]},tube:{p:[36,3,27],t:[13,-3.2,0]}};
+const presets={overview:{p:EMBEDDED?[27,12,31]:[43,22,49],t:EMBEDDED?[3,-1.1,0]:[8,1,0]},section:{p:[32,7,35],t:[5,-1.8,0]},plate:{p:[0,28,.01],t:[0,-1.5,0]},tube:{p:[28,2,22],t:[9,-2.2,0]}};
 function setCamera(name){currentCamera=name;const preset=presets[name];tubeGroups.forEach((g,i)=>g.visible=name!=='tube'||i===selected);coreGroup.visible=name==='tube'?false:coreVisible;cameraTween={start:performance.now(),fromP:camera.position.clone(),fromT:controls.target.clone(),toP:new THREE.Vector3(...preset.p),toT:new THREE.Vector3(...preset.t)};document.querySelectorAll('[data-camera]').forEach(b=>b.classList.toggle('active',b.dataset.camera===name))}
 function enter(){document.querySelector('.intro').classList.add('dismissed');document.querySelector('.inspector').classList.add('visible')}
 function resize(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}new ResizeObserver(resize).observe(host);resize();
