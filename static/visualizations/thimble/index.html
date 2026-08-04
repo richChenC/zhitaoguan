@@ -57,13 +57,14 @@
           <label>缺陷颜色<input id="defectColor" type="color" value="#e45b4e"></label>
         </div>
         <div class="control-group compact"><label for="defectSize">缺陷点大小</label><input id="defectSize" type="range" min="6" max="22" value="11"><output id="defectSizeOutput">11</output></div>
-        <div class="control-group compact"><label for="coreOpacity">堆芯透明度</label><input id="coreOpacity" type="range" min="0" max="70" value="20"><output id="coreOpacityOutput">20%</output></div>
-        <div class="control-group compact"><label for="plateOpacity">管板与支撑板透明度</label><input id="plateOpacity" type="range" min="8" max="100" value="82"><output id="plateOpacityOutput">82%</output></div>
+        <div class="control-group compact"><label for="coreOpacity">堆芯不透明度</label><input id="coreOpacity" type="range" min="0" max="70" value="12"><output id="coreOpacityOutput">12%</output></div>
+        <div class="control-group compact"><label for="plateOpacity">管板与支撑板不透明度</label><input id="plateOpacity" type="range" min="8" max="100" value="52"><output id="plateOpacityOutput">52%</output></div>
         <div class="preview-status"><span>当前预览</span><b id="defectSummary">01号管 · P1 + 10 mm</b></div>
       </section>
       <div class="toggles">
         <button id="toggleCore" class="active" type="button">堆芯结构</button>
-        <button id="toggleLabels" class="active" type="button">轴向标记</button>
+        <button id="toggleLabels" class="active" type="button">P1-P6 分层</button>
+        <button id="toggleOrientation" class="active" type="button">方向标记</button>
         <button id="toggleDefect" class="active" type="button">缺陷点</button>
         <button id="autoScan" type="button">自动扫描</button>
       </div>
@@ -72,7 +73,7 @@
     <div class="axis"><span>N / 180°</span><i></i><span>S / 0°</span></div>
     <div class="embedded-tools" aria-label="三维查看工具">
       <div class="view-tools"><button class="active" data-embedded-view="overview" type="button">总览</button><button data-embedded-view="section" type="button">P1-P6 剖面</button><button data-embedded-view="plate" type="button">管板俯视</button><button data-embedded-view="tube" type="button">单管</button></div>
-      <div class="visibility-tools"><button class="active" data-visibility="shell" type="button">外壳</button><button class="active" data-visibility="core" type="button">堆芯</button><button class="active" data-visibility="structure" type="button">结构</button><button data-visibility="external" type="button">管路</button><button class="active" data-visibility="numbers" type="button">管号</button><button class="active" data-visibility="labels" type="button">分层</button></div>
+      <div class="visibility-tools"><button class="active" data-visibility="shell" type="button">外壳</button><button class="active" data-visibility="core" type="button">堆芯</button><button class="active" data-visibility="structure" type="button">结构</button><button data-visibility="external" type="button">管路</button><button class="active" data-visibility="numbers" type="button">管号</button><button class="active" data-visibility="labels" type="button">分层</button><button class="active" data-visibility="orientation" type="button">方向</button></div>
     </div>
     <div class="gesture">拖动旋转 · 滚轮缩放 · 点击套管选择</div>
   </main>
