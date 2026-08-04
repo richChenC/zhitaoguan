@@ -1,0 +1,41 @@
+#networkProgress{position:fixed;z-index:9999;left:224px;right:0;top:0;height:3px;pointer-events:none;overflow:hidden}#networkProgress:before{content:"";display:block;width:32%;height:100%;background:#d1943b;transform:translateX(-110%)}body.network-busy #networkProgress:before{animation:network-progress 1s ease-in-out infinite}@keyframes network-progress{50%{transform:translateX(150%)}100%{transform:translateX(340%)}}
+:root{--bg:#edf2f4;--paper:#ffffff;--ink:#1e3038;--muted:#657780;--line:#d3dfe3;--teal:#176b73;--teal-dark:#10545b;--red:#b54a50;--amber:#c58a32;--blue:#3f8eae;--green:#4f8b70}
+body{background:var(--bg);color:var(--ink)}main{padding-top:18px}.app-nav{background:#172a31;border-bottom-color:#2f454c}.app-nav strong b,.app-nav strong small{color:#f4f8f7}.app-nav strong small{opacity:.66}.app-nav .nav-group button{color:#a9bbc0}.app-nav .nav-group button:hover{color:#fff}.app-nav .nav-group button.active{color:#f7d58a;border-bottom-color:#d1a64d}.app-nav [aria-current=page]{background:#2d4850;color:#fff;box-shadow:inset 3px 0 #d1a64d}
+.panel,.metrics article{border-color:var(--line);box-shadow:0 4px 18px rgba(30,55,63,.06)}.panel-title{background:linear-gradient(180deg,#fff,#f8fbfb)}.panel-title h2{color:#20343c}.toolbar input,.toolbar select,label input,label select,label textarea{border-color:#c6d5da;background:#fff}.toolbar input:focus,.toolbar select:focus,label input:focus,label select:focus,label textarea:focus{border-color:#4d9aa0;box-shadow:0 0 0 3px rgba(77,154,160,.13);outline:0}.primary{background:var(--teal);border-color:var(--teal)}.primary:hover{background:var(--teal-dark);border-color:var(--teal-dark)}
+th{background:#edf4f5;color:#42606a;border-bottom-color:#cfdee1}td{border-bottom-color:#e7eef0}tbody tr:hover{background:#f4faf9}tbody tr.selected{background:#e2f2ef;box-shadow:inset 3px 0 #2b8581}.selection-action-bar{border-color:#c9dadd;background:#f5f9f9;box-shadow:0 3px 12px rgba(30,55,63,.04)}.selection-action-bar span{color:#21434a}.selection-actions button{border-color:#bfd0d4}.selection-actions button.primary{color:#fff}.danger-outline{border-color:#d8b1b4;color:#a63f47}.danger-outline:hover{background:#fff4f4}
+.core-panel{background:#f8fbfb}.core-map{background-color:#f5f9fa;background-image:linear-gradient(#dce7e9 1px,transparent 1px),linear-gradient(90deg,#dce7e9 1px,transparent 1px);border-color:#c3d4d8;box-shadow:inset 0 0 0 1px #fff}.core-switch{border-color:#c4d5d8!important;background:#fff}.core-switch button.active{background:#294b53!important;color:#fff!important}.legend{color:#587078}.detail{border-top-color:#d7e3e5}.summary-box.r{border-color:#3d8a70}.summary-box.ni{border-color:#bd6267}.tag.r{background:#e2f1eb;color:#286b56}.tag.ni{background:#fae8e8;color:#a63f47}
+@media(max-width:760px){#networkProgress{left:0}.selection-action-bar{align-items:flex-start;flex-direction:column}.selection-action-bar>div:first-child{display:grid;gap:2px}.selection-actions{width:100%}.selection-actions button{flex:1}}
+
+/* Final workstation layout pass: compact controls, stable panels and clear action hierarchy. */
+main{padding-left:clamp(14px,2.2vw,32px);padding-right:clamp(14px,2.2vw,32px)}
+#workspace .toolbar{margin:0 0 14px;padding:10px 12px;border:1px solid #cbdadd;border-radius:8px;background:#f8fbfb;box-shadow:0 3px 12px rgba(27,56,64,.06);gap:8px}
+#workspace .toolbar select,#workspace .toolbar input{min-width:138px;border-radius:5px;background:#fff}
+#workspace .toolbar #analyst{min-width:150px}#workspace .toolbar #thimble{min-width:116px;width:116px}
+#workspace .toolbar #searchBtn,#workspace .toolbar #resetBtn,#workspace .toolbar #openImportFlow,#workspace .toolbar #clearRecordsBtn{height:34px;border-radius:5px;font-weight:600}
+#workspace .toolbar #openImportFlow{background:#176b73;border-color:#176b73;color:#fff}
+#workspace .toolbar #clearRecordsBtn{background:#fff7f7}
+.toolbar-spacer{min-width:18px}
+#workspace .split{gap:16px;align-items:start}
+#workspace .table-panel,#workspace .core-panel{border-radius:8px;overflow:hidden}
+#workspace .table-panel .panel-title,#workspace .core-panel .panel-title{height:54px;padding:0 16px}
+#workspace .table-panel .panel-title h2,#workspace .core-panel .panel-title h2{font-size:14px;font-weight:700}
+#workspace .table-wrap{background:#fff}
+#workspace th{height:38px;padding:8px 11px;font-size:11px;letter-spacing:.02em}
+#workspace td{height:38px;padding:8px 11px;font-size:12px}
+#workspace .pager{height:50px;background:#fbfcfc;border-top:1px solid #e1eaec}
+#workspace .pager button{min-width:68px;border-radius:5px}
+#workspace .core-map{margin-top:12px;margin-bottom:10px;border-radius:6px}
+#workspace .legend{padding:3px 14px 10px;flex-wrap:wrap;line-height:20px}
+#workspace .detail{margin:8px 16px 0;padding-top:12px}
+.core-switch{margin:0 16px 8px!important;border-radius:6px;overflow:hidden}
+.core-switch button{height:34px;font-size:12px;font-weight:600}
+.compare-panel,.state-panel,.server-panel,.report-settings,.export-catalog{border-radius:8px;overflow:hidden}
+.compare-filters{padding:12px 14px!important;background:#f7fbfb}.compare-filters select{min-width:140px;border-radius:5px}
+.compare-summary{background:#fbfcfc;border-bottom:1px solid #e1eaec}
+.dialog-actions button{border-radius:5px}.dialog-actions .primary{min-width:128px}
+button:disabled{filter:saturate(.55);opacity:.55}
+@media(max-width:1080px){#workspace .toolbar-spacer{display:none}#workspace .toolbar #openImportFlow{margin-left:auto}}
+@media(max-width:760px){main{padding:10px 9px 20px}#workspace .toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:9px}#workspace .toolbar>*{width:100%;min-width:0!important}#workspace .toolbar .toolbar-spacer{display:none}#workspace .toolbar #openImportFlow{margin-left:0}.core-switch{margin-left:10px!important;margin-right:10px!important}}
+.pager .page-size-label{font-size:12px;color:#64777e;margin-right:2px}.pager #pageSize{height:30px;min-width:58px;border:1px solid #c6d5da;border-radius:5px;background:#fff;padding:0 6px;color:#1e3038;margin-right:auto}
+html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:100vw}main{width:100%;max-width:none;height:calc(100dvh - 58px);min-height:0;overflow:auto;padding:14px clamp(12px,2vw,30px) 24px}.view.active{min-height:calc(100dvh - 86px)}#workspace .split{min-height:calc(100dvh - 230px)}#workspace .table-panel,#workspace .core-panel{min-height:0}.table-wrap{max-height:calc(100dvh - 300px)}
+@media(max-width:1080px){main{height:calc(100dvh - 58px)}#workspace .split{min-height:0}.table-wrap{max-height:calc(100dvh - 470px)}}

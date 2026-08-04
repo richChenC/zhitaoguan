@@ -1,0 +1,35 @@
+{
+  "name": "thimble-inspection-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "指套管涡流检测数据管理桌面软件",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "desktop": "electron .",
+    "build:win": "electron-builder --win nsis portable"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "electron": "^37.2.6",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "cn.thimble.inspection",
+    "productName": "指套管检测工作站",
+    "directories": { "output": "release" },
+    "files": ["desktop/**/*", "static/**/*", "server.py", "package.json"],
+    "asar": false,
+    "win": {
+      "target": ["nsis", "portable"],
+      "artifactName": "指套管检测工作站-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

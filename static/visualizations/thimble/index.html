@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>核电站堆芯中子通量指套管 | 三维结构</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/visualizations/thimble/styles.css">
+  <link rel="stylesheet" href="/visualizations/thimble/manual-settings.css">
+  <link rel="stylesheet" href="/visualizations/thimble/embedded.css">
+  <link rel="stylesheet" href="/visualizations/thimble/embedded-tools.css">
+  <style>
+    #scene { z-index: 0; }
+    .topbar, .intro, .camera-rail, .inspector, .axis, .gesture { pointer-events: auto; }
+  </style>
+  <script type="importmap">
+    {"imports":{"three":"/vendor/three.module.min.js"}}
+  </script>
+</head>
+<body>
+  <main id="experience">
+    <div id="scene" aria-label="核电站堆芯中子通量指套管三维模型"></div>
+    <header class="topbar">
+      <div class="identity"><span class="index">IFT / 50</span><div><strong>堆芯中子通量指套管</strong><small>IN-CORE FLUX THIMBLE SYSTEM</small></div></div>
+      <div class="status"><i></i><span>交互模型</span><b id="fps">-- FPS</b></div>
+    </header>
+    <section class="intro">
+      <p class="eyebrow">PRESSURIZED WATER REACTOR · IN-CORE INSTRUMENTATION</p>
+      <h1>一根保护探测器<br>穿越堆芯的细长导管</h1>
+      <p>依据专项简报和历次涡流检验报告重建：50 个堆芯通道从燃料组件底部进入，经下部堆内构件、压力容器管座连接外部隔离与密封系统。</p>
+      <button id="enter" type="button">进入结构视图 <span>→</span></button>
+    </section>
+    <nav class="camera-rail" aria-label="镜头预设">
+      <button class="active" data-camera="overview" type="button"><b>01</b><span>系统总览</span></button>
+      <button data-camera="section" type="button"><b>02</b><span>堆芯剖切</span></button>
+      <button data-camera="plate" type="button"><b>03</b><span>管板定位</span></button>
+      <button data-camera="tube" type="button"><b>04</b><span>单管结构</span></button>
+    </nav>
+    <aside class="inspector">
+      <div class="inspector-head"><span>当前对象</span><b id="objectName">指套管 #01</b></div>
+      <dl>
+        <div><dt>堆芯坐标</dt><dd id="position">L11</dd></div>
+        <div><dt>指套管</dt><dd>Φ8.6 / Φ5.2 mm</dd></div>
+        <div><dt>探测头</dt><dd>Φ4.7 mm</dd></div>
+        <div><dt>外导向管</dt><dd>Φ25.4 / Φ10.2 mm</dd></div>
+        <div><dt>磨损位置</dt><dd>P1 - P6（堆芯下部）</dd></div>
+        <div><dt>系统路径</dt><dd>50</dd></div>
+      </dl>
+      <section class="inspection-detail" aria-live="polite">
+        <div class="settings-title"><b>检测信息</b><span>LIVE DATA</span></div>
+        <div id="selectedTubeDetails" class="inspection-empty">当前筛选无检测记录</div>
+      </section>
+      <div class="control-group"><label for="tubeSelect">指套管编号</label><input id="tubeSelect" type="range" min="1" max="50" value="1"><output id="tubeOutput">01</output></div>
+      <div class="control-group"><label for="detectorDepth">探测器位置</label><input id="detectorDepth" type="range" min="0" max="100" value="74"><output id="depthOutput">74%</output></div>
+      <section class="manual-settings" aria-label="人工缺陷设置">
+        <div class="settings-title"><b>人工缺陷设置</b><span>MODEL SETUP</span></div>
+        <div class="setting-grid">
+          <label>机组映射<select id="paritySelect"><option value="odd">奇数机组</option><option value="even">偶数机组</option></select></label>
+          <label>缺陷层<select id="layerSelect"><option>P1</option><option>P2</option><option>P3</option><option>P4</option><option>P5</option><option>P6</option></select></label>
+          <label>层内偏移<input id="offsetInput" type="number" min="0" max="400" step="1" value="10"><span class="unit">mm</span></label>
+          <label>缺陷颜色<input id="defectColor" type="color" value="#e45b4e"></label>
+        </div>
+        <div class="control-group compact"><label for="defectSize">缺陷点大小</label><input id="defectSize" type="range" min="6" max="22" value="11"><output id="defectSizeOutput">11</output></div>
+        <div class="control-group compact"><label for="coreOpacity">堆芯不透明度</label><input id="coreOpacity" type="range" min="0" max="70" value="8"><output id="coreOpacityOutput">8%</output></div>
+        <div class="control-group compact"><label for="plateOpacity">管板与支撑板不透明度</label><input id="plateOpacity" type="range" min="8" max="100" value="62"><output id="plateOpacityOutput">62%</output></div>
+        <div class="preview-status"><span>当前预览</span><b id="defectSummary">01号管 · P1 + 10 mm</b></div>
+      </section>
+      <div class="toggles">
+        <button id="toggleCore" class="active" type="button">堆芯结构</button>
+        <button id="toggleLabels" class="active" type="button">P1-P6 分层</button>
+        <button id="toggleOrientation" class="active" type="button">方向标记</button>
+        <button id="toggleDefect" class="active" type="button">缺陷点</button>
+        <button id="autoScan" type="button">自动扫描</button>
+      </div>
+      <p class="note">概念可视化用于结构理解，不作为核电厂设计、验收或维修判据。</p>
+    </aside>
+    <div class="axis"><span>N / 180°</span><i></i><span>S / 0°</span></div>
+    <div class="embedded-tools" aria-label="三维查看工具">
+      <div class="view-tools"><button class="active" data-embedded-view="overview" type="button">总览</button><button data-embedded-view="section" type="button">P1-P6 剖面</button><button data-embedded-view="plate" type="button">管板俯视</button><button data-embedded-view="tube" type="button">单管</button></div>
+      <div class="visibility-tools"><button data-visibility="shell" type="button">外壳</button><button class="active" data-visibility="core" type="button">堆芯</button><button class="active" data-visibility="structure" type="button">结构</button><button data-visibility="external" type="button">管路</button><button class="active" data-visibility="numbers" type="button">管号</button><button class="active" data-visibility="labels" type="button">分层</button><button class="active" data-visibility="orientation" type="button">方向</button></div>
+    </div>
+    <div class="gesture">拖动旋转 · 滚轮缩放 · 点击套管选择</div>
+  </main>
+  <script type="module" src="/visualizations/thimble/app.js?v=20260804b"></script>
+</body>
+</html>

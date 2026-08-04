@@ -1,0 +1,41 @@
+import { chromium } from 'file:///C:/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/.pnpm/playwright@1.61.1/node_modules/playwright/index.mjs';
+
+const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const errors = [];
+page.on('pageerror', error => errors.push(error.message));
+page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+await page.goto('http://127.0.0.1:8765', { waitUntil: 'networkidle' });
+await page.locator('#reportPolicy').evaluate(select => { select.value = 'manual'; select.dispatchEvent(new Event('change', { bubbles: true })); });
+await page.locator('#importBtn').click();
+await page.locator('#importPath').evaluate((input, value) => { input.readOnly = false; input.value = value; }, 'D:\\指套管\\测试数据\\指套管数据1\\H209');
+await page.locator('#scanReports').click();
+await page.locator('#reportChoiceDialog[open]').waitFor({ timeout: 30000 });
+const totalGroups = await page.locator('#reportWizardOverview button').count();
+if (!await page.locator('#previousReportChoice').isDisabled()) throw new Error('Previous button must be disabled on the first group');
+const firstReport = await page.locator('#reportWizardOptions input:checked').getAttribute('value');
+await page.locator('#confirmReportChoice').click();
+if (await page.locator('#previousReportChoice').isDisabled()) throw new Error('Previous button was not enabled on the second group');
+await page.locator('#previousReportChoice').click();
+if (await page.locator('#reportWizardOptions input:checked').getAttribute('value') !== firstReport) throw new Error('Previous selection was not restored');
+await page.locator(`#reportWizardOverview button[data-group-index="${totalGroups - 1}"]`).click();
+await page.locator('#confirmReportChoice').click();
+if (!await page.locator('#reportChoiceDialog').evaluate(dialog => dialog.open)) throw new Error('Wizard completed despite missing groups');
+if (!await page.locator('#reportWizardOverview button[data-group-index="1"]').evaluate(button => button.classList.contains('current'))) throw new Error('Wizard did not jump to the first missing group');
+let groups = 0;
+while (await page.locator('#reportChoiceDialog').evaluate(dialog => dialog.open)) {
+  groups += 1;
+  if (groups === 1) await page.screenshot({ path: 'tmp/browser/report-wizard-first-group.png', fullPage: true });
+  if (!await page.locator('#reportWizardOptions input:checked').count()) throw new Error(`Group ${groups} has no default Report selection`);
+  await page.locator('#confirmReportChoice').click();
+  if (groups > 30) throw new Error('Report wizard did not finish');
+}
+const state = await page.evaluate(() => ({ complete: window.__reportSelectionComplete, selected: window.__selectedReports.length }));
+if (!state.complete || state.selected !== totalGroups) throw new Error(`Invalid wizard state: ${JSON.stringify({ groups, totalGroups, state })}`);
+if (await page.locator('#exportFolderExcel').isDisabled()) throw new Error('Excel generation remains disabled after confirmation');
+await page.locator('#exportFolderExcel').click();
+await page.locator('#importStatus a').waitFor({ timeout: 60000 });
+await page.screenshot({ path: 'tmp/browser/report-wizard-complete.png', fullPage: true });
+console.log(JSON.stringify({ groups, totalGroups, state, filename: await page.locator('#importStatus a').textContent(), errors }));
+await browser.close();
+if (errors.length) process.exitCode = 1;

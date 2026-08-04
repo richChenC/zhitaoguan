@@ -1,0 +1,9 @@
+.page-size{display:flex;align-items:center;gap:6px;color:#65717e;font-size:12px}.page-size select,.pager-left select{height:30px;min-width:62px;border:1px solid #cbd4da;border-radius:4px;background:#fff;padding:0 6px;color:#18212b}.pager{justify-content:space-between}.pager-left,.pager-right{display:flex;align-items:center;gap:8px}.pager-left{color:#65717e;font-size:12px}.table-panel .panel-title{gap:16px}.table-panel .panel-title>div{display:flex;align-items:baseline;gap:9px}.heading-actions{margin-left:auto}.metrics{display:none}
+.toolbar-spacer{flex:1;min-width:12px}.toolbar #openImportFlow,.toolbar #clearRecordsBtn{flex:0 0 auto;white-space:nowrap}
+@media(max-width:900px){.toolbar-spacer{display:none}.toolbar #openImportFlow,.toolbar #clearRecordsBtn{margin-top:4px}}
+.workspace-heading{display:none!important}
+.compare-outages{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%}
+.compare-outage-item{display:flex;align-items:center;gap:6px}
+.compare-outage-item select{min-width:130px}
+.compare-outage-item button{padding:0 8px;min-width:30px}
+#addCompareOutage{white-space:nowrap}
