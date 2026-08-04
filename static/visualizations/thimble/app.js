@@ -52,7 +52,7 @@ const tubeGroups=[];let selected=0,scanning=false,coreVisible=true,structureVisi
 
 const metal=new THREE.MeshPhysicalMaterial({color:0x899791,metalness:.52,roughness:.38,envMapIntensity:.9,clearcoat:.16,clearcoatRoughness:.48});
 const darkMetal=new THREE.MeshPhysicalMaterial({color:0x35413c,metalness:.42,roughness:.42,envMapIntensity:.8});
-const fuelMaterial=new THREE.MeshStandardMaterial({color:0x46534e,emissive:0x0b0f0d,emissiveIntensity:.08,metalness:.08,roughness:.76,transparent:true,opacity:.12});
+const fuelMaterial=new THREE.MeshStandardMaterial({color:0x46534e,emissive:0x0b0f0d,emissiveIntensity:.08,metalness:.08,roughness:.76,transparent:true,opacity:.08,depthWrite:false});
 const shellMaterial=new THREE.MeshPhysicalMaterial({color:0x71807a,metalness:.04,roughness:.58,envMapIntensity:.4,transparent:true,opacity:.085,side:THREE.DoubleSide,depthWrite:false});
 const tubeMaterial=new THREE.MeshPhysicalMaterial({color:0xa6b3ac,map:brushedMetalTexture,metalness:.56,roughness:.3,envMapIntensity:1.05,clearcoat:.24,clearcoatRoughness:.38});
 const sleeveMaterial=new THREE.MeshPhysicalMaterial({color:0x5e6b65,map:brushedMetalTexture,metalness:.38,roughness:.4,envMapIntensity:.85,transparent:true,opacity:.46});
@@ -73,7 +73,7 @@ function buildCore(){
 }
 
 function buildInternalStructures(){
-  const plateMetal=metal.clone(),plateDark=darkMetal.clone();[plateMetal,plateDark].forEach(material=>{material.transparent=true;material.opacity=.78;material.depthWrite=true});supportMaterials.push(plateMetal,plateDark);
+  const plateMetal=metal.clone(),plateDark=darkMetal.clone();[plateMetal,plateDark].forEach(material=>{material.transparent=true;material.opacity=.62;material.depthWrite=false});supportMaterials.push(plateMetal,plateDark);
   const lowerGrid=new THREE.Mesh(new THREE.CylinderGeometry(8.55,8.55,.22,96),plateDark);lowerGrid.position.y=1.42;structureGroup.add(lowerGrid);
   const supportPlate=new THREE.Mesh(new THREE.CylinderGeometry(8.2,8.2,.5,96),plateMetal);supportPlate.position.y=0;structureGroup.add(supportPlate);
   for(let i=0;i<12;i++){const a=i/12*Math.PI*2,col=cylinder(.24,3.05,plateDark,16);col.position.set(Math.cos(a)*6.4,-1.65,Math.sin(a)*6.4);structureGroup.add(col)}
@@ -192,7 +192,7 @@ document.querySelector('#tubeSelect').oninput=e=>setSelected(+e.target.value-1);
 document.querySelector('#paritySelect').onchange=e=>applyParity(e.target.value);
 document.querySelector('#layerSelect').onchange=updateArtificialDefect;document.querySelector('#offsetInput').oninput=updateArtificialDefect;document.querySelector('#defectColor').oninput=updateArtificialDefect;document.querySelector('#defectSize').oninput=updateArtificialDefect;
 document.querySelector('#coreOpacity').oninput=e=>{fuelMaterial.opacity=Number(e.target.value)/100;document.querySelector('#coreOpacityOutput').textContent=`${e.target.value}%`};
-document.querySelector('#plateOpacity').oninput=e=>{const opacity=Number(e.target.value)/100;supportMaterials.forEach(material=>{material.transparent=opacity<1;material.opacity=opacity;material.depthWrite=opacity>.45;material.needsUpdate=true});document.querySelector('#plateOpacityOutput').textContent=`${e.target.value}%`};
+document.querySelector('#plateOpacity').oninput=e=>{const opacity=Number(e.target.value)/100;supportMaterials.forEach(material=>{material.transparent=opacity<1;material.opacity=opacity;material.depthWrite=opacity>=1;material.needsUpdate=true});document.querySelector('#plateOpacityOutput').textContent=`${e.target.value}%`};
 document.querySelector('#toggleCore').onclick=e=>{coreVisible=!coreVisible;coreGroup.visible=currentCamera!=='tube'&&coreVisible;e.currentTarget.classList.toggle('active',coreVisible)};
 document.querySelector('#toggleLabels').onclick=e=>{labelsVisible=!labelsVisible;labelsGroup.visible=labelsVisible;e.currentTarget.classList.toggle('active',labelsVisible)};
 document.querySelector('#toggleOrientation').onclick=e=>{orientationVisible=!orientationVisible;orientationGroup.visible=orientationVisible;e.currentTarget.classList.toggle('active',orientationVisible)};
