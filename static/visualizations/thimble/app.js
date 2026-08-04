@@ -20,26 +20,42 @@ const CORE_ROWS=[
 const host=document.querySelector('#scene');
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x080b0c);scene.fog=new THREE.FogExp2(0x080b0c,.012);
 const camera=new THREE.PerspectiveCamera(34,1,.1,220);camera.position.set(32,18,37);
-const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(Math.max(devicePixelRatio,1)*2,3));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;host.append(renderer.domElement);
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(Math.max(devicePixelRatio,1)*2,3));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;host.append(renderer.domElement);
+function createStudioEnvironment(){
+  const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=512;const context=canvas.getContext('2d');
+  const vertical=context.createLinearGradient(0,0,0,512);vertical.addColorStop(0,'#dce8e2');vertical.addColorStop(.24,'#82918a');vertical.addColorStop(.5,'#303a36');vertical.addColorStop(.74,'#66736d');vertical.addColorStop(1,'#111816');context.fillStyle=vertical;context.fillRect(0,0,1024,512);
+  for(let center=0;center<1024;center+=128){const strip=context.createLinearGradient(center-48,0,center+48,0);strip.addColorStop(0,'rgba(255,255,255,0)');strip.addColorStop(.38,'rgba(244,251,247,.2)');strip.addColorStop(.5,'rgba(255,255,255,.86)');strip.addColorStop(.62,'rgba(244,251,247,.2)');strip.addColorStop(1,'rgba(255,255,255,0)');context.fillStyle=strip;context.fillRect(center-48,54,96,360)}
+  const source=new THREE.CanvasTexture(canvas);source.mapping=THREE.EquirectangularReflectionMapping;source.colorSpace=THREE.SRGBColorSpace;
+  const generator=new THREE.PMREMGenerator(renderer);generator.compileEquirectangularShader();const target=generator.fromEquirectangular(source);scene.environment=target.texture;source.dispose();generator.dispose();
+}
+createStudioEnvironment();
+function createBrushedMetalTexture(){
+  const canvas=document.createElement('canvas');canvas.width=256;canvas.height=8;const context=canvas.getContext('2d');
+  for(let start=0;start<256;start+=64){const band=context.createLinearGradient(start,0,start+64,0);band.addColorStop(0,'#56615c');band.addColorStop(.22,'#85938d');band.addColorStop(.43,'#f4faf7');band.addColorStop(.56,'#ffffff');band.addColorStop(.72,'#9ba8a2');band.addColorStop(1,'#56615c');context.fillStyle=band;context.fillRect(start,0,64,8)}
+  const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.wrapS=THREE.RepeatWrapping;texture.wrapT=THREE.ClampToEdgeWrapping;texture.needsUpdate=true;return texture;
+}
+const brushedMetalTexture=createBrushedMetalTexture();
 const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,-.6,0);controls.enableDamping=true;controls.dampingFactor=.28;controls.rotateSpeed=.3;controls.panSpeed=.48;controls.zoomSpeed=.72;controls.minDistance=10;controls.maxDistance=85;controls.minPolarAngle=.06;controls.maxPolarAngle=Math.PI-.06;
 // 左键低速旋转，中键和右键平移，滚轮缩放。
 controls.mouseButtons.MIDDLE=THREE.MOUSE.PAN;
 controls.mouseButtons.RIGHT=THREE.MOUSE.PAN;
-scene.add(new THREE.HemisphereLight(0xe8f1ed,0x111716,2.2));
-const key=new THREE.DirectionalLight(0xffffff,4);key.position.set(15,24,18);scene.add(key);
-const rim=new THREE.DirectionalLight(0xd7ef4a,2.2);rim.position.set(-16,8,-12);scene.add(rim);
+// Camera-space PBR lights keep symmetric highlights at every orbit angle.
+scene.add(new THREE.AmbientLight(0xdce5e1,1.1));
+const inspectionLights=new THREE.Group(),inspectionTarget=new THREE.Object3D();inspectionTarget.position.set(0,0,-18);inspectionLights.add(inspectionTarget);
+[[0,8,8,0xf8fbfa,2.35],[-10,4,6,0xffffff,1.3],[10,4,6,0xffffff,1.3],[0,-7,2,0xdce7e2,.5]].forEach(([x,y,z,color,intensity])=>{const light=new THREE.DirectionalLight(color,intensity);light.position.set(x,y,z);light.target=inspectionTarget;inspectionLights.add(light)});
+camera.add(inspectionLights);scene.add(camera);
 
 const root=new THREE.Group();scene.add(root);
 const coreGroup=new THREE.Group(),tubesGroup=new THREE.Group(),structureGroup=new THREE.Group(),shellGroup=new THREE.Group(),labelsGroup=new THREE.Group(),numberGroup=new THREE.Group(),tubeHitGroup=new THREE.Group(),orientationGroup=new THREE.Group(),externalGroup=new THREE.Group(),dataDefectsGroup=new THREE.Group();
 root.add(coreGroup,tubesGroup,structureGroup,shellGroup,labelsGroup,numberGroup,tubeHitGroup,orientationGroup,externalGroup,dataDefectsGroup);
 const tubeGroups=[];let selected=0,scanning=false,coreVisible=true,structureVisible=true,externalVisible=false,labelsVisible=true,shellVisible=true,numbersVisible=true,cameraTween=null,currentCamera='overview';
 
-const metal=new THREE.MeshStandardMaterial({color:0x8f9b96,metalness:.82,roughness:.28});
-const darkMetal=new THREE.MeshStandardMaterial({color:0x39433f,metalness:.74,roughness:.34});
-const fuelMaterial=new THREE.MeshStandardMaterial({color:0x485550,metalness:.35,roughness:.58,transparent:true,opacity:.2});
-const shellMaterial=new THREE.MeshPhysicalMaterial({color:0x71807a,metalness:.45,roughness:.28,transparent:true,opacity:.16,side:THREE.DoubleSide,depthWrite:false});
-const tubeMaterial=new THREE.MeshPhysicalMaterial({color:0xaebbb5,metalness:.78,roughness:.18,clearcoat:.65});
-const sleeveMaterial=new THREE.MeshPhysicalMaterial({color:0x53605b,metalness:.68,roughness:.3,transparent:true,opacity:.56});
+const metal=new THREE.MeshPhysicalMaterial({color:0x899791,metalness:.52,roughness:.38,envMapIntensity:.9,clearcoat:.16,clearcoatRoughness:.48});
+const darkMetal=new THREE.MeshPhysicalMaterial({color:0x35413c,metalness:.42,roughness:.42,envMapIntensity:.8});
+const fuelMaterial=new THREE.MeshStandardMaterial({color:0x46534e,emissive:0x0b0f0d,emissiveIntensity:.08,metalness:.08,roughness:.76,transparent:true,opacity:.12});
+const shellMaterial=new THREE.MeshPhysicalMaterial({color:0x71807a,metalness:.04,roughness:.58,envMapIntensity:.4,transparent:true,opacity:.085,side:THREE.DoubleSide,depthWrite:false});
+const tubeMaterial=new THREE.MeshPhysicalMaterial({color:0xa6b3ac,map:brushedMetalTexture,metalness:.56,roughness:.3,envMapIntensity:1.05,clearcoat:.24,clearcoatRoughness:.38});
+const sleeveMaterial=new THREE.MeshPhysicalMaterial({color:0x5e6b65,map:brushedMetalTexture,metalness:.38,roughness:.4,envMapIntensity:.85,transparent:true,opacity:.46});
 const signalMaterial=new THREE.MeshStandardMaterial({color:0xd7ef4a,emissive:0x829500,emissiveIntensity:1.5,metalness:.25,roughness:.28});
 const hotMaterial=new THREE.MeshStandardMaterial({color:0xe45b4e,emissive:0x6d1710,emissiveIntensity:.65,metalness:.35,roughness:.3});
 const supportMaterials=[];
@@ -106,7 +122,7 @@ function buildExternalPath(){
 }
 
 buildCore();buildInternalStructures();buildThimbles();buildTubeNumbers();buildOrientation();buildPointLabels();externalGroup.visible=externalVisible;
-const detector=cylinder(.05,.7,signalMaterial,14);root.add(detector);const detectorGlow=new THREE.PointLight(0xd7ef4a,8,3);root.add(detectorGlow);
+const detector=cylinder(.05,.7,signalMaterial,14);root.add(detector);const detectorGlow=new THREE.PointLight(0xd7ef4a,0,3);root.add(detectorGlow);
 detector.visible=!EMBEDDED;detectorGlow.visible=!EMBEDDED;
 const defectMaterial=new THREE.MeshStandardMaterial({color:0xe45b4e,emissive:0x7a1912,emissiveIntensity:1.15,metalness:.22,roughness:.26});
 const defectPreview=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),defectMaterial);root.add(defectPreview);

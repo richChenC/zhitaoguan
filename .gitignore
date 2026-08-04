@@ -3,6 +3,7 @@ output/
 report-extract/
 tmp/
 node_modules/
+.venv/
 .vendor/
 __pycache__/
 tests/__pycache__/
