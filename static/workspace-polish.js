@@ -3,7 +3,7 @@
   const navImport = $('#importBtn');
   const duplicateImport = $('#openImportFlow');
   const navFooter = document.querySelector('.app-nav footer');
-  if (duplicateImport) duplicateImport.remove();
+  if (navImport && duplicateImport) duplicateImport.remove();
   if (navFooter) navFooter.remove();
 
   const table = document.querySelector('.table-panel table');

@@ -45,7 +45,7 @@
     policyBanner.innerHTML=`<b>当前策略</b><span>${labels[policy.value]}</span><button type="button" id="openSoftwareSettings">更改设置</button>`;
     q('#openSoftwareSettings').onclick=()=>{q('#importDialog').close();q('nav [data-view="states"]').click()};
   }
-  q('#importBtn').addEventListener('click',refreshBanner);q('#openImportFlow')?.addEventListener('click',refreshBanner);q('#openImportFlowCard')?.addEventListener('click',refreshBanner);
+  q('#importBtn')?.addEventListener('click',refreshBanner);q('#openImportFlow')?.addEventListener('click',refreshBanner);q('#openImportFlowCard')?.addEventListener('click',refreshBanner);
 
   function displayOutage(outage){return !outage||outage==='UNKNOWN'?'未识别大修':outage}
   function reportGroupKey(report){return `${displayOutage(report.outage)}|${report.group||'未知数据组'}`}
