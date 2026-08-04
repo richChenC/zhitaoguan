@@ -48,7 +48,7 @@ camera.add(inspectionLights);scene.add(camera);
 const root=new THREE.Group();scene.add(root);
 const coreGroup=new THREE.Group(),tubesGroup=new THREE.Group(),structureGroup=new THREE.Group(),shellGroup=new THREE.Group(),labelsGroup=new THREE.Group(),numberGroup=new THREE.Group(),tubeHitGroup=new THREE.Group(),orientationGroup=new THREE.Group(),externalGroup=new THREE.Group(),dataDefectsGroup=new THREE.Group();
 root.add(coreGroup,tubesGroup,structureGroup,shellGroup,labelsGroup,numberGroup,tubeHitGroup,orientationGroup,externalGroup,dataDefectsGroup);
-const tubeGroups=[];let selected=0,scanning=false,coreVisible=true,structureVisible=true,externalVisible=false,labelsVisible=true,orientationVisible=true,shellVisible=false,numbersVisible=true,cameraTween=null,currentCamera='overview';
+const tubeGroups=[];let selected=0,workspaceRows=[],scanning=false,coreVisible=true,structureVisible=true,externalVisible=false,labelsVisible=true,orientationVisible=true,shellVisible=false,numbersVisible=true,cameraTween=null,currentCamera='overview';
 
 const metal=new THREE.MeshPhysicalMaterial({color:0x899791,metalness:.52,roughness:.38,envMapIntensity:.9,clearcoat:.16,clearcoatRoughness:.48});
 const darkMetal=new THREE.MeshPhysicalMaterial({color:0x35413c,metalness:.42,roughness:.42,envMapIntensity:.8});
@@ -96,7 +96,7 @@ function buildThimbles(){
 const numberLabels=[];
 const tubeHitMaterial=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide});
 function buildTubeNumbers(){const coreTop=EMBEDDED?4.62:9.32;numberGroup.clear();tubeHitGroup.clear();numberLabels.length=0;POSITIONS.forEach((position,index)=>{const{x,z}=coordinate(position),label=makePlateLabel(String(index+1),.8,.5,'#91a39b',{fontSize:76,background:'rgba(8,13,12,.96)',border:4});label.position.set(x,coreTop,z);label.userData={index,position};label.scale.setScalar(index===selected?1.1:1);label.material.color.set(index===selected?0xd7ef4a:0xffffff);numberGroup.add(label);numberLabels.push(label);const hitArea=new THREE.Mesh(new THREE.PlaneGeometry(1.02,1.02),tubeHitMaterial);hitArea.rotation.x=-Math.PI/2;hitArea.position.set(x,coreTop+.025,z);hitArea.userData={index,position};tubeHitGroup.add(hitArea)})}
-function buildOrientation(){orientationGroup.clear();[['180°',0,-12.25],['0°',0,12.25],['90°',-12.25,0],['270°',12.25,0]].forEach(([text,x,z])=>{const marker=makePlateLabel(text,1.82,.62,'#d7ef4a',{fontSize:70,background:'rgba(8,13,12,.82)',border:4});marker.position.set(x,2.25,z);orientationGroup.add(marker)})}
+function buildOrientation(){orientationGroup.clear();[['180°',0,-11.15],['0°',0,11.15],['90°',-11.15,0],['270°',11.15,0]].forEach(([text,x,z])=>{const marker=makePlateLabel(text,1.82,.62,'#d7ef4a',{fontSize:70,background:'rgba(8,13,12,.82)',border:4});marker.position.set(x,2.25,z);orientationGroup.add(marker)})}
 
 const pointDefinitions=[
   ['P1',1.35,'下栅格板'],['P2',.45,'支撑板上表面'],['P3',-.45,'支撑板下表面'],
@@ -137,7 +137,7 @@ const defectPreview=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),defectMater
 defectPreview.visible=!EMBEDDED;
 
 function updateDepth(){const value=+document.querySelector('#detectorDepth').value,y=-3.95+value/100*13.5;detector.position.y=y;detectorGlow.position.y=y;document.querySelector('#depthOutput').textContent=`${Math.round(value)}%`}
-function setSelected(index){selected=Math.max(0,Math.min(49,index));tubeGroups.forEach((g,i)=>{g.visible=currentCamera!=='tube'||i===selected;g.children.forEach(m=>{if(m.material===tubeMaterial||m.material===signalMaterial)m.material=i===selected?signalMaterial:tubeMaterial})});numberLabels.forEach((label,i)=>{label.scale.setScalar(i===selected?1.1:1);label.material.color.set(i===selected?0xd7ef4a:0xffffff)});const pos=POSITIONS[selected],{x,z}=coordinate(pos);detector.position.x=x;detector.position.z=z;detectorGlow.position.x=x;detectorGlow.position.z=z;document.querySelector('#tubeSelect').value=selected+1;document.querySelector('#tubeOutput').textContent=String(selected+1).padStart(2,'0');document.querySelector('#objectName').textContent=`指套管 #${String(selected+1).padStart(2,'0')}`;document.querySelector('#position').textContent=pos;buildExternalPath();updateDepth();updateArtificialDefect();if(currentCamera==='tube')setCamera('tube')}
+function setSelected(index){selected=Math.max(0,Math.min(49,index));tubeGroups.forEach((g,i)=>{g.visible=currentCamera!=='tube'||i===selected;g.children.forEach(m=>{if(m.material===tubeMaterial||m.material===signalMaterial)m.material=i===selected?signalMaterial:tubeMaterial})});numberLabels.forEach((label,i)=>{label.scale.setScalar(i===selected?1.1:1);label.material.color.set(i===selected?0xd7ef4a:0xffffff)});const pos=POSITIONS[selected],{x,z}=coordinate(pos);detector.position.x=x;detector.position.z=z;detectorGlow.position.x=x;detectorGlow.position.z=z;document.querySelector('#tubeSelect').value=selected+1;document.querySelector('#tubeOutput').textContent=String(selected+1).padStart(2,'0');document.querySelector('#objectName').textContent=`指套管 #${String(selected+1).padStart(2,'0')}`;document.querySelector('#position').textContent=pos;buildExternalPath();updateDepth();updateArtificialDefect();updateSelectedTubeDetails();if(currentCamera==='tube')setCamera('tube')}
 
 function updateArtificialDefect(){
   const zone=document.querySelector('#layerSelect')?.value||'P1';
@@ -159,6 +159,17 @@ function applyParity(value){
 }
 
 function isDefect(row){const indication=String(row.indication||'').trim().toUpperCase();return Boolean(indication)&&indication!=='NDD'&&(Number(row.percent||0)>0||Number(row.datapoint||0)>0)}
+function escapeHtml(value){return String(value??'').replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]))}
+function updateSelectedTubeDetails(){
+  const host=document.querySelector('#selectedTubeDetails');if(!host)return;
+  const records=workspaceRows.filter(row=>Number(row.thimble_id)===selected+1);
+  if(!records.length){host.className='inspection-empty';host.textContent='当前筛选无检测记录';return}
+  const defects=records.filter(isDefect),primary=(defects.length?defects:records).reduce((best,row)=>Number(row.percent||0)>Number(best.percent||0)?row:best,(defects.length?defects:records)[0]);
+  const indication=defects.length?(primary.indication||'缺陷指示'):'未发现缺陷';
+  const percent=Number(primary.percent||0);const depth=defects.length?(percent?`${percent}%`:'已记录'):'--';
+  const fields=[['检测状态',defects.length?`发现 ${defects.length} 条缺陷`:'检测完成'],['缺陷类型',indication],['磨损深度',depth],['磨损位置',primary.location||'--'],['分析人员',primary.analyst||'--'],['数据组',primary.calgroup||primary.channel||'--'],['机组 / 大修',[primary.unit_id?`${primary.unit_id}号机组`:'',primary.outage||''].filter(Boolean).join(' · ')||'--']];
+  host.className='inspection-list';host.innerHTML=`<p class="inspection-count">${records.length} 条检测记录 · ${defects.length} 条缺陷记录</p><dl>${fields.map(([label,value],index)=>`<div><dt>${label}</dt><dd${index===1&&defects.length?' class="defect-value"':''}>${escapeHtml(value)}</dd></div>`).join('')}</dl>`;
+}
 function defectY(location){const match=String(location||'').match(/(P[1-6])(?:\s*\+\s*([-+]?\d+(?:\.\d+)?))?/i),zone=(match?.[1]||'P3').toUpperCase(),offset=Math.max(0,Math.min(400,Number(match?.[2]||0))),index=Math.max(0,pointDefinitions.findIndex(item=>item[0]===zone)),base=pointDefinitions[index][1],next=pointDefinitions[index+1]?.[1]??-6.35;return base-(offset/400)*(base-next)}
 function renderDataDefects(rows=[]){
   dataDefectsGroup.clear();const grouped=new Map();rows.filter(isDefect).forEach(row=>{const key=`${row.thimble_id}|${row.location}`;if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(row)});
@@ -169,7 +180,7 @@ async function applyWorkspaceScope(scope={}){
   const unit=Number(scope.unit||0);if(unit){const parity=unit%2?'odd':'even';document.querySelector('#paritySelect').value=parity;applyParity(parity)}
   let rows=Array.isArray(scope.selectedItems)&&scope.selectedItems.length?scope.selectedItems:null;
   if(!rows&&unit&&scope.outage){const params=new URLSearchParams({page:'1',size:'200',unit:String(unit),outage:scope.outage});if(scope.site)params.set('site',scope.site);const response=await fetch(`/api/findings?${params}`);rows=(await response.json()).items||[]}
-  renderDataDefects(rows||[]);
+  workspaceRows=rows||[];renderDataDefects(workspaceRows);updateSelectedTubeDetails();
 }
 
 window.addEventListener('message',event=>{if(event.origin!==location.origin)return;const message=event.data||{};if(message.type==='thimble-scope')applyWorkspaceScope(message.scope);if(message.type==='thimble-focus'){setSelected(Number(message.thimble||1)-1)}});
@@ -182,7 +193,7 @@ function resize(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(
 
 const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();let clickStart=null;
 renderer.domElement.addEventListener('pointerdown',event=>{if(event.button===0)clickStart={x:event.clientX,y:event.clientY}});
-renderer.domElement.addEventListener('pointerup',event=>{if(event.button!==0||!clickStart)return;const distance=Math.hypot(event.clientX-clickStart.x,event.clientY-clickStart.y);clickStart=null;if(distance>5)return;const r=renderer.domElement.getBoundingClientRect();pointer.set((event.clientX-r.left)/r.width*2-1,-(event.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects([tubeHitGroup,numberGroup,tubesGroup],true)[0];if(!hit)return;let object=hit.object;while(object.parent&&object.userData.index===undefined)object=object.parent;if(object.userData.index!==undefined)setSelected(object.userData.index)});
+renderer.domElement.addEventListener('pointerup',event=>{if(event.button!==0||!clickStart)return;const distance=Math.hypot(event.clientX-clickStart.x,event.clientY-clickStart.y);clickStart=null;if(distance>5)return;const r=renderer.domElement.getBoundingClientRect();pointer.set((event.clientX-r.left)/r.width*2-1,-(event.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects([dataDefectsGroup,tubeHitGroup,numberGroup,tubesGroup],true)[0];if(!hit)return;let object=hit.object;if(object.userData.id!==undefined){setSelected(Number(object.userData.id)-1);return}while(object.parent&&object.userData.index===undefined)object=object.parent;if(object.userData.index!==undefined)setSelected(object.userData.index)});
 renderer.domElement.addEventListener('dblclick',()=>setCamera('plate'));
 document.querySelector('#enter').onclick=()=>{enter();setCamera('overview')};
 document.querySelectorAll('[data-camera]').forEach(b=>b.onclick=()=>{enter();setCamera(b.dataset.camera)});
