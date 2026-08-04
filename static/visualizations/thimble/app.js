@@ -48,7 +48,7 @@ camera.add(inspectionLights);scene.add(camera);
 const root=new THREE.Group();scene.add(root);
 const coreGroup=new THREE.Group(),tubesGroup=new THREE.Group(),structureGroup=new THREE.Group(),shellGroup=new THREE.Group(),labelsGroup=new THREE.Group(),numberGroup=new THREE.Group(),tubeHitGroup=new THREE.Group(),orientationGroup=new THREE.Group(),externalGroup=new THREE.Group(),dataDefectsGroup=new THREE.Group();
 root.add(coreGroup,tubesGroup,structureGroup,shellGroup,labelsGroup,numberGroup,tubeHitGroup,orientationGroup,externalGroup,dataDefectsGroup);
-const tubeGroups=[];let selected=0,scanning=false,coreVisible=true,structureVisible=true,externalVisible=false,labelsVisible=true,orientationVisible=true,shellVisible=true,numbersVisible=true,cameraTween=null,currentCamera='overview';
+const tubeGroups=[];let selected=0,scanning=false,coreVisible=true,structureVisible=true,externalVisible=false,labelsVisible=true,orientationVisible=true,shellVisible=false,numbersVisible=true,cameraTween=null,currentCamera='overview';
 
 const metal=new THREE.MeshPhysicalMaterial({color:0x899791,metalness:.52,roughness:.38,envMapIntensity:.9,clearcoat:.16,clearcoatRoughness:.48});
 const darkMetal=new THREE.MeshPhysicalMaterial({color:0x35413c,metalness:.42,roughness:.42,envMapIntensity:.8});
@@ -62,6 +62,7 @@ const supportMaterials=[];
 
 function coordinate(position){const m=position.match(/([A-Z])(\d+)/);return{x:(COLS.indexOf(m[1])-7)*1.08,z:(+m[2]-8)*1.08}}
 function cylinder(radius,height,material,segments=32){return new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,height,segments),material)}
+function cutawayPlate(radius,height,material){const opening=Math.PI*.42,center=Math.PI*.25;return new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,height,96,1,false,center+opening/2,Math.PI*2-opening),material)}
 function horizontalCylinder(radius,length,material){const mesh=cylinder(radius,length,material,24);mesh.rotation.z=Math.PI/2;return mesh}
 function tubeFrom(points,radius,material,segments=48){return new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),segments,radius,14,false),material)}
 function makeLabel(text,color='#d7ef4a'){const wide=text.length>4,c=document.createElement('canvas');c.width=wide?440:180;c.height=58;const x=c.getContext('2d');x.fillStyle='#111716e8';x.fillRect(0,0,c.width,c.height);x.strokeStyle=color;x.strokeRect(1,1,c.width-2,c.height-2);x.fillStyle='#eef2ed';x.font='700 24px Microsoft YaHei';x.textAlign='center';x.textBaseline='middle';x.fillText(text,c.width/2,30);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));s.scale.set(wide?4.3:1.75,.56,1);return s}
@@ -73,11 +74,11 @@ function buildCore(){
 }
 
 function buildInternalStructures(){
-  const plateMetal=metal.clone(),plateDark=darkMetal.clone();[plateMetal,plateDark].forEach(material=>{material.transparent=true;material.opacity=.52;material.depthWrite=true});supportMaterials.push(plateMetal,plateDark);
-  const lowerGrid=new THREE.Mesh(new THREE.CylinderGeometry(8.55,8.55,.22,96),plateDark);lowerGrid.position.y=1.42;structureGroup.add(lowerGrid);
-  const supportPlate=new THREE.Mesh(new THREE.CylinderGeometry(8.2,8.2,.5,96),plateMetal);supportPlate.position.y=0;structureGroup.add(supportPlate);
+  const plateMetal=metal.clone(),plateDark=darkMetal.clone();supportMaterials.push(plateMetal,plateDark);
+  const lowerGrid=cutawayPlate(8.55,.22,plateDark);lowerGrid.position.y=1.42;structureGroup.add(lowerGrid);
+  const supportPlate=cutawayPlate(8.2,.5,plateMetal);supportPlate.position.y=0;structureGroup.add(supportPlate);
   for(let i=0;i<12;i++){const a=i/12*Math.PI*2,col=cylinder(.24,3.05,plateDark,16);col.position.set(Math.cos(a)*6.4,-1.65,Math.sin(a)*6.4);structureGroup.add(col)}
-  const gridPlate=new THREE.Mesh(new THREE.CylinderGeometry(7.65,7.65,.24,96),plateMetal);gridPlate.position.y=-3.2;structureGroup.add(gridPlate);
+  const gridPlate=cutawayPlate(7.65,.24,plateMetal);gridPlate.position.y=-3.2;structureGroup.add(gridPlate);
   const vesselWall=new THREE.Mesh(new THREE.CylinderGeometry(9.5,9.5,10.6,96,1,true),shellMaterial);vesselWall.position.y=-.3;shellGroup.add(vesselWall);
   const upperHead=new THREE.Mesh(new THREE.SphereGeometry(9.5,96,36,0,Math.PI*2,0,Math.PI/2),shellMaterial);upperHead.scale.y=.38;upperHead.position.y=5;shellGroup.add(upperHead);
   const lowerHead=new THREE.Mesh(new THREE.SphereGeometry(9.5,96,36,0,Math.PI*2,Math.PI/2,Math.PI/2),shellMaterial);lowerHead.scale.y=.38;lowerHead.position.y=-5.6;shellGroup.add(lowerHead);
@@ -129,7 +130,7 @@ function buildExternalPath(){
   const drive=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.35,1.25),darkMetal);drive.position.set(25,-6.75,0);externalGroup.add(drive);const driveTag=makeLabel('传送装置');driveTag.position.set(25,-7.65,0);externalGroup.add(driveTag);
 }
 
-buildCore();buildInternalStructures();buildThimbles();buildTubeNumbers();buildOrientation();buildPointLabels();externalGroup.visible=externalVisible;
+buildCore();buildInternalStructures();buildThimbles();buildTubeNumbers();buildOrientation();buildPointLabels();externalGroup.visible=externalVisible;shellGroup.visible=shellVisible;
 const detector=cylinder(.05,.7,signalMaterial,14);root.add(detector);const detectorGlow=new THREE.PointLight(0xd7ef4a,0,3);root.add(detectorGlow);
 detector.visible=!EMBEDDED;detectorGlow.visible=!EMBEDDED;
 const defectMaterial=new THREE.MeshStandardMaterial({color:0xe45b4e,emissive:0x7a1912,emissiveIntensity:1.15,metalness:.22,roughness:.26});
