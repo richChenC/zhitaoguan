@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,12 +12,34 @@ H209_ROOT = DATA_ROOT / "指套管数据1" / "H209"
 N208_ROOT = DATA_ROOT / "指套管数据1" / "N208"
 
 
+def write_sum(group: Path, unit="2", outage="H209"):
+    (group / "SUR000C000I000.SUM").write_text(
+        f'<?xml version="1.0" encoding="utf-8"?><Summary><Site><Owner>LHNP</Owner><SiteCode>LHNP</SiteCode><Unit>{unit}</Unit><Component>TH</Component><Outage>{outage}</Outage></Site><Equipment><Tester>TEDDY+A</Tester></Equipment><Probe><Model>TH048NAF25A</Model></Probe></Summary>',
+        encoding="utf-8",
+    )
+
+
+def write_ect(group: Path, name: str, row: int, col: int, entry: int, marker=""):
+    xml = f'xx<?xml version="1.0" encoding="utf-8"?><HeaderTube><Entry>{entry}</Entry><Row>{row}</Row><Col>{col}</Col><DateTime>2026/1/1 {marker}</DateTime></HeaderTube>yy'
+    (group / name).write_bytes(xml.encode("utf-8"))
+
+
+def report_entry(filename, row, col, entry, uid, indication="WAR", location="P1+10", channel="P1: 4-6", percent="20", calgroup="TH2I09CAL00001", measurement="Point"):
+    return f'<ReportEntry><Row>{row}</Row><Column>{col}</Column><Entry>{entry}</Entry><Volts>1.2</Volts><Degrees>0</Degrees><Percent>{percent}</Percent><Indication>{indication}</Indication><Channel>{channel}</Channel><ChannelID>4</ChannelID><Location>{location}</Location><MeasurementType>{measurement}</MeasurementType><Probe>TH048NAF25A</Probe><Analyst>A</Analyst><Analysis>Secondary</Analysis><Datapoint>80</Datapoint><Uid>{uid}</Uid><Filename>{filename}</Filename><Filepath>Z:\\old\\{filename}</Filepath><Calgroup>{calgroup}</Calgroup><Distance>10</Distance><Extent>2</Extent><Length>3</Length><Width>4</Width><Comment>note</Comment></ReportEntry>'
+
+
+def write_report(group: Path, entries: list[str], name="Report-final.rpt"):
+    (group / name).write_text('<?xml version="1.0" encoding="utf-8"?><CitecReport>' + "".join(entries) + "</CitecReport>", encoding="utf-8")
+
+
 class ParserTests(unittest.TestCase):
     def test_position_mappings(self):
         self.assertEqual(server.position_for(1, 1), "L11")
         self.assertEqual(server.position_for(2, 1), "B5")
         self.assertEqual(server.position_for(2, 27), "J15")
-        self.assertEqual(server.position_for(2, 42), "N5")
+        self.assertEqual(server.position_for(2, 42), "M5")
+        self.assertEqual(server.position_for(2, 3), "E11")
+        self.assertEqual(server.position_for(2, 47), "L5")
         self.assertEqual(server.position_for(2, 50), "L4")
         self.assertEqual(len({server.position_for(1, tube) for tube in range(1, 51)}), 50)
         self.assertEqual(len({server.position_for(2, tube) for tube in range(1, 51)}), 50)
@@ -31,6 +54,27 @@ class ParserTests(unittest.TestCase):
                 server.init_db()
                 with server.connect() as connection:
                     self.assertEqual(connection.execute("SELECT COUNT(*) FROM findings").fetchone()[0], 0)
+
+    def test_database_migration_backs_up_and_preserves_legacy_rows(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = Path(directory) / "legacy.db"
+            connection = sqlite3.connect(db)
+            connection.execute("""CREATE TABLE findings (
+                id INTEGER PRIMARY KEY, outage TEXT NOT NULL, unit_id INTEGER NOT NULL,
+                thimble_id INTEGER NOT NULL, position TEXT, entry_no INTEGER, volts REAL,
+                degrees REAL, indication TEXT, percent REAL, channel TEXT, location TEXT,
+                datapoint INTEGER, liss_region_size INTEGER, analyst TEXT, analysis TEXT,
+                filepath TEXT, filename TEXT, calgroup TEXT, report_path TEXT, imported_at TEXT NOT NULL)""")
+            connection.execute("INSERT INTO findings(outage,unit_id,thimble_id,position,filename,calgroup,imported_at) VALUES('H209',2,3,'E11','DIR003C003I004.ECT','TH2I09CAL00001','now')")
+            connection.commit(); connection.close()
+            with patch.object(server, "DB_PATH", db):
+                server.init_db()
+                with server.connect() as migrated:
+                    row = migrated.execute("SELECT outage,unit_id,thimble_id,position,source_key FROM findings").fetchone()
+                    columns = {item[1] for item in migrated.execute("PRAGMA table_info(findings)")}
+            self.assertEqual(tuple(row), ("H209", 2, 3, "E11", None))
+            self.assertIn("uid", columns)
+            self.assertTrue(db.with_suffix(db.suffix + ".before-raw-fields.bak").is_file())
 
     def test_outage_ignores_calgroup_digits(self):
         path = Path(r"D:\data\H209\TH2I09CAL00005\Report-x.rpt")
@@ -93,14 +137,14 @@ class ParserTests(unittest.TestCase):
                 target = Path(result["file_path"])
                 self.assertTrue(target.is_file())
                 book = load_workbook(target, read_only=True)
-                sheet = book["标准数据表"]
-                self.assertEqual([cell.value for cell in sheet[1]], server.STANDARD_EXCEL_FIELDS)
+                required = ["缺陷明细表", "管子汇总表", "未进入RPT的真实ECT", "DIR999标定文件", "同名同哈希副本", "同名不同哈希文件", "RPT引用异常", "ECT编号校验异常", "SUM或机组号缺失", "堆芯映射失败"]
+                self.assertEqual(book.sheetnames, required)
+                sheet = book["缺陷明细表"]
                 self.assertEqual(sheet.max_row - 1, result["rows"])
                 headers = {cell.value: cell.column for cell in sheet[1]}
                 self.assertEqual(sheet.cell(2, headers["电站名称"]).value, "红沿河")
-                self.assertEqual(sheet.cell(2, headers["大修号"]).value, "H209")
-                self.assertIn("数据组汇总", book.sheetnames)
-                self.assertGreater(book["数据组汇总"].max_row, 1)
+                self.assertEqual(sheet.cell(2, headers["机组号"]).value, 2)
+                self.assertGreater(book["管子汇总表"].max_row, 1)
                 book.close()
 
     def test_imports_custom_standard_excel_by_header_name(self):
@@ -115,7 +159,10 @@ class ParserTests(unittest.TestCase):
             with patch.object(server, "DB_PATH", db):
                 server.init_db()
                 result = server.import_excel_file(str(source))
+                repeated = server.import_excel_file(str(source))
                 self.assertEqual(result["parsed"], 1)
+                self.assertEqual(repeated["inserted"], 0)
+                self.assertEqual(repeated["skipped"], 1)
                 with server.connect() as connection:
                     row = connection.execute("SELECT outage,unit_id,thimble_id,position,location FROM findings").fetchone()
                 self.assertEqual(tuple(row), ("D120", 1, 2, "G14", "P1+40"))
@@ -165,6 +212,66 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(y108["records"], 41)
         self.assertEqual(y108["tube_count"], 24)
         self.assertEqual(y108["indication_count"], 32)
+
+    def test_strict_group_processing_and_layered_counts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); group = root / "TH2I09CAL00001"; group.mkdir()
+            write_sum(group)
+            write_ect(group, "DIR003C003I004.ECT", 3, 3, 4)
+            write_ect(group, "DIR003C003I005.ECT", 3, 3, 5)
+            write_ect(group, "DIR004C004I006.ECT", 5, 4, 6)
+            write_ect(group, "DIR999C999I001.ECT", 999, 999, 1)
+            write_report(group, [
+                report_entry("DIR003C003I004.ECT", 3, 3, 4, "u1"),
+                report_entry("DIR003C003I004.ECT", 3, 3, 4, "u2"),
+                report_entry("DIR999C999I001.ECT", 999, 999, 1, "cal"),
+                report_entry("DIR050C050I999.ECT", 50, 50, 999, "missing"),
+            ])
+            ignored = root / "整合一起看" / "TH2I09CAL00002"; ignored.mkdir(parents=True)
+            write_sum(ignored); write_ect(ignored, "DIR001C001I001.ECT", 1, 1, 1)
+            (root / "TH2I09CAL00001-copy").mkdir()
+            result = server.process_directory(str(root))
+            self.assertEqual(len(result["contexts"]), 1)
+            self.assertEqual(len(result["report_rows"]), 4)
+            self.assertEqual(len(result["findings"]), 2)
+            tube = next(row for row in result["tube_summary"] if row["thimble_id"] == 3)
+            self.assertEqual((tube["entry_count"], tube["raw_indication_count"], tube["position_group_count"]), (2, 2, 1))
+            self.assertEqual(tube["position"], "E11")
+            self.assertEqual(len(result["calibration_ect"]), 1)
+            self.assertEqual(len(result["ect_mismatches"]), 1)
+            self.assertEqual(len(result["report_reference_errors"]), 2)
+            self.assertEqual(len(result["unreported_ect"]), 2)
+            db = root / "test.db"
+            with patch.object(server, "DB_PATH", db):
+                server.init_db()
+                imported = server.import_directory(str(root))
+                self.assertEqual(imported["inserted"], 2)
+                with server.connect() as connection:
+                    rows = connection.execute("SELECT degrees,uid,measurement_type,distance,extent,length,width,comment FROM findings ORDER BY uid").fetchall()
+                self.assertEqual([row["uid"] for row in rows], ["u1", "u2"])
+                self.assertTrue(all(row["degrees"] == 0 for row in rows))
+                self.assertTrue(all(tuple(row[key] for key in ("measurement_type", "distance", "extent", "length", "width", "comment")) == ("Point", "10", "2", "3", "4", "note") for row in rows))
+
+    def test_missing_sum_never_guesses_unit_or_position(self):
+        with tempfile.TemporaryDirectory() as directory:
+            group = Path(directory) / "TH2I09CAL00001"; group.mkdir()
+            write_ect(group, "DIR003C003I004.ECT", 3, 3, 4)
+            write_report(group, [report_entry("DIR003C003I004.ECT", 3, 3, 4, "u1")])
+            result = server.process_directory(directory)
+            self.assertEqual(result["findings"][0].unit_id, 0)
+            self.assertEqual(result["findings"][0].position, "")
+            self.assertTrue(result["sum_warnings"])
+            self.assertTrue(result["mapping_failures"])
+
+    def test_physical_duplicate_hash_classification(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for branch, marker in (("a", "same"), ("b", "same"), ("c", "different")):
+                group = root / branch / "TH2I09CAL00001"; group.mkdir(parents=True)
+                write_sum(group); write_ect(group, "DIR003C003I004.ECT", 3, 3, 4, marker)
+            result = server.process_directory(directory)
+            self.assertEqual(len(result["duplicate_same_hash"]), 1)
+            self.assertEqual(len(result["same_name_different_hash"]), 3)
 
 
 if __name__ == "__main__": unittest.main()

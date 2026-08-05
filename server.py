@@ -7,6 +7,7 @@ import json
 import mimetypes
 import os
 import re
+import shutil
 import sqlite3
 import sys
 import xml.etree.ElementTree as ET
@@ -31,7 +32,18 @@ DB_PATH = ROOT / "data" / "thimble.db"
 EXCEL_DIR = ROOT / "output" / "excel"
 
 ODD_POSITIONS = "L11 G14 N7 H13 J12 R8 N12 N10 L14 J15 H11 F13 J7 L5 N5 L8 N8 L6 J10 L9 F9 C12 G7 L4 J5 M3 G9 E11 F11 D12 F6 B10 D7 E5 H3 J3 H6 H4 F8 D10 B7 B5 D3 D5 F2 H1 B8 F4 C8 A9".split()
-EVEN_POSITIONS = "B5 C8 E11 D10 D12 C12 B10 B7 A9 B8 D5 D3 F6 H13 F9 G14 F13 E5 F11 D7 G7 F2 H6 H11 J10 J12 J15 G9 F8 F4 H3 H1 J3 N12 L9 L11 L14 J5 J7 H4 M3 N5 R8 N7 N8 N10 L5 L8 L6 L4".split()
+EVEN_POSITIONS = "B5 C8 E11 D10 D12 C12 B10 B7 A9 B8 D5 D3 F6 H13 F9 G14 F13 E5 F11 D7 G7 F2 H6 H11 J10 J12 J15 G9 F8 F4 H3 H1 J3 N12 L9 L11 L14 J5 J7 H4 M3 M5 R8 N7 N8 N10 L5 L8 L6 L4".split()
+
+DATA_GROUP_NAME = re.compile(r"^TH\d+I\d+CAL\d+$", re.I)
+IGNORED_SCAN_DIRECTORIES = {
+    "整合一起看", "临时输出", "临时文件", "输出", "output", "excel", "tmp", "temp",
+    "人工汇总", "人工汇总表", "汇总表", "辅助目录",
+}
+SITE_NAMES = {
+    "LHNP": "红沿河", "CNPS": "大亚湾", "LNPS": "岭澳", "NDNP": "宁德",
+    "YJNP": "阳江", "BLNP": "防城港", "TSNP": "台山", "HENP": "太平岭",
+    "CNMP": "苍南", "LFNP": "陆丰",
+}
 
 STANDARD_EXCEL_FIELDS = [
     "电站名称", "大修号", "机组号", "安全级别", "设备名称", "被检部位", "通道编号",
@@ -78,6 +90,36 @@ class Finding:
     filename: str
     calgroup: str
     report_path: str
+    site_code: str = ""
+    site_owner: str = ""
+    component: str = ""
+    tester: str = ""
+    probe: str = ""
+    column_no: int | None = None
+    channel_id: str = ""
+    measurement_type: str = ""
+    uid: str = ""
+    distance: str = ""
+    extent: str = ""
+    length: str = ""
+    width: str = ""
+    comment: str = ""
+    source_key: str = ""
+
+
+@dataclass(frozen=True)
+class DataGroupContext:
+    path: Path
+    calgroup: str
+    site_owner: str = ""
+    site_code: str = ""
+    unit_id: int = 0
+    component: str = ""
+    outage: str = ""
+    probe_model: str = ""
+    tester: str = ""
+    sum_path: str = ""
+    warning: str = ""
 
 
 def value(node: ET.Element, name: str) -> str:
@@ -174,6 +216,49 @@ def outage_from_standard_row(row: dict, source: Path) -> str:
 ECT_NAME = re.compile(r"^DIR(\d{3})C(\d{3})I(\d{3})\.ECT$", re.I)
 
 
+def discover_data_groups(directory: str | Path, ignored_directories: set[str] | None = None) -> list[Path]:
+    base = Path(directory).expanduser().resolve()
+    if not base.is_dir():
+        raise ValueError("所选路径不是有效文件夹")
+    ignored = {name.casefold() for name in (ignored_directories or set()) | IGNORED_SCAN_DIRECTORIES}
+    groups: list[Path] = []
+    for current, directories, _ in os.walk(base):
+        directories[:] = [name for name in directories if name.casefold() not in ignored]
+        path = Path(current)
+        if DATA_GROUP_NAME.fullmatch(path.name):
+            groups.append(path)
+            directories[:] = []
+    return sorted(groups, key=lambda path: str(path).casefold())
+
+
+def parse_sum(group_dir: Path) -> DataGroupContext:
+    summaries = sorted(path for path in group_dir.iterdir() if path.is_file() and path.suffix.casefold() == ".sum")
+    if not summaries:
+        return DataGroupContext(group_dir, group_dir.name, warning="缺少 SUM 文件，机组号和堆芯位置留空")
+    warnings = []
+    if len(summaries) > 1:
+        warnings.append(f"发现 {len(summaries)} 个 SUM，使用 {summaries[0].name}")
+    try:
+        root = ET.parse(summaries[0]).getroot()
+        site = root.find("Site"); site = site if site is not None else root
+        probe = root.find("Probe"); probe = probe if probe is not None else root
+        equipment = root.find("Equipment"); equipment = equipment if equipment is not None else root
+        unit_id = number(value(site, "Unit"), int) or 0
+        if unit_id <= 0:
+            warnings.append("SUM Unit 缺失或无法解析，堆芯位置留空")
+        component = value(site, "Component")
+        if component and component.upper() != "TH":
+            warnings.append(f"SUM Component={component}，不是 TH")
+        return DataGroupContext(
+            path=group_dir, calgroup=group_dir.name, site_owner=value(site, "Owner"),
+            site_code=value(site, "SiteCode"), unit_id=unit_id, component=component,
+            outage=value(site, "Outage").upper(), probe_model=value(probe, "Model"),
+            tester=value(equipment, "Tester"), sum_path=str(summaries[0]), warning="；".join(warnings),
+        )
+    except (ET.ParseError, OSError) as exc:
+        return DataGroupContext(group_dir, group_dir.name, sum_path=str(summaries[0]), warning=f"SUM 解析失败：{exc}")
+
+
 def parse_ect_header(path: Path) -> dict:
     match = ECT_NAME.match(path.name)
     if not match:
@@ -189,7 +274,8 @@ def parse_ect_header(path: Path) -> dict:
         "path": str(path), "filename": path.name, "calgroup": path.parent.name,
         "name_row": name_row, "name_col": name_col, "name_entry": name_entry,
         "row": row, "col": col, "entry": entry, "datetime": value(header, "DateTime"),
-        "calibration": row in {0, 999} or col in {0, 999},
+        "calibration": name_row == 999 or row == 999,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
     }
 
 
@@ -198,16 +284,13 @@ def scan_thimble_directory(directory: str) -> dict:
     if not base.is_dir():
         raise ValueError("所选路径不是有效文件夹")
     ect_rows, errors = [], []
-    for path in sorted(base.rglob("*")):
-        if not path.is_file() or path.suffix.lower() != ".ect" or not path.parent.name.upper().startswith("TH"):
-            continue
+    paths = [path for group in discover_data_groups(base) for path in group.iterdir() if path.is_file() and path.suffix.casefold() == ".ect"]
+    for path in sorted(paths):
         try:
             item = parse_ect_header(path)
             status = []
             if (item["name_row"], item["name_col"], item["name_entry"]) != (item["row"], item["col"], item["entry"]):
                 status.append("文件名与HeaderTube不一致")
-            if not item["calibration"] and item["row"] != item["col"]:
-                status.append("Row与Column不一致")
             if not item["calibration"] and not 1 <= (item["row"] or 0) <= 50:
                 status.append("管号超出1-50")
             item["validation"] = "通过" if not status else "；".join(status)
@@ -225,18 +308,19 @@ def scan_thimble_directory(directory: str) -> dict:
     }
 
 
-def parse_report(path: Path) -> list[Finding]:
+def parse_report(path: Path, context: DataGroupContext | None = None) -> list[Finding]:
     root = ET.parse(path).getroot()
-    outage = infer_outage(path)
+    context = context or parse_sum(path.parent)
     findings: list[Finding] = []
     for item in root.findall("ReportEntry"):
-        thimble_id = number(value(item, "Row"), int)
-        if not thimble_id:
-            continue
-        unit_id = infer_unit(outage, value(item, "Id"))
+        thimble_id = number(value(item, "Row"), int) or 0
+        uid = value(item, "Uid")
+        filename = value(item, "Filename")
+        calgroup = value(item, "Calgroup") or context.calgroup
+        source_identity = "|".join((context.site_code, str(context.unit_id), context.outage, calgroup, filename, uid or value(item, "Datapoint"), value(item, "Channel")))
         findings.append(Finding(
-            outage=outage, unit_id=unit_id, thimble_id=thimble_id,
-            position=position_for(unit_id, thimble_id),
+            outage=context.outage, unit_id=context.unit_id, thimble_id=thimble_id,
+            position=position_for(context.unit_id, thimble_id) if context.unit_id else "",
             entry_no=number(value(item, "Entry"), int),
             volts=number(value(item, "Volts"), float),
             degrees=number(value(item, "Degrees"), float),
@@ -245,8 +329,15 @@ def parse_report(path: Path) -> list[Finding]:
             datapoint=number(value(item, "Datapoint"), int),
             liss_region_size=number(value(item, "LissRegionSize"), int),
             analyst=value(item, "Analyst"), analysis=value(item, "Analysis"),
-            filepath=value(item, "Filepath"), filename=value(item, "Filename"),
-            calgroup=value(item, "Calgroup") or path.parent.name, report_path=str(path),
+            filepath=value(item, "Filepath"), filename=filename,
+            calgroup=calgroup, report_path=str(path), site_code=context.site_code,
+            site_owner=context.site_owner, component=context.component, tester=context.tester,
+            probe=value(item, "Probe") or context.probe_model,
+            column_no=number(value(item, "Column"), int), channel_id=value(item, "ChannelID"),
+            measurement_type=value(item, "MeasurementType"), uid=uid,
+            distance=value(item, "Distance"), extent=value(item, "Extent"),
+            length=value(item, "Length"), width=value(item, "Width"), comment=value(item, "Comment"),
+            source_key=hashlib.sha256(source_identity.encode("utf-8")).hexdigest(),
         ))
     return findings
 
@@ -270,6 +361,17 @@ def connect() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    DB_PATH.parent.mkdir(exist_ok=True)
+    if DB_PATH.is_file():
+        probe = sqlite3.connect(DB_PATH)
+        try:
+            columns = {row[1] for row in probe.execute("PRAGMA table_info(findings)")}
+        finally:
+            probe.close()
+        if columns and "source_key" not in columns:
+            backup = DB_PATH.with_suffix(DB_PATH.suffix + ".before-raw-fields.bak")
+            if not backup.exists():
+                shutil.copy2(DB_PATH, backup)
     with connect() as db:
         db.executescript("""
         CREATE TABLE IF NOT EXISTS findings (
@@ -278,8 +380,11 @@ def init_db() -> None:
           degrees REAL, indication TEXT, percent REAL, channel TEXT, location TEXT,
           datapoint INTEGER, liss_region_size INTEGER, analyst TEXT, analysis TEXT,
           filepath TEXT, filename TEXT, calgroup TEXT, report_path TEXT,
-          imported_at TEXT NOT NULL,
-          UNIQUE(outage, unit_id, thimble_id, entry_no, analyst, analysis, calgroup, filename, datapoint, channel)
+          site_code TEXT DEFAULT '', site_owner TEXT DEFAULT '', component TEXT DEFAULT '',
+          tester TEXT DEFAULT '', probe TEXT DEFAULT '', column_no INTEGER, channel_id TEXT DEFAULT '',
+          measurement_type TEXT DEFAULT '', uid TEXT DEFAULT '', distance TEXT DEFAULT '', extent TEXT DEFAULT '',
+          length TEXT DEFAULT '', width TEXT DEFAULT '', comment TEXT DEFAULT '', source_key TEXT,
+          imported_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS tube_states (
           outage TEXT NOT NULL, unit_id INTEGER NOT NULL, thimble_id INTEGER NOT NULL,
@@ -287,9 +392,8 @@ def init_db() -> None:
           note TEXT NOT NULL DEFAULT '', PRIMARY KEY(outage, unit_id, thimble_id)
         );
         """)
-        table_sql = db.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='findings'").fetchone()[0] or ""
-        unique_sql = re.sub(r"\s+", "", table_sql.lower())
-        if "filename,datapoint,channel" not in unique_sql:
+        columns = {row[1] for row in db.execute("PRAGMA table_info(findings)")}
+        if "source_key" not in columns:
             db.executescript("""
             ALTER TABLE findings RENAME TO findings_legacy;
             CREATE TABLE findings (
@@ -298,10 +402,19 @@ def init_db() -> None:
               degrees REAL, indication TEXT, percent REAL, channel TEXT, location TEXT,
               datapoint INTEGER, liss_region_size INTEGER, analyst TEXT, analysis TEXT,
               filepath TEXT, filename TEXT, calgroup TEXT, report_path TEXT,
-              imported_at TEXT NOT NULL,
-              UNIQUE(outage, unit_id, thimble_id, entry_no, analyst, analysis, calgroup, filename, datapoint, channel)
+              site_code TEXT DEFAULT '', site_owner TEXT DEFAULT '', component TEXT DEFAULT '',
+              tester TEXT DEFAULT '', probe TEXT DEFAULT '', column_no INTEGER, channel_id TEXT DEFAULT '',
+              measurement_type TEXT DEFAULT '', uid TEXT DEFAULT '', distance TEXT DEFAULT '', extent TEXT DEFAULT '',
+              length TEXT DEFAULT '', width TEXT DEFAULT '', comment TEXT DEFAULT '', source_key TEXT,
+              imported_at TEXT NOT NULL
             );
-            INSERT OR IGNORE INTO findings SELECT * FROM findings_legacy;
+            INSERT INTO findings (
+              id,outage,unit_id,thimble_id,position,entry_no,volts,degrees,indication,percent,
+              channel,location,datapoint,liss_region_size,analyst,analysis,filepath,filename,
+              calgroup,report_path,imported_at
+            ) SELECT id,outage,unit_id,thimble_id,position,entry_no,volts,degrees,indication,percent,
+              channel,location,datapoint,liss_region_size,analyst,analysis,filepath,filename,
+              calgroup,report_path,imported_at FROM findings_legacy;
             DROP TABLE findings_legacy;
             """)
         db.execute("DELETE FROM findings WHERE thimble_id NOT BETWEEN 1 AND 50")
@@ -311,8 +424,131 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_findings_scope ON findings(outage, unit_id, thimble_id);
         CREATE INDEX IF NOT EXISTS idx_findings_unit_tube ON findings(unit_id, thimble_id, outage);
         CREATE INDEX IF NOT EXISTS idx_findings_location ON findings(unit_id, thimble_id, location);
+        DROP INDEX IF EXISTS idx_findings_source_key;
+        CREATE UNIQUE INDEX idx_findings_source_key ON findings(source_key) WHERE source_key IS NOT NULL AND source_key<>'';
+        CREATE INDEX IF NOT EXISTS idx_findings_site_scope ON findings(site_code, unit_id, outage, thimble_id);
         CREATE INDEX IF NOT EXISTS idx_tube_states_scope ON tube_states(outage, unit_id, thimble_id);
         """)
+
+
+def is_indication_record(finding: Finding) -> bool:
+    measurement = finding.measurement_type.strip().casefold()
+    return bool(finding.indication.strip() or finding.location.strip() or (measurement and measurement != "none"))
+
+
+def process_directory(directory: str, selected_reports: list[str] | None = None) -> dict:
+    base = Path(directory).expanduser().resolve()
+    groups = discover_data_groups(base)
+    selected = None if selected_reports is None else {str(Path(path).resolve()).casefold() for path in selected_reports}
+    contexts = [parse_sum(group) for group in groups]
+    result = {
+        "contexts": contexts, "findings": [], "report_rows": [], "tube_summary": [],
+        "unreported_ect": [], "calibration_ect": [], "duplicate_same_hash": [],
+        "same_name_different_hash": [], "report_reference_errors": [], "ect_mismatches": [],
+        "sum_warnings": [], "mapping_failures": [], "parse_errors": [], "ect": [], "reports": [],
+    }
+    ect_by_group: dict[tuple[str, str], list[dict]] = {}
+    ect_by_name: dict[str, list[dict]] = {}
+    physical_versions: dict[tuple, list[dict]] = {}
+    report_fingerprints: set[tuple] = set()
+    for context in contexts:
+        if context.warning:
+            result["sum_warnings"].append({"group": context.calgroup, "path": str(context.path), "sum": context.sum_path, "message": context.warning})
+        for ect_path in sorted(path for path in context.path.iterdir() if path.is_file() and path.suffix.casefold() == ".ect"):
+            try:
+                ect = parse_ect_header(ect_path)
+                ect["context"] = context
+                ect["logical_key"] = (context.site_code, context.unit_id, context.component.upper(), context.outage, context.calgroup.upper(), ect["filename"].upper())
+                ect["header_matches_name"] = (ect["name_row"], ect["name_col"], ect["name_entry"]) == (ect["row"], ect["col"], ect["entry"])
+                result["ect"].append(ect)
+                ect_by_group.setdefault((str(context.path).casefold(), ect["filename"].upper()), []).append(ect)
+                ect_by_name.setdefault(ect["filename"].upper(), []).append(ect)
+                physical_versions.setdefault(ect["logical_key"], []).append(ect)
+                if ect["calibration"]:
+                    result["calibration_ect"].append(ect)
+                if not ect["header_matches_name"]:
+                    result["ect_mismatches"].append(ect)
+            except Exception as exc:
+                result["parse_errors"].append({"type": "ECT 解析", "file": str(ect_path), "message": str(exc)})
+        reports = sorted(path for path in context.path.iterdir() if path.is_file() and path.suffix.casefold() == ".rpt")
+        for report in reports:
+            if selected is not None and str(report.resolve()).casefold() not in selected:
+                continue
+            try:
+                fingerprint = (context.site_code.upper(), context.unit_id, context.component.upper(), context.outage, context.calgroup.upper(), hashlib.sha256(report.read_bytes()).hexdigest())
+            except OSError:
+                fingerprint = (context.site_code.upper(), context.unit_id, context.component.upper(), context.outage, context.calgroup.upper(), str(report.resolve()).casefold())
+            if fingerprint in report_fingerprints:
+                continue
+            report_fingerprints.add(fingerprint)
+            result["reports"].append(report)
+            try:
+                rows = parse_report(report, context)
+                result["report_rows"].extend(rows)
+            except Exception as exc:
+                result["parse_errors"].append({"type": "RPT 解析", "file": str(report), "message": str(exc)})
+    for logical_key, copies in physical_versions.items():
+        hashes: dict[str, list[dict]] = {}
+        for ect in copies:
+            hashes.setdefault(ect["sha256"], []).append(ect)
+        for same_hash in hashes.values():
+            if len(same_hash) > 1:
+                result["duplicate_same_hash"].extend(same_hash[1:])
+        if len(hashes) > 1:
+            result["same_name_different_hash"].extend(copies)
+    referenced_paths: set[str] = set()
+    for finding in result["report_rows"]:
+        group_key = (str(Path(finding.report_path).parent.resolve()).casefold(), finding.filename.upper())
+        candidates = ect_by_group.get(group_key, [])
+        error = ""
+        if finding.calgroup.upper() != Path(finding.report_path).parent.name.upper():
+            error = "RPT Calgroup 与当前数据组不一致"
+        elif not candidates:
+            elsewhere = ect_by_name.get(finding.filename.upper(), [])
+            error = "RPT 跨组引用 ECT" if elsewhere else "RPT 引用的 ECT 不存在"
+        else:
+            ect = candidates[0]
+            referenced_paths.update(item["path"].casefold() for item in candidates)
+            if ect["calibration"]:
+                error = "RPT 引用了 DIR999 标定文件"
+            elif (finding.thimble_id, finding.column_no, finding.entry_no) != (ect["row"], ect["col"], ect["entry"]):
+                error = "RPT Row/Column/Entry 与 ECT 不一致"
+        if error:
+            result["report_reference_errors"].append({"report": finding.report_path, "calgroup": finding.calgroup, "filename": finding.filename, "uid": finding.uid, "message": error})
+            continue
+        if not 1 <= finding.thimble_id <= 50:
+            result["report_reference_errors"].append({"report": finding.report_path, "calgroup": finding.calgroup, "filename": finding.filename, "uid": finding.uid, "message": "RPT Row 超出 1-50"})
+            continue
+        if not finding.unit_id:
+            result["mapping_failures"].append({"group": finding.calgroup, "filename": finding.filename, "row": finding.thimble_id, "message": "SUM Unit 缺失，堆芯位置留空"})
+        elif not finding.position:
+            result["mapping_failures"].append({"group": finding.calgroup, "filename": finding.filename, "row": finding.thimble_id, "message": "堆芯坐标映射失败"})
+        result["findings"].append(finding)
+    result["unreported_ect"] = [ect for ect in result["ect"] if not ect["calibration"] and ect["path"].casefold() not in referenced_paths]
+    tube_rows: dict[tuple, dict] = {}
+    for ect in result["ect"]:
+        context = ect["context"]
+        if ect["calibration"] or not ect["header_matches_name"] or not 1 <= (ect["row"] or 0) <= 50:
+            continue
+        key = (context.site_code, context.unit_id, context.outage, ect["row"])
+        row = tube_rows.setdefault(key, {"site_code": context.site_code, "unit_id": context.unit_id, "outage": context.outage, "thimble_id": ect["row"], "position": position_for(context.unit_id, ect["row"]) if context.unit_id else "", "entries": set(), "files": set(), "indications": [], "position_groups": set()})
+        row["entries"].add(ect["entry"]); row["files"].add(ect["filename"])
+    for finding in result["findings"]:
+        key = (finding.site_code, finding.unit_id, finding.outage, finding.thimble_id)
+        row = tube_rows.setdefault(key, {"site_code": finding.site_code, "unit_id": finding.unit_id, "outage": finding.outage, "thimble_id": finding.thimble_id, "position": finding.position, "entries": set(), "files": set(), "indications": [], "position_groups": set()})
+        if finding.entry_no is not None: row["entries"].add(finding.entry_no)
+        row["files"].add(finding.filename)
+        if is_indication_record(finding):
+            row["indications"].append(finding)
+            row["position_groups"].add((finding.calgroup.upper(), finding.filename.upper(), finding.location, finding.channel))
+    for row in tube_rows.values():
+        indications = row.pop("indications")
+        row["entry_count"] = len(row.pop("entries")); row["file_count"] = len(row.pop("files"))
+        row["raw_indication_count"] = len(indications); row["position_group_count"] = len(row.pop("position_groups"))
+        percentages = [finding.percent for finding in indications if finding.percent is not None]
+        row["max_percent"] = max(percentages) if percentages else None
+    result["tube_summary"] = sorted(tube_rows.values(), key=lambda row: (row["site_code"], row["unit_id"], row["outage"], row["thimble_id"]))
+    return result
 
 
 def report_options(directory: str) -> list[dict]:
@@ -321,23 +557,27 @@ def report_options(directory: str) -> list[dict]:
         raise ValueError("所选路径不是有效文件夹")
     options = []
     fingerprints: dict[tuple[str, str, str], dict] = {}
-    for report in sorted(path for path in base.rglob("*") if path.is_file() and path.name.lower().startswith("report") and path.suffix.lower() == ".rpt" and path.parent.name.upper().startswith("TH")):
+    reports = [(parse_sum(group), report) for group in discover_data_groups(base) for report in group.iterdir() if report.is_file() and report.suffix.casefold() == ".rpt"]
+    for context, report in sorted(reports, key=lambda item: str(item[1]).casefold()):
         try:
-            rows = parse_report(report)
+            rows = parse_report(report, context)
             option = {
                 "path": str(report),
                 "name": report.name,
                 "group": report.parent.name,
-                "outage": infer_outage(report),
+                "outage": context.outage,
+                "site_code": context.site_code,
+                "unit_id": context.unit_id,
+                "sum_warning": context.warning,
                 "analysts": sorted({row.analyst for row in rows if row.analyst}),
                 "records": len(rows),
                 "tubes": sorted({row.thimble_id for row in rows}),
                 "tube_count": len({row.thimble_id for row in rows}),
-                "indication_count": sum(bool(row.indication.strip()) for row in rows),
+                "indication_count": sum(is_indication_record(row) for row in rows),
                 "duplicate_paths": [],
             }
             digest = hashlib.sha256(report.read_bytes()).hexdigest()
-            key = (option["outage"], option["group"].upper(), digest)
+            key = (context.site_code.upper(), context.unit_id, context.component.upper(), context.outage, option["group"].upper(), digest)
             existing = fingerprints.get(key)
             if existing:
                 existing["duplicate_paths"].append(str(report))
@@ -350,44 +590,35 @@ def report_options(directory: str) -> list[dict]:
 
 
 def unique_report_paths(reports) -> list[Path]:
-    unique: dict[tuple[str, str, str], Path] = {}
+    unique: dict[tuple, Path] = {}
     for report in sorted(reports):
+        context = parse_sum(report.parent)
         try:
-            key = (infer_outage(report), report.parent.name.upper(), hashlib.sha256(report.read_bytes()).hexdigest())
+            key = (context.site_code.upper(), context.unit_id, context.component.upper(), context.outage, report.parent.name.upper(), hashlib.sha256(report.read_bytes()).hexdigest())
         except OSError:
-            key = (infer_outage(report), report.parent.name.upper(), str(report.resolve()).lower())
+            key = (context.site_code.upper(), context.unit_id, context.component.upper(), context.outage, report.parent.name.upper(), str(report.resolve()).casefold())
         unique.setdefault(key, report)
     return list(unique.values())
 
 
 def import_directory(directory: str, selected_reports: list[str] | None = None) -> dict:
-    base = Path(directory).expanduser().resolve()
-    if not base.is_dir():
-        raise ValueError("所选路径不是有效文件夹")
-    reports = sorted(path for path in base.rglob("*") if path.is_file() and path.name.lower().startswith("report") and path.suffix.lower() == ".rpt" and path.parent.name.upper().startswith("TH"))
-    if selected_reports is not None:
-        selected = {str(Path(path).resolve()).lower() for path in selected_reports}
-        reports = [path for path in reports if str(path.resolve()).lower() in selected]
-    else:
-        reports = unique_report_paths(reports)
+    processed = process_directory(directory, selected_reports)
+    reports = processed["reports"]
     parsed = inserted = skipped = 0
-    errors = []
+    errors = list(processed["parse_errors"]) + list(processed["report_reference_errors"])
     with connect() as db:
-        for report in reports:
-            try:
-                rows = parse_report(report)
-                parsed += len(rows)
-                for finding in rows:
-                    columns = asdict(finding)
-                    columns["imported_at"] = datetime.now().isoformat(timespec="seconds")
-                    keys = list(columns)
-                    sql = f"INSERT OR IGNORE INTO findings ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)})"
-                    cur = db.execute(sql, [columns[key] for key in keys])
-                    inserted += cur.rowcount
-                    skipped += 1 - cur.rowcount
-            except Exception as exc:
-                errors.append({"file": str(report), "error": str(exc)})
-    return {"reports": len(reports), "parsed": parsed, "inserted": inserted, "skipped": skipped, "errors": errors}
+        for finding in processed["findings"]:
+            parsed += 1
+            columns = asdict(finding)
+            columns["imported_at"] = datetime.now().isoformat(timespec="seconds")
+            keys = list(columns)
+            sql = f"INSERT OR IGNORE INTO findings ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)})"
+            cur = db.execute(sql, [columns[key] for key in keys])
+            inserted += cur.rowcount
+            skipped += 1 - cur.rowcount
+    return {"reports": len(reports), "parsed": parsed, "inserted": inserted, "skipped": skipped, "errors": errors,
+            "raw_report_rows": len(processed["report_rows"]), "tubes": len(processed["tube_summary"]),
+            "calibration_ect": len(processed["calibration_ect"]), "unreported_ect": len(processed["unreported_ect"])}
 
 
 def import_excel_file(filename: str) -> dict:
@@ -470,6 +701,11 @@ def import_excel_file(filename: str) -> dict:
                 analyst=str(row["分析人员"] or ""), analysis=str(row["备注"] or ""), filepath="",
                 filename=str(row["数据"] or source.name), calgroup=str(row["数据组"] or ""), report_path=str(source)
             )
+            excel_identity = "|".join(str(value_ or "") for value_ in (
+                outage, unit_id, thimble_id, finding.filename, finding.calgroup, finding.location,
+                finding.channel, finding.datapoint, finding.analyst, finding.indication, finding.percent,
+            ))
+            finding.source_key = hashlib.sha256(excel_identity.encode("utf-8")).hexdigest()
             columns = asdict(finding)
             columns["imported_at"] = datetime.now().isoformat(timespec="seconds")
             keys = list(columns)
@@ -481,22 +717,8 @@ def import_excel_file(filename: str) -> dict:
 
 
 def analyze_directory(directory: str, selected_reports: list[str] | None = None) -> tuple[list[Finding], list[dict]]:
-    base = Path(directory).expanduser().resolve()
-    if not base.is_dir():
-        raise ValueError("所选路径不是有效文件夹")
-    findings, errors = [], []
-    reports = sorted(path for path in base.rglob("*") if path.is_file() and path.name.lower().startswith("report") and path.suffix.lower() == ".rpt" and path.parent.name.upper().startswith("TH"))
-    if selected_reports is not None:
-        selected = {str(Path(path).resolve()).lower() for path in selected_reports}
-        reports = [path for path in reports if str(path.resolve()).lower() in selected]
-    else:
-        reports = unique_report_paths(reports)
-    for report in reports:
-        try:
-            findings.extend(parse_report(report))
-        except Exception as exc:
-            errors.append({"file": str(report), "error": str(exc)})
-    return findings, errors
+    processed = process_directory(directory, selected_reports)
+    return processed["findings"], processed["parse_errors"] + processed["report_reference_errors"]
 
 
 def automatic_report_selection(directory: str, policy: str) -> list[str] | None:
@@ -505,48 +727,41 @@ def automatic_report_selection(directory: str, policy: str) -> list[str] | None:
     if policy != "latest":
         return None
     base = Path(directory).expanduser().resolve()
-    reports = unique_report_paths(path for path in base.rglob("*") if path.is_file() and path.name.lower().startswith("report") and path.suffix.lower() == ".rpt" and path.parent.name.upper().startswith("TH"))
+    reports = unique_report_paths(path for group in discover_data_groups(base) for path in group.iterdir() if path.is_file() and path.suffix.casefold() == ".rpt")
     groups: dict[str, list[Path]] = {}
     for report in reports:
-        groups.setdefault(f"{infer_outage(report)}|{report.parent.name.upper()}", []).append(report)
+        context = parse_sum(report.parent)
+        key = f"{context.site_code.upper()}|{context.unit_id}|{context.component.upper()}|{context.outage}|{context.calgroup.upper()}"
+        groups.setdefault(key, []).append(report)
     return [str(max(group, key=lambda path: (path.stat().st_mtime, path.name.lower()))) for group in groups.values()]
 
 
 def analyze_data_groups(directory: str) -> list[dict]:
-    base = Path(directory).expanduser().resolve()
     groups = []
-    for summary_path in sorted(base.rglob("*.SUM")):
-        group_dir = summary_path.parent
-        if not group_dir.name.upper().startswith("TH"):
-            continue
+    for group_dir in discover_data_groups(directory):
+        context = parse_sum(group_dir)
         try:
-            root = ET.parse(summary_path).getroot()
-            site_node = root.find("Site")
-            operator_node = root.find("Operator")
-            probe_node = root.find("Probe")
-            site_node = site_node if site_node is not None else root
-            operator_node = operator_node if operator_node is not None else root
-            probe_node = probe_node if probe_node is not None else root
-            valid_ect = [path for path in group_dir.glob("*.ECT") if not re.search(r"999C999", path.name, re.I)]
+            root = ET.parse(context.sum_path).getroot() if context.sum_path else ET.Element("Summary")
+            operator_node = root.find("Operator"); operator_node = operator_node if operator_node is not None else root
+            probe_node = root.find("Probe"); probe_node = probe_node if probe_node is not None else root
+            valid_ect = [parse_ect_header(path) for path in group_dir.iterdir() if path.is_file() and path.suffix.casefold() == ".ect"]
+            valid_ect = [row for row in valid_ect if not row["calibration"]]
             timestamps = []
             for ect in valid_ect:
-                text = ect.read_bytes()[:8192].decode("utf-8", errors="ignore")
-                match = re.search(r"<DateTime>(.*?)</DateTime>", text, re.S)
-                if match:
-                    timestamps.append(match.group(1).strip())
+                if ect["datetime"]: timestamps.append(ect["datetime"])
             groups.append({
-                "site_code": value(site_node, "SiteCode"),
-                "outage": value(site_node, "Outage") or infer_outage(group_dir),
-                "unit_id": number(value(site_node, "Unit"), int),
+                "site_code": context.site_code, "outage": context.outage, "unit_id": context.unit_id,
                 "data_group": group_dir.name,
                 "operator": value(operator_node, "Id"),
                 "probe_type": value(probe_node, "Type"),
                 "probe_sn": value(probe_node, "Sn"),
                 "probe_model": value(probe_node, "Model"),
-                "tube_number": len(valid_ect),
+                "tube_number": len({row["row"] for row in valid_ect}),
+                "entry_number": len(valid_ect),
                 "start_time": min(timestamps) if timestamps else "",
                 "end_time": max(timestamps) if timestamps else "",
-                "report_versions": len(list(group_dir.glob("Report*.rpt")))
+                "report_versions": len([path for path in group_dir.iterdir() if path.is_file() and path.suffix.casefold() == ".rpt"]),
+                "warning": context.warning,
             })
         except Exception:
             continue
@@ -614,71 +829,87 @@ def discover_server_sources(directory: str, max_directories: int = 12000) -> dic
 def export_directory_excel(directory: str, selected_reports: list[str] | None = None, report_policy: str = "manual") -> dict:
     if selected_reports is None and report_policy in {"latest", "all"}:
         selected_reports = automatic_report_selection(directory, report_policy)
-    findings, errors = analyze_directory(directory, selected_reports)
-    groups = analyze_data_groups(directory)
-    validation = scan_thimble_directory(directory)
-    ect_index = {(item["calgroup"].upper(), item["filename"].upper()): item for item in validation["ect"]}
-    if not findings:
-        raise ValueError("目录中没有可导出的指套管检测记录")
-    EXCEL_DIR.mkdir(parents=True, exist_ok=True)
+    processed = process_directory(directory, selected_reports)
+    findings = processed["findings"]
+    if not processed["contexts"]:
+        raise ValueError("所选目录中没有找到符合 TH数字I数字CAL数字 规则的数据组")
     source_name = Path(directory).resolve().name or "指套管检测数据"
     safe_name = re.sub(r"[^0-9A-Za-z\u4e00-\u9fff_-]+", "_", source_name)
     filename = f"{safe_name}_解析结果_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
-    target = EXCEL_DIR / filename
     book = Workbook()
     sheet = book.active
-    sheet.title = "标准数据表"
-    sheet.append(STANDARD_EXCEL_FIELDS)
+    sheet.title = "缺陷明细表"
+    detail_headers = ["电站名称", "机组号", "安全级别", "设备名称", "被检部位", "通道编号", "在堆芯内的位置", "幅值", "相位", "磨损深度", "三字符", "测量通道", "磨损位置", "探头类型", "分析人员", "数据", "数据组", "备注", "堵管移位信息"]
+    sheet.append(detail_headers)
     for finding in findings:
-        site_code = finding.outage[:1] if finding.outage != "UNKNOWN" else ""
-        station = next((name for name, code in STATION_CODES.items() if code == site_code), "")
+        station = SITE_NAMES.get(finding.site_code.upper(), finding.site_owner or finding.site_code)
+        notes = "；".join(value_ for value_ in (finding.comment, finding.analysis, finding.measurement_type) if value_)
         sheet.append([
-            station, "" if finding.outage == "UNKNOWN" else finding.outage, finding.unit_id,
-            "规范非强制要求的检查项目", "其它", "指套管", finding.thimble_id,
-            finding.position, finding.volts, finding.degrees, finding.percent, finding.indication or "NDD",
-            finding.channel, finding.location, "TH048NAF25A", finding.analyst, finding.filename,
-            finding.calgroup, finding.analysis or "/", "/"
+            station, finding.unit_id or "", "", "", "指套管" if finding.component.upper() == "TH" else finding.component,
+            finding.thimble_id, finding.position, finding.volts, finding.degrees, finding.percent,
+            finding.indication, finding.channel, finding.location, finding.probe, finding.analyst,
+            finding.filename, finding.calgroup, notes, "",
         ])
     header_fill = PatternFill("solid", fgColor="263942")
-    for cell in sheet[1]:
-        cell.fill = header_fill
-        cell.font = Font(color="FFFFFF", bold=True)
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-    sheet.freeze_panes = "A2"
-    sheet.auto_filter.ref = sheet.dimensions
-    sheet.row_dimensions[1].height = 24
-    for index, label in enumerate(STANDARD_EXCEL_FIELDS, 1):
-        values = [str(sheet.cell(row, index).value or "") for row in range(1, min(sheet.max_row, 200) + 1)]
-        sheet.column_dimensions[get_column_letter(index)].width = min(48, max(len(label) + 3, max(map(len, values), default=0) + 2))
-    summary = book.create_sheet("数据组汇总")
-    group_fields = [("基地代码", "site_code"), ("大修号", "outage"), ("机组号", "unit_id"), ("数据组", "data_group"), ("操作员", "operator"), ("探头类型", "probe_type"), ("探头序列号", "probe_sn"), ("探头型号", "probe_model"), ("有效ECT数量", "tube_number"), ("开始时间", "start_time"), ("结束时间", "end_time"), ("报告版本数", "report_versions")]
-    summary.append([label for label, _ in group_fields])
-    for group in groups:
-        summary.append([group[key] for _, key in group_fields])
-    for cell in summary[1]:
-        cell.fill = header_fill
-        cell.font = Font(color="FFFFFF", bold=True)
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-    summary.freeze_panes = "A2"
-    summary.auto_filter.ref = summary.dimensions
-    for index, (label, _) in enumerate(group_fields, 1):
-        values = [str(summary.cell(row, index).value or "") for row in range(1, summary.max_row + 1)]
-        summary.column_dimensions[get_column_letter(index)].width = min(42, max(len(label) + 3, max(map(len, values), default=0) + 2))
-    checks = book.create_sheet("文件校验")
-    checks.append(["类型", "文件", "数据组", "文件名Row", "文件名Column", "文件名Entry", "HeaderRow", "HeaderColumn", "HeaderEntry", "标定文件", "校验状态"])
-    for item in validation["ect"]:
-        checks.append(["ECT", item["path"], item["calgroup"], item["name_row"], item["name_col"], item["name_entry"], item["row"], item["col"], item["entry"], "是" if item["calibration"] else "否", item["validation"]])
-    for error in validation["errors"]:
-        checks.append([error["type"], error["file"], "", "", "", "", "", "", "", "", error["message"]])
-    checks.append(["覆盖统计", "", "", "", "", "", "", "", "", "", f"有效唯一管号{len(validation['unique_tubes'])}根；缺失：{','.join(map(str, validation['missing_tubes'])) or '无'}；标定ECT：{validation['calibration_count']}个"])
-    for cell in checks[1]:
-        cell.fill = header_fill
-        cell.font = Font(color="FFFFFF", bold=True)
-    checks.freeze_panes = "A2"
-    checks.column_dimensions["B"].width = 70
-    checks.column_dimensions["K"].width = 46
-    book.save(target)
-    return {"rows": len(findings), "groups": len(groups), "errors": errors + validation["errors"], "unique_tubes": len(validation["unique_tubes"]), "missing_tubes": validation["missing_tubes"], "calibration_ect": validation["calibration_count"], "filename": filename, "file_path": str(target), "download_url": f"/api/download-excel?name={quote(filename)}"}
+
+    tube_sheet = book.create_sheet("管子汇总表")
+    tube_sheet.append(["站点代码", "机组号", "大修号", "通道编号", "堆芯位置", "采集入口数", "检测文件数", "原始指示数", "位置组合数", "最大报告百分比"])
+    for row in processed["tube_summary"]:
+        tube_sheet.append([row["site_code"], row["unit_id"] or "", row["outage"], row["thimble_id"], row["position"], row["entry_count"], row["file_count"], row["raw_indication_count"], row["position_group_count"], row["max_percent"]])
+
+    def ect_sheet(name: str, rows: list[dict]):
+        target = book.create_sheet(name)
+        target.append(["站点代码", "机组号", "大修号", "数据组", "文件名", "路径", "DIR", "C", "I", "Header Row", "Header Col", "Header Entry", "SHA-256"])
+        for row in rows:
+            context = row["context"]
+            target.append([context.site_code, context.unit_id or "", context.outage, context.calgroup, row["filename"], row["path"], row["name_row"], row["name_col"], row["name_entry"], row["row"], row["col"], row["entry"], row["sha256"]])
+        return target
+
+    ect_sheet("未进入RPT的真实ECT", processed["unreported_ect"])
+    ect_sheet("DIR999标定文件", processed["calibration_ect"])
+    ect_sheet("同名同哈希副本", processed["duplicate_same_hash"])
+    ect_sheet("同名不同哈希文件", processed["same_name_different_hash"])
+
+    reference = book.create_sheet("RPT引用异常")
+    reference.append(["报告", "数据组", "ECT文件名", "Uid", "异常"])
+    for row in processed["report_reference_errors"]:
+        reference.append([row["report"], row["calgroup"], row["filename"], row["uid"], row["message"]])
+
+    mismatch = ect_sheet("ECT编号校验异常", processed["ect_mismatches"])
+    mismatch.cell(1, 14, "异常")
+    for row_index in range(2, mismatch.max_row + 1): mismatch.cell(row_index, 14, "DIR/Row、C/Col 或 I/Entry 不一致")
+
+    missing_sum = book.create_sheet("SUM或机组号缺失")
+    missing_sum.append(["数据组", "目录", "SUM", "异常"])
+    for row in processed["sum_warnings"]:
+        missing_sum.append([row["group"], row["path"], row["sum"], row["message"]])
+    for row in processed["parse_errors"]:
+        if row["type"].startswith("SUM"): missing_sum.append(["", row["file"], "", row["message"]])
+
+    mapping = book.create_sheet("堆芯映射失败")
+    mapping.append(["数据组", "ECT文件名", "通道编号", "异常"])
+    for row in processed["mapping_failures"]:
+        mapping.append([row["group"], row["filename"], row["row"], row["message"]])
+
+    text_headers = {"在堆芯内的位置", "数据", "数据组", "堆芯位置", "ECT文件名", "文件名"}
+    for current in book.worksheets:
+        for cell in current[1]:
+            cell.fill = header_fill; cell.font = Font(color="FFFFFF", bold=True)
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        current.freeze_panes = "A2"
+        current.auto_filter.ref = current.dimensions
+        current.row_dimensions[1].height = 24
+        for column in range(1, current.max_column + 1):
+            label = str(current.cell(1, column).value or "")
+            if label in text_headers:
+                for row_index in range(2, current.max_row + 1): current.cell(row_index, column).number_format = "@"
+            values = [str(current.cell(row, column).value or "") for row in range(1, min(current.max_row, 200) + 1)]
+            current.column_dimensions[get_column_letter(column)].width = min(56, max(10, len(label) + 3, max(map(len, values), default=0) + 2))
+    outcome = workbook_result(filename, book)
+    return {**outcome, "rows": len(findings), "raw_report_rows": len(processed["report_rows"]),
+            "groups": len(processed["contexts"]), "tubes": len(processed["tube_summary"]),
+            "errors": processed["parse_errors"] + processed["report_reference_errors"],
+            "unreported_ect": len(processed["unreported_ect"]), "calibration_ect": len(processed["calibration_ect"])}
 
 
 def query_findings(params: dict[str, list[str]]) -> dict:
