@@ -137,3 +137,18 @@
   }
   document.addEventListener('DOMContentLoaded',installSeveritySettings);setTimeout(installSeveritySettings,0);
 })();
+
+(function(){
+  function installSettingsPage(){
+    const nav=document.querySelector('nav .nav-group');
+    if(!nav)return;
+    let button=nav.querySelector('[data-view="settings"]');
+    if(!button){button=document.createElement('button');button.type='button';button.dataset.view='settings';button.textContent='软件设置';nav.append(button)}
+    let view=document.querySelector('#settings');
+    if(!view){view=document.createElement('section');view.id='settings';view.className='view';view.innerHTML='<div class="settings-page-heading"><span class="eyebrow">APPLICATION SETTINGS</span><h1>软件设置</h1><p>运行模式、导入策略、数据校验与二维管板显示。</p></div><div class="settings-sections"></div>';document.querySelector('main').append(view)}
+    const sections=view.querySelector('.settings-sections');
+    document.querySelectorAll('.software-settings-panel').forEach(panel=>sections.append(panel));
+    button.onclick=()=>{document.querySelectorAll('nav button,.view').forEach(item=>item.classList.remove('active'));button.classList.add('active');view.classList.add('active')};
+  }
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(installSettingsPage,0));setTimeout(installSettingsPage,30);
+})();
