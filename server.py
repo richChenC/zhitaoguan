@@ -34,7 +34,7 @@ DATA_DIR = Path(os.environ.get("THIMBLE_DATA_DIR", str(ROOT / "data"))).expandus
 DB_PATH = Path(os.environ.get("THIMBLE_DB_PATH", str(DATA_DIR / "thimble.db"))).expanduser().resolve()
 EXCEL_DIR = Path(os.environ.get("THIMBLE_OUTPUT_DIR", str(ROOT / "output" / "excel"))).expanduser().resolve()
 LOG_PATH = Path(os.environ.get("THIMBLE_LOG_PATH", str(DATA_DIR / "thimble.log"))).expanduser().resolve()
-SERVICE_VERSION = "2026.08.05"
+SERVICE_VERSION = "2026.08.06"
 try:
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(filename=LOG_PATH, level=logging.INFO, encoding="utf-8", format="%(asctime)s %(levelname)s %(message)s")
@@ -923,6 +923,22 @@ def export_directory_excel(directory: str, selected_reports: list[str] | None = 
             "unreported_ect": len(processed["unreported_ect"]), "calibration_ect": len(processed["calibration_ect"])}
 
 
+def query_states() -> dict:
+    """Return editable tube-state rows with a best-effort site/position context."""
+    with connect() as db:
+        rows = db.execute("""
+            SELECT s.outage, s.unit_id, s.thimble_id, s.state, s.offset_mm, s.note,
+                   COALESCE(MAX(f.site_code), '') AS site_code,
+                   COALESCE(MAX(f.position), '') AS position,
+                   COALESCE(MAX(f.imported_at), '') AS updated_at
+            FROM tube_states s
+            LEFT JOIN findings f ON f.outage=s.outage AND f.unit_id=s.unit_id AND f.thimble_id=s.thimble_id
+            GROUP BY s.outage, s.unit_id, s.thimble_id, s.state, s.offset_mm, s.note
+            ORDER BY s.outage DESC, s.unit_id, s.thimble_id
+        """).fetchall()
+    return {"items": [dict(row) for row in rows]}
+
+
 def query_findings(params: dict[str, list[str]]) -> dict:
     page = max(1, number(params.get("page", ["1"])[0], int) or 1)
     size = min(200, max(1, number(params.get("size", ["50"])[0], int) or 50))
@@ -1240,6 +1256,7 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             if parsed.path == "/api/health": return self.json_response(health_status())
             if parsed.path == "/api/overview": return self.json_response(overview())
+            if parsed.path == "/api/states": return self.json_response(query_states())
             if parsed.path == "/api/findings": return self.json_response(query_findings(parse_qs(parsed.query)))
             if parsed.path == "/api/tube-history":
                 q = parse_qs(parsed.query); return self.json_response(tube_history(q.get("site", [""])[0], int(q.get("unit", ["0"])[0]), int(q.get("thimble", ["0"])[0])))

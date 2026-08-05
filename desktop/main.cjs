@@ -7,8 +7,8 @@ const fs = require('node:fs');
 const ROOT = path.resolve(__dirname, '..');
 const PORT = '18765';
 const BASE_URL = `http://127.0.0.1:${PORT}`;
-const URL = `${BASE_URL}/?build=20260805f`;
-const SERVICE_VERSION = '2026.08.05';
+const URL = `${BASE_URL}/?build=20260806a`;
+const SERVICE_VERSION = '2026.08.06';
 let serverProcess = null;
 let mainWindow = null;
 let serviceLogPath = null;
@@ -95,6 +95,7 @@ async function createWindow() {
     minWidth: 1100,
     minHeight: 720,
     backgroundColor: '#f3f5f6',
+    show: false,
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, 'preload.cjs') }
   });
@@ -106,6 +107,7 @@ async function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
   await mainWindow.loadURL(URL);
   mainWindow.maximize();
+  mainWindow.show();
 }
 
 app.whenReady().then(createWindow);

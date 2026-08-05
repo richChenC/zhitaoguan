@@ -8,9 +8,10 @@
     <div class="software-settings-body">
       <div class="setting-row"><div><b>Report 使用策略</b><small>控制检测文件夹存在多个分析报告时的处理方式</small></div><select id="reportPolicy"><option value="manual">逐组人工确认</option><option value="latest">自动取每组最新</option><option value="all">全部使用</option></select></div>
       <div class="setting-row"><div><b>文件校验</b><small>生成标准 Excel 时保留 ECT 文件名、HeaderTube 和覆盖率校验</small></div><label class="setting-switch"><input id="strictValidation" type="checkbox" checked><span>启用</span></label></div>
+      <div class="setting-row"><div><b>运行模式</b><small>离线模式使用本机数据库；在线模式仅用于连接已配置的数据服务</small></div><select id="runtimeMode"><option value="offline">离线模式</option><option value="online">在线模式</option></select></div>
       <div id="reportPolicyNote" class="setting-note"></div>
     </div>`;
-  q('.settings-grid')?.prepend(panel);
+  (q('#settings .settings-sections')||q('.settings-grid'))?.prepend(panel);
 
   const wizard=document.createElement('dialog');
   wizard.id='reportChoiceDialog';
@@ -23,6 +24,7 @@
   window.__reportSelectionComplete=false;
   policy.value=localStorage.getItem('thimbleReportPolicy')||'manual';
   q('#strictValidation').checked=localStorage.getItem('thimbleStrictValidation')!=='false';
+  const runtimeMode=q('#runtimeMode');runtimeMode.value=localStorage.getItem('thimbleRuntimeMode')||'offline';
 
   function setSaved(){saved.textContent='已保存';setTimeout(()=>saved.textContent='本机配置',1200)}
   function applyPolicy(showSaved=false){
@@ -35,6 +37,8 @@
   }
   policy.addEventListener('change',()=>applyPolicy(true));
   q('#strictValidation').addEventListener('change',event=>{localStorage.setItem('thimbleStrictValidation',String(event.target.checked));setSaved()});
+  runtimeMode.addEventListener('change',event=>{localStorage.setItem('thimbleRuntimeMode',event.target.value);setSaved();document.body.dataset.runtimeMode=event.target.value});
+  document.body.dataset.runtimeMode=runtimeMode.value;
   applyPolicy();
 
   const policyBanner=document.createElement('div');
@@ -43,7 +47,7 @@
   function refreshBanner(){
     const labels={manual:'逐组人工确认 Report',latest:'自动取每组最新 Report',all:'使用全部 Report'};
     policyBanner.innerHTML=`<b>当前策略</b><span>${labels[policy.value]}</span><button type="button" id="openSoftwareSettings">更改设置</button>`;
-    q('#openSoftwareSettings').onclick=()=>{q('#importDialog').close();q('nav [data-view="states"]').click()};
+    q('#openSoftwareSettings').onclick=()=>{q('#importDialog').close();q('nav [data-view="settings"]').click()};
   }
   q('#importBtn')?.addEventListener('click',refreshBanner);q('#openImportFlow')?.addEventListener('click',refreshBanner);q('#openImportFlowCard')?.addEventListener('click',refreshBanner);
 
@@ -128,28 +132,30 @@
 })();
 (function(){
   function installSeveritySettings(){
-    const host=document.querySelector('#settings')||document.querySelector('.settings-grid');
+    const host=document.querySelector('#settings .settings-sections')||document.querySelector('#settings')||document.querySelector('.settings-grid');
     if(!host||document.querySelector('#severitySettings'))return;
     const panel=document.createElement('section');panel.id='severitySettings';panel.className='panel software-settings-panel';
-    panel.innerHTML='<div class="panel-title"><div><h2>二维管板严重度</h2><span>按缺陷数量显示四级颜色，不改变原始数据</span></div></div><div class="software-settings-body"><label class="severity-control"><span>无缺陷</span><input id="severityNoneColor" type="color" value="#ffffff"></label><label class="severity-control"><span>一级</span><input id="severityLowColor" type="color" value="#79b98c"></label><label class="severity-control"><span>二级</span><input id="severityMidColor" type="color" value="#e5a83b"></label><label class="severity-control"><span>三级</span><input id="severityHighColor" type="color" value="#df4b45"></label><label class="severity-control"><span>二级起始比例 (%)</span><input id="severityMidThreshold" type="number" min="0" max="100" value="35"></label><label class="severity-control"><span>三级起始比例 (%)</span><input id="severityHighThreshold" type="number" min="0" max="100" value="70"></label></div>';
+    panel.innerHTML='<div class="panel-title"><div><h2>二维管板严重度</h2><span>按同一管的最大磨损比例显示单一颜色，不改变原始数据</span></div></div><div class="software-settings-body"><label class="severity-control"><span>无缺陷 · 白色</span><input id="severityNoneColor" type="color" value="#ffffff"></label><label class="severity-control"><span>一级 · 0 至 20%</span><input id="severityLowColor" type="color" value="#79b98c"></label><label class="severity-control"><span>二级 · 20 至 40%</span><input id="severityMidColor" type="color" value="#e5a83b"></label><label class="severity-control"><span>三级 · 40% 以上</span><input id="severityHighColor" type="color" value="#df4b45"></label><label class="severity-control"><span>二级起始比例 (%)</span><input id="severityMidThreshold" type="number" min="0" max="100" value="20"></label><label class="severity-control"><span>三级起始比例 (%)</span><input id="severityHighThreshold" type="number" min="0" max="100" value="40"></label></div>';
     host.append(panel);
+    if(!localStorage.getItem('thimbleSeveritySettingsVersion')){localStorage.setItem('thimbleSeverityMidThreshold','20');localStorage.setItem('thimbleSeverityHighThreshold','40');localStorage.setItem('thimbleSeveritySettingsVersion','2')}
     const keys=['NoneColor','LowColor','MidColor','HighColor','MidThreshold','HighThreshold'];
     const cssVars={NoneColor:'--severity-none',LowColor:'--severity-low',MidColor:'--severity-mid',HighColor:'--severity-high'};
     keys.forEach(key=>{const el=document.querySelector('#severity'+key),saved=localStorage.getItem('thimbleSeverity'+key);if(saved)el.value=saved;if(cssVars[key])document.documentElement.style.setProperty(cssVars[key],el.value);el.addEventListener('change',()=>{localStorage.setItem('thimbleSeverity'+key,el.value);if(cssVars[key])document.documentElement.style.setProperty(cssVars[key],el.value);window.drawCore?.(state.items.filter(item=>state.selectedIds.has(item.id)))})});
   }
-  document.addEventListener('DOMContentLoaded',installSeveritySettings);setTimeout(installSeveritySettings,0);
+  document.addEventListener('DOMContentLoaded',installSeveritySettings);setTimeout(installSeveritySettings,0);setTimeout(installSeveritySettings,120);
 })();
 
 (function(){
-  function installSettingsPage(){
+    function installSettingsPage(){
     const nav=document.querySelector('nav .nav-group');
     if(!nav)return;
     let button=nav.querySelector('[data-view="settings"]');
-    if(!button){button=document.createElement('button');button.type='button';button.dataset.view='settings';button.textContent='软件设置';nav.append(button)}
+    if(!button){button=document.createElement('button');button.type='button';button.dataset.view='settings';button.className='nav-settings';button.textContent='软件设置';nav.append(button)}
     let view=document.querySelector('#settings');
     if(!view){view=document.createElement('section');view.id='settings';view.className='view';view.innerHTML='<div class="settings-page-heading"><span class="eyebrow">APPLICATION SETTINGS</span><h1>软件设置</h1><p>运行模式、导入策略、数据校验与二维管板显示。</p></div><div class="settings-sections"></div>';document.querySelector('main').append(view)}
     const sections=view.querySelector('.settings-sections');
     document.querySelectorAll('.software-settings-panel').forEach(panel=>sections.append(panel));
+    const server=document.querySelector('#states .server-panel');if(server)sections.append(server);
     button.onclick=()=>{document.querySelectorAll('nav button,.view').forEach(item=>item.classList.remove('active'));button.classList.add('active');view.classList.add('active')};
   }
   document.addEventListener('DOMContentLoaded',()=>setTimeout(installSettingsPage,0));setTimeout(installSettingsPage,30);
