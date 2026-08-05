@@ -15,3 +15,8 @@ three-check*.png
 FSIES/
 *.log
 *.pyc
+desktop-startup.log
+edge-debug*/
+edge-temp*/
+edge-ui/
+three-check*.png
