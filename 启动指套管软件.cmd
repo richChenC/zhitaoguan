@@ -15,10 +15,15 @@ if exist "D:\CodeApps\env\nodejs\node.exe" (
 )
 if not defined NPM for /f "delims=" %%N in ('where npm.cmd 2^>nul') do if not defined NPM set "NPM=%%N"
 if not defined NODE for /f "delims=" %%N in ('where node.exe 2^>nul') do if not defined NODE set "NODE=%%N"
+if not defined NODE if exist "%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe" (
+  set "NODE=%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe"
+  set "NODE_DIR=%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin"
+)
 if defined NODE_DIR set "PATH=%NODE_DIR%;%PATH%"
 set "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/"
 set "PYTHON=.venv\Scripts\python.exe"
 if not exist "%PYTHON%" if exist "D:\CodeApps\env\python\python.exe" set "PYTHON=D:\CodeApps\env\python\python.exe"
+if not exist "%PYTHON%" if exist "%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" set "PYTHON=%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
 if exist "%PYTHON%" "%PYTHON%" -c "import sys" >nul 2>&1
 if errorlevel 1 if exist "D:\CodeApps\env\python\python.exe" set "PYTHON=D:\CodeApps\env\python\python.exe"
 

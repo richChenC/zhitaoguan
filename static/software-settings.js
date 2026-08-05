@@ -1,4 +1,4 @@
-(()=>{
+﻿(()=>{
   const q=selector=>document.querySelector(selector);
   const qa=selector=>[...document.querySelectorAll(selector)];
   const panel=document.createElement('section');
@@ -125,4 +125,15 @@
     }catch(error){status.textContent=error.message}
     finally{q('#parseProgress').classList.remove('active')}
   };
+})();
+(function(){
+  function installSeveritySettings(){
+    const host=document.querySelector('#settings')||document.querySelector('.settings-grid');
+    if(!host||document.querySelector('#severitySettings'))return;
+    const panel=document.createElement('section');panel.id='severitySettings';panel.className='panel software-settings-panel';
+    panel.innerHTML='<div class="panel-title"><div><h2>二维管板严重度</h2><span>按缺陷数量显示四级颜色，不改变原始数据</span></div></div><div class="software-settings-body"><label class="severity-control"><span>无缺陷</span><input id="severityNoneColor" type="color" value="#ffffff"></label><label class="severity-control"><span>一级</span><input id="severityLowColor" type="color" value="#79b98c"></label><label class="severity-control"><span>二级</span><input id="severityMidColor" type="color" value="#e5a83b"></label><label class="severity-control"><span>三级</span><input id="severityHighColor" type="color" value="#df4b45"></label><label class="severity-control"><span>二级起始比例 (%)</span><input id="severityMidThreshold" type="number" min="0" max="100" value="35"></label><label class="severity-control"><span>三级起始比例 (%)</span><input id="severityHighThreshold" type="number" min="0" max="100" value="70"></label></div>';
+    host.append(panel);
+    const keys=['NoneColor','LowColor','MidColor','HighColor','MidThreshold','HighThreshold'];keys.forEach(key=>{const el=document.querySelector('#severity'+key),saved=localStorage.getItem('thimbleSeverity'+key);if(saved)el.value=saved;el.addEventListener('change',()=>{localStorage.setItem('thimbleSeverity'+key,el.value);document.documentElement.style.setProperty('--severity-'+key.toLowerCase(),el.value)})});
+  }
+  document.addEventListener('DOMContentLoaded',installSeveritySettings);setTimeout(installSeveritySettings,0);
 })();

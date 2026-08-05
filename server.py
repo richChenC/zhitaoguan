@@ -408,6 +408,29 @@ def import_excel_file(filename: str) -> dict:
         "大修号": ["大修号", "大修", "outage"], "数据流水号": ["数据流水号", "entry", "entryno"],
         "数据点": ["数据点", "datapoint"], "liss区域大小": ["liss区域大小", "lissregionsize"]
     }
+    # English templates vary in case, separators and wording. Add normalized aliases
+    # by semantic field order while keeping the existing database field names intact.
+    semantic_aliases = {
+        0: ["site", "station", "plant", "base"],
+        1: ["outage", "overhaul", "overhaul no", "maintenance"],
+        2: ["unit", "unit no", "unit number", "unitid"],
+        6: ["channel", "channel no", "channel number", "thimble", "thimble id"],
+        7: ["position", "core position", "core location"],
+        8: ["volts", "voltage", "amplitude"],
+        9: ["phase", "degrees", "angle"],
+        10: ["wear depth", "wear", "percent", "wear percent"],
+        11: ["indication", "defect", "three character code", "code"],
+        12: ["measurement channel", "test channel"],
+        13: ["location", "wear location", "defect location"],
+        15: ["analyst", "analyst name", "reviewer"],
+        16: ["data", "data file", "filename"],
+        17: ["data group", "calgroup", "group"],
+        18: ["note", "notes", "remark", "remarks"],
+    }
+    alias_keys = list(aliases)
+    for index, names in semantic_aliases.items():
+        if index < len(alias_keys):
+            aliases[alias_keys[index]].extend(names)
     normalized_aliases = {key: {normalize_header(item) for item in values} for key, values in aliases.items()}
     selected = None
     for sheet in book.worksheets:
