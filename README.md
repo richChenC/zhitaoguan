@@ -26,3 +26,11 @@ python server.py
 ```powershell
 python -m unittest discover -s tests
 ```
+
+## 运行诊断与数据位置
+
+服务提供 `GET /api/health` 自检接口。桌面壳只接受 `service=thimble-local` 且版本匹配的本地服务，避免误连接其他程序占用的端口。打包版会把数据库、Excel 和日志写入当前用户的 Electron `userData` 目录；开发版仍使用项目下的 `data/` 和 `output/`。也可以通过 `THIMBLE_DATA_DIR`、`THIMBLE_OUTPUT_DIR`、`THIMBLE_LOG_PATH` 覆盖位置。
+
+桌面服务启动失败时查看用户目录下的 `logs/desktop-service.log` 和 `logs/server.log`，其中会记录 Python 启动错误、API 异常和 Excel 导出异常。
+
+Excel 读写运行时随项目内置在 `.vendor/`，包含 `openpyxl` 和 `et_xmlfile` 及其 MIT/兼容许可证文件，保证离线安装不依赖外网下载。

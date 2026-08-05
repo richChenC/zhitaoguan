@@ -54,11 +54,16 @@ if not exist "%PYTHON%" (
   if errorlevel 1 goto dependency_failed
 )
 
-"%PYTHON%" -c "import flask" >nul 2>&1
+"%PYTHON%" -c "import server; print(server.SERVICE_VERSION)" >nul 2>&1
 if errorlevel 1 (
-  echo Installing the local data service...
-  "%PYTHON%" -m pip install flask
-  if errorlevel 1 goto dependency_failed
+  if exist "D:\CodeApps\env\python\python.exe" set "PYTHON=D:\CodeApps\env\python\python.exe"
+  if not exist "D:\CodeApps\env\python\python.exe" if exist "%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" set "PYTHON=%USERPROFILE%\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
+  "%PYTHON%" -c "import server; print(server.SERVICE_VERSION)" >nul 2>&1
+  if errorlevel 1 (
+    echo The selected Python runtime cannot load server.py.
+    echo The selected Python runtime cannot load server.py.>>"%LOG%"
+    goto dependency_failed
+  )
 )
 
 set "THIMBLE_PYTHON=%PYTHON%"

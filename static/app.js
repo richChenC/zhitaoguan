@@ -55,7 +55,7 @@ runCompare=async function(){const old=$('#oldOutage').value,newer=$('#newOutage'
 
 const clearButton=$('#clearRecordsBtn');
 function askConfirm(message){return new Promise(resolve=>{const dialog=document.createElement('dialog');dialog.className='app-confirm';dialog.innerHTML=`<form method="dialog"><h3>请确认操作</h3><p>${message}</p><div><button value="cancel">取消</button><button value="ok" class="primary">确定</button></div></form>`;document.body.append(dialog);dialog.addEventListener('close',()=>{resolve(dialog.returnValue==='ok');dialog.remove()},{once:true});dialog.showModal()})}
-clearButton.onclick=async()=>{if(!await askConfirm('确定清空本机全部检测记录和管状态吗？此操作不可撤销。'))return;await api('/api/clear',{method:'POST',body:'{}'});state.page=1;await loadOverview();await loadRows();toast('本机记录已清空')};
+clearButton.onclick=async()=>{if(!await askConfirm('确定清空本机全部检测记录和管状态吗？此操作不可撤销。'))return;await api('/api/clear',{method:'POST',body:JSON.stringify({confirmed:true})});state.page=1;await loadOverview();await loadRows();toast('本机记录已清空')};
 let filterTimer;$$('#workspace .toolbar select').forEach(control=>control.addEventListener('change',()=>{state.page=1;loadRows().catch(error=>toast(error.message))}));$$('#workspace .toolbar input').forEach(control=>{control.addEventListener('keydown',event=>{if(event.key==='Enter'){clearTimeout(filterTimer);state.page=1;loadRows().catch(error=>toast(error.message))}});control.addEventListener('input',()=>{clearTimeout(filterTimer);filterTimer=setTimeout(()=>{state.page=1;loadRows().catch(error=>toast(error.message))},350)})});
 
 $('#reportPicker').hidden=false;

@@ -33,6 +33,12 @@ def write_report(group: Path, entries: list[str], name="Report-final.rpt"):
 
 
 class ParserTests(unittest.TestCase):
+    def test_health_status_identifies_expected_local_service(self):
+        health = server.health_status()
+        self.assertTrue(health["ok"])
+        self.assertEqual(health["service"], "thimble-local")
+        self.assertEqual(health["version"], server.SERVICE_VERSION)
+
     def test_position_mappings(self):
         self.assertEqual(server.position_for(1, 1), "L11")
         self.assertEqual(server.position_for(2, 1), "B5")

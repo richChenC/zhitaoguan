@@ -22,7 +22,7 @@
     "appId": "cn.thimble.inspection",
     "productName": "指套管检测工作站",
     "directories": { "output": "release" },
-    "files": ["desktop/**/*", "static/**/*", "server.py", "package.json"],
+    "files": ["desktop/**/*", "static/**/*", ".vendor/**/*", "server.py", "package.json", ".env.example", "README.md"],
     "asar": false,
     "win": {
       "target": ["nsis", "portable"],

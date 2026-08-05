@@ -4,12 +4,14 @@ import csv
 import hashlib
 import io
 import json
+import logging
 import mimetypes
 import os
 import re
 import shutil
 import sqlite3
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -28,8 +30,17 @@ from openpyxl.utils import get_column_letter
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
-DB_PATH = ROOT / "data" / "thimble.db"
-EXCEL_DIR = ROOT / "output" / "excel"
+DATA_DIR = Path(os.environ.get("THIMBLE_DATA_DIR", str(ROOT / "data"))).expanduser().resolve()
+DB_PATH = Path(os.environ.get("THIMBLE_DB_PATH", str(DATA_DIR / "thimble.db"))).expanduser().resolve()
+EXCEL_DIR = Path(os.environ.get("THIMBLE_OUTPUT_DIR", str(ROOT / "output" / "excel"))).expanduser().resolve()
+LOG_PATH = Path(os.environ.get("THIMBLE_LOG_PATH", str(DATA_DIR / "thimble.log"))).expanduser().resolve()
+SERVICE_VERSION = "2026.08.05"
+try:
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(filename=LOG_PATH, level=logging.INFO, encoding="utf-8", format="%(asctime)s %(levelname)s %(message)s")
+except OSError:
+    logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+LOGGER = logging.getLogger("thimble")
 
 ODD_POSITIONS = "L11 G14 N7 H13 J12 R8 N12 N10 L14 J15 H11 F13 J7 L5 M5 L8 N8 L6 J10 L9 F9 C12 G7 L4 J5 M3 G9 E11 F11 D12 F6 B10 D7 E5 H3 J3 H6 H4 F8 D10 B7 B5 D3 D5 F2 H1 B8 F4 C8 A9".split()
 EVEN_POSITIONS = "B5 C8 E11 D10 D12 C12 B10 B7 A9 B8 D5 D3 F6 H13 F9 G14 F13 E5 F11 D7 G7 F2 H6 H11 J10 J12 J15 G9 F8 F4 H3 H1 J3 N12 L9 L11 L14 J5 J7 H4 M3 M5 R8 N7 N8 N10 L5 L8 L6 L4".split()
@@ -351,7 +362,7 @@ class ClosingConnection(sqlite3.Connection):
 
 
 def connect() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(exist_ok=True)
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(DB_PATH, factory=ClosingConnection)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys=ON")
@@ -361,7 +372,7 @@ def connect() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    DB_PATH.parent.mkdir(exist_ok=True)
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     if DB_PATH.is_file():
         probe = sqlite3.connect(DB_PATH)
         try:
@@ -1098,7 +1109,17 @@ def export_evolution_excel(site: str, unit: int) -> dict:
 def workbook_result(filename: str, book: Workbook) -> dict:
     EXCEL_DIR.mkdir(parents=True, exist_ok=True)
     target = EXCEL_DIR / filename
-    book.save(target)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(prefix=f".{target.stem}.", suffix=".tmp", dir=EXCEL_DIR, delete=False) as handle:
+            temporary = Path(handle.name)
+        book.save(temporary)
+        os.replace(temporary, target)
+    except Exception:
+        if temporary and temporary.exists():
+            temporary.unlink(missing_ok=True)
+        LOGGER.exception("Excel export failed: %s", target)
+        raise
     return {"filename": filename, "file_path": str(target), "download_url": f"/api/download-excel?name={quote(filename)}"}
 
 
@@ -1188,6 +1209,17 @@ def export_inspection_report(outage: str, unit: int, metadata: dict) -> dict:
     return {**workbook_result(f"{outage}_指套管涡流检验报告单_{datetime.now():%Y%m%d_%H%M%S}.xlsx", book), "rows": len(rows)}
 
 
+def health_status() -> dict:
+    return {
+        "ok": True,
+        "service": "thimble-local",
+        "version": SERVICE_VERSION,
+        "db_path": str(DB_PATH),
+        "output_dir": str(EXCEL_DIR),
+        "database_exists": DB_PATH.is_file(),
+    }
+
+
 class Handler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         sys.stdout.write("[%s] %s\n" % (self.log_date_time_string(), fmt % args))
@@ -1206,6 +1238,7 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         try:
+            if parsed.path == "/api/health": return self.json_response(health_status())
             if parsed.path == "/api/overview": return self.json_response(overview())
             if parsed.path == "/api/findings": return self.json_response(query_findings(parse_qs(parsed.query)))
             if parsed.path == "/api/tube-history":
@@ -1221,6 +1254,7 @@ class Handler(SimpleHTTPRequestHandler):
             if parsed.path == "/api/download-excel": return self.download_excel(parse_qs(parsed.query))
             return self.serve_static(parsed.path)
         except Exception as exc:
+            LOGGER.exception("GET %s failed", self.path)
             self.json_response({"error": str(exc)}, 400)
 
     def do_POST(self):
@@ -1238,6 +1272,8 @@ class Handler(SimpleHTTPRequestHandler):
             if self.path == "/api/export-evolution": return self.json_response(export_evolution_excel(data.get("site", ""), int(data.get("unit", 0))))
             if self.path == "/api/export-report": return self.json_response(export_inspection_report(data.get("outage", ""), int(data.get("unit", 0)), data.get("metadata") or {}))
             if self.path == "/api/clear":
+                if data.get("confirmed") is not True:
+                    return self.json_response({"error": "清空操作必须明确确认"}, 400)
                 with connect() as db:
                     db.execute("DELETE FROM findings")
                     db.execute("DELETE FROM tube_states")
@@ -1249,6 +1285,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json_response({"ok": True})
             self.json_response({"error": "接口不存在"}, 404)
         except Exception as exc:
+            LOGGER.exception("POST %s failed", self.path)
             self.json_response({"error": str(exc)}, 400)
 
     def export_csv(self, params):

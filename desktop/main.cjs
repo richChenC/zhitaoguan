@@ -6,25 +6,36 @@ const fs = require('node:fs');
 
 const ROOT = path.resolve(__dirname, '..');
 const PORT = '18765';
-const URL = `http://127.0.0.1:${PORT}/?build=20260805f`;
+const BASE_URL = `http://127.0.0.1:${PORT}`;
+const URL = `${BASE_URL}/?build=20260805f`;
+const SERVICE_VERSION = '2026.08.05';
 let serverProcess = null;
 let mainWindow = null;
+let serviceLogStream = null;
 
-function pythonCommand() {
+function pythonCandidates() {
   const candidates = [
     process.env.THIMBLE_PYTHON,
     path.join(ROOT, '.venv', 'Scripts', 'python.exe'),
     path.join(process.env.USERPROFILE || '', '.cache', 'codex-runtimes', 'codex-primary-runtime', 'dependencies', 'python', 'python.exe'),
     path.join(process.resourcesPath || '', 'python', 'python.exe'),
-  ].filter(Boolean);
-  return candidates.find(candidate => fs.existsSync(candidate)) || (process.platform === 'win32' ? 'py' : 'python3');
+  ].filter(Boolean).filter(candidate => !path.isAbsolute(candidate) || fs.existsSync(candidate));
+  candidates.push(process.platform === 'win32' ? 'py' : 'python3');
+  return [...new Set(candidates)];
 }
 
 function isServerReady() {
   return new Promise(resolve => {
-    const request = http.get(`${URL}/api/overview`, response => {
-      response.resume();
-      resolve(response.statusCode === 200);
+    const request = http.get(`${BASE_URL}/api/health`, response => {
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', chunk => { body += chunk; });
+      response.on('end', () => {
+        try {
+          const payload = JSON.parse(body);
+          resolve(response.statusCode === 200 && payload.ok === true && payload.service === 'thimble-local' && payload.version === SERVICE_VERSION);
+        } catch (_) { resolve(false); }
+      });
     });
     request.setTimeout(800, () => { request.destroy(); resolve(false); });
     request.on('error', () => resolve(false));
@@ -33,21 +44,36 @@ function isServerReady() {
 
 async function ensureServer() {
   if (await isServerReady()) return;
-  const command = pythonCommand();
-  let spawnError = null;
-  serverProcess = spawn(command, ['server.py'], {
-    cwd: ROOT,
-    windowsHide: true,
-    stdio: 'ignore',
-    env: { ...process.env, THIMBLE_PORT: PORT }
-  });
-  serverProcess.once('error', error => { spawnError = error; });
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    if (await isServerReady()) return;
-    if (spawnError) throw new Error('无法启动本地 Python 服务（' + command + '）：' + spawnError.message);
+  const logDirectory = path.join(app.getPath('userData'), 'logs');
+  fs.mkdirSync(logDirectory, { recursive: true });
+  const logStream = fs.createWriteStream(path.join(logDirectory, 'desktop-service.log'), { flags: 'a' });
+  serviceLogStream = logStream;
+  const environment = { ...process.env, THIMBLE_PORT: PORT };
+  if (app.isPackaged) {
+    environment.THIMBLE_DATA_DIR ||= path.join(app.getPath('userData'), 'data');
+    environment.THIMBLE_OUTPUT_DIR ||= path.join(app.getPath('userData'), 'output', 'excel');
+    environment.THIMBLE_LOG_PATH ||= path.join(app.getPath('userData'), 'logs', 'server.log');
   }
-  throw new Error('本地数据服务启动失败，请确认 Python 已安装。');
+  for (const command of pythonCandidates()) {
+    let spawnError = null;
+    serverProcess = spawn(command, ['server.py'], {
+      cwd: ROOT,
+      windowsHide: true,
+      stdio: ['ignore', logStream, logStream],
+      env: environment
+    });
+    serverProcess.once('error', error => { spawnError = error; });
+    serverProcess.once('exit', (code, signal) => { logStream.write(`\n[desktop] service (${command}) exited code=${code} signal=${signal}\n`); });
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+      if (await isServerReady()) return;
+      if (spawnError) break;
+    }
+    if (serverProcess && !serverProcess.killed) serverProcess.kill();
+    logStream.write(`[desktop] runtime failed: ${command}${spawnError ? ` - ${spawnError.message}` : ''}\n`);
+  }
+  logStream.end();
+  throw new Error(`本地数据服务启动失败，请查看 ${path.join(logDirectory, 'desktop-service.log')}。`);
 }
 
 async function createWindow() {
@@ -94,4 +120,5 @@ ipcMain.handle('select-excel', async () => {
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', () => {
   if (serverProcess && !serverProcess.killed) serverProcess.kill();
+  if (serviceLogStream) { serviceLogStream.end(); serviceLogStream = null; }
 });
