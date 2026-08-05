@@ -43,6 +43,7 @@ html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:
 #coreMap .orientation.right::before{border-top:6px solid transparent!important;border-bottom:6px solid transparent!important;border-left:10px solid #fff!important;border-right:0!important}
 #coreMap .orientation.top::after,#coreMap .orientation.bottom::before{content:none!important;border:0!important}
 .path-marker.mode-combined .odd-path,.path-marker.mode-combined .even-path{display:none!important}
+.path-marker.mode-odd .combined-path,.path-marker.mode-even .combined-path{display:none!important}
 .path-marker.mode-combined .combined-path{display:flex;width:100%;border:0!important;background:var(--tube-color,#fff)!important;color:#26343c!important;font-size:8px;font-weight:800}
 .path-marker.mode-combined{grid-template-columns:1fr;background:#fff}
 .path-marker.mode-odd .odd-path,.path-marker.mode-even .even-path{background:var(--tube-color,#fff)!important;color:#26343c!important}
