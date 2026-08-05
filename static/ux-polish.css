@@ -39,3 +39,5 @@ button:disabled{filter:saturate(.55);opacity:.55}
 .pager .page-size-label{font-size:12px;color:#64777e;margin-right:2px}.pager #pageSize{height:30px;min-width:58px;border:1px solid #c6d5da;border-radius:5px;background:#fff;padding:0 6px;color:#1e3038;margin-right:auto}
 html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:100vw}main{width:100%;max-width:none;height:calc(100dvh - 58px);min-height:0;overflow:auto;padding:14px clamp(12px,2vw,30px) 24px}.view.active{min-height:calc(100dvh - 86px)}#workspace .split{min-height:calc(100dvh - 230px)}#workspace .table-panel,#workspace .core-panel{min-height:0}.table-wrap{max-height:calc(100dvh - 300px)}
 @media(max-width:1080px){main{height:calc(100dvh - 58px)}#workspace .split{min-height:0}.table-wrap{max-height:calc(100dvh - 470px)}}
+#coreMap .orientation.left::after,
+#coreMap .orientation.right::before{border-top:6px solid transparent!important;border-bottom:6px solid transparent!important;border-left:10px solid #fff!important;border-right:0!important}
