@@ -15,7 +15,11 @@ class ParserTests(unittest.TestCase):
     def test_position_mappings(self):
         self.assertEqual(server.position_for(1, 1), "L11")
         self.assertEqual(server.position_for(2, 1), "B5")
+        self.assertEqual(server.position_for(2, 27), "J15")
+        self.assertEqual(server.position_for(2, 42), "N5")
         self.assertEqual(server.position_for(2, 50), "L4")
+        self.assertEqual(len({server.position_for(1, tube) for tube in range(1, 51)}), 50)
+        self.assertEqual(len({server.position_for(2, tube) for tube in range(1, 51)}), 50)
 
     def test_database_removes_out_of_range_legacy_rows(self):
         with tempfile.TemporaryDirectory() as directory:

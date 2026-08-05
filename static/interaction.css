@@ -42,3 +42,5 @@ dialog{max-width:760px;width:min(760px,calc(100vw - 28px));border-radius:4px}dia
 .path-marker.selected{background:color-mix(in srgb,var(--severity-high) calc(var(--severity)*100%),var(--severity-low))!important}.path-marker.selected .path-half{background:transparent!important;color:#172b22!important}.mode-odd .even-path,.mode-even .odd-path{display:none!important}
 /* Keep orientation labels inside the canvas gutter without covering coordinates. */
 .core-map{padding:64px 76px!important}.orientation.top{top:-48px!important}.orientation.bottom{bottom:-44px!important}.orientation.left{left:-64px!important}.orientation.right{right:-64px!important}
+/* Direction arrows follow the source tube-board drawing and point toward the board. */
+.orientation{display:flex;align-items:center;gap:6px;white-space:nowrap}.orientation.left::after{content:'¡ú';font-size:18px;line-height:1}.orientation.right::before{content:'¡û';font-size:18px;line-height:1}.orientation.top{flex-direction:column}.orientation.top::after{content:'¡ý';font-size:18px;line-height:1}.orientation.bottom{flex-direction:column-reverse}.orientation.bottom::before{content:'¡ü';font-size:18px;line-height:1}
