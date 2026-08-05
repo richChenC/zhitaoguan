@@ -11,7 +11,7 @@ const URL = `${BASE_URL}/?build=20260805f`;
 const SERVICE_VERSION = '2026.08.05';
 let serverProcess = null;
 let mainWindow = null;
-let serviceLogStream = null;
+let serviceLogPath = null;
 
 function pythonCandidates() {
   const candidates = [
@@ -46,8 +46,11 @@ async function ensureServer() {
   if (await isServerReady()) return;
   const logDirectory = path.join(app.getPath('userData'), 'logs');
   fs.mkdirSync(logDirectory, { recursive: true });
-  const logStream = fs.createWriteStream(path.join(logDirectory, 'desktop-service.log'), { flags: 'a' });
-  serviceLogStream = logStream;
+  serviceLogPath = path.join(logDirectory, 'desktop-service.log');
+  const writeLog = chunk => {
+    if (!serviceLogPath) return;
+    fs.appendFile(serviceLogPath, Buffer.isBuffer(chunk) ? chunk : String(chunk), () => {});
+  };
   const environment = { ...process.env, THIMBLE_PORT: PORT };
   if (app.isPackaged) {
     environment.THIMBLE_DATA_DIR ||= path.join(app.getPath('userData'), 'data');
@@ -59,20 +62,21 @@ async function ensureServer() {
     serverProcess = spawn(command, ['server.py'], {
       cwd: ROOT,
       windowsHide: true,
-      stdio: ['ignore', logStream, logStream],
+      stdio: ['ignore', 'pipe', 'pipe'],
       env: environment
     });
+    serverProcess.stdout.on('data', writeLog);
+    serverProcess.stderr.on('data', writeLog);
     serverProcess.once('error', error => { spawnError = error; });
-    serverProcess.once('exit', (code, signal) => { logStream.write(`\n[desktop] service (${command}) exited code=${code} signal=${signal}\n`); });
+    serverProcess.once('exit', (code, signal) => { writeLog(`\n[desktop] service (${command}) exited code=${code} signal=${signal}\n`); });
     for (let attempt = 0; attempt < 30; attempt += 1) {
       await new Promise(resolve => setTimeout(resolve, 200));
       if (await isServerReady()) return;
       if (spawnError) break;
     }
     if (serverProcess && !serverProcess.killed) serverProcess.kill();
-    logStream.write(`[desktop] runtime failed: ${command}${spawnError ? ` - ${spawnError.message}` : ''}\n`);
+    writeLog(`[desktop] runtime failed: ${command}${spawnError ? ` - ${spawnError.message}` : ''}\n`);
   }
-  logStream.end();
   throw new Error(`本地数据服务启动失败，请查看 ${path.join(logDirectory, 'desktop-service.log')}。`);
 }
 
@@ -120,5 +124,4 @@ ipcMain.handle('select-excel', async () => {
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', () => {
   if (serverProcess && !serverProcess.killed) serverProcess.kill();
-  if (serviceLogStream) { serviceLogStream.end(); serviceLogStream = null; }
 });
