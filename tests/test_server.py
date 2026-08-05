@@ -37,6 +37,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(server.position_for(1, 1), "L11")
         self.assertEqual(server.position_for(2, 1), "B5")
         self.assertEqual(server.position_for(2, 27), "J15")
+        self.assertEqual(server.position_for(1, 15), "M5")
         self.assertEqual(server.position_for(2, 42), "M5")
         self.assertEqual(server.position_for(2, 3), "E11")
         self.assertEqual(server.position_for(2, 47), "L5")
