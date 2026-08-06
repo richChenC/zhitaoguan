@@ -1074,6 +1074,7 @@ def compare_many(outages: list[str], unit: int) -> dict:
     return {"outages": outages, "new": latest, "unit": unit, "items": items, "summary": {"R": sum(item["comparison"] == "R" for item in items), "NI": sum(item["comparison"] == "NI" for item in items)}}
 
 DATAPOINT_MM = 0.125
+COMPARISON_NOTE = "结果比对栏内“R”表示此次显示为原有显示；“NI”表示为此次大修新发现的达到记录标准的显示。"
 
 def normalize_location(location: str) -> tuple[str, float | None]:
     match = re.match(r"^\s*(P\d+)\s*(?:\+\s*([-+]?\d+(?:\.\d+)?))?\s*(?:mm)?\s*$", str(location or ""), re.I)
@@ -1178,16 +1179,39 @@ def export_comparison_excel(old: str, new: str, unit: int) -> dict:
     sheet["A1"] = f"{unit}号机组反应堆中子通量测量指套管涡流检验结果对比表"
     sheet["A1"].font = Font(size=15, bold=True)
     sheet["A1"].alignment = Alignment(horizontal="center")
-    sheet.append(["序号", "通道编号", "堆芯位置", f"{new}幅值(V)", f"{new}磨损深度(%)", f"{new}磨损位置", f"{new}数据点", f"{old}幅值(V)", f"{old}磨损深度(%)", f"{old}磨损位置", f"{old}数据点", "备注"])
+    sheet.append(["序号", "通道编号", "堆芯位置", new, "", "", old, "", "", "备注"])
+    sheet.append(["", "", "", "幅值（V）", "磨损深度（壁厚%）", "磨损位置（mm）", "幅值（V）", "磨损深度（壁厚%）", "磨损位置（mm）", ""])
+    for column in ("A", "B", "C", "J"):
+        sheet.merge_cells(f"{column}2:{column}3")
+    sheet.merge_cells("D2:F2")
+    sheet.merge_cells("G2:I2")
     for index, row in enumerate(data["items"], 1):
-        sheet.append([index, row["thimble_id"], row["position"], row["volts"], row["percent"], row["location"], row["datapoint"], row["old_volts"], row["old_percent"], row["old_location"], row["old_datapoint"], row["comparison"]])
-    for cell in sheet[2]:
-        cell.fill = PatternFill("solid", fgColor="DCE6EA")
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    sheet.freeze_panes = "A3"
+        sheet.append([
+            index, row["thimble_id"], row["position"],
+            "/" if row.get("volts") is None else row["volts"],
+            "/" if row.get("percent") is None else row["percent"],
+            format_location(row.get("location") or "") or "/",
+            "/" if row.get("old_volts") is None else row["old_volts"],
+            "/" if row.get("old_percent") is None else row["old_percent"],
+            format_location(row.get("old_location") or "") or "/",
+            row["comparison"],
+        ])
+    spans = report_tube_rowspans(data["items"])
+    for offset, span in enumerate(spans, 4):
+        if span > 1:
+            sheet.merge_cells(start_row=offset, end_row=offset + span - 1, start_column=2, end_column=2)
+            sheet.merge_cells(start_row=offset, end_row=offset + span - 1, start_column=3, end_column=3)
+    note_row = sheet.max_row + 1
+    sheet.merge_cells(start_row=note_row, end_row=note_row, start_column=1, end_column=10)
+    sheet.cell(note_row, 1, f"备注：{COMPARISON_NOTE}")
+    for row in sheet.iter_rows(min_row=2, max_row=3, min_col=1, max_col=10):
+        for cell in row:
+            cell.fill = PatternFill("solid", fgColor="DCE6EA")
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    sheet.freeze_panes = "A4"
     for column in range(1, 11):
-        sheet.column_dimensions[get_column_letter(column)].width = 15 if column > 3 else 11
+        sheet.column_dimensions[get_column_letter(column)].width = 16 if 4 <= column <= 9 else 11
     return {**workbook_result(f"TH_机组{unit}_{new}_对比_{old}_演变对比_{datetime.now():%Y%m%d_%H%M%S}.xlsx", book), **data["summary"]}
 
 
@@ -1385,6 +1409,56 @@ def _w_table(headers: list[str], rows: list[list], merge_group_columns: tuple[in
     return f'<w:tbl><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="6"/><w:left w:val="single" w:sz="6"/><w:bottom w:val="single" w:sz="6"/><w:right w:val="single" w:sz="6"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>{grid}</w:tblGrid>{row_xml(headers, True)}{body}</w:tbl>'
 
 
+def _w_comparison_table(new: str, old: str, rows: list[list]) -> str:
+    """Build the formal two-level outage comparison table."""
+    widths = [520, 760, 820, 800, 900, 980, 800, 900, 980, 560]
+    grid = "".join(f'<w:gridCol w:w="{width}"/>' for width in widths)
+
+    def cell(value, width, *, bold=False, grid_span=1, vmerge=""):
+        span = f'<w:gridSpan w:val="{grid_span}"/>' if grid_span > 1 else ""
+        merge = '<w:vMerge w:val="restart"/>' if vmerge == "restart" else ("<w:vMerge/>" if vmerge == "continue" else "")
+        return f'<w:tc><w:tcPr><w:tcW w:w="{width}" w:type="dxa"/><w:vAlign w:val="center"/>{span}{merge}</w:tcPr>{_w_paragraph(value, "center", bold, 15)}</w:tc>'
+
+    header_one = "".join([
+        cell("序号", widths[0], bold=True, vmerge="restart"),
+        cell("通道编号", widths[1], bold=True, vmerge="restart"),
+        cell("堆芯位置", widths[2], bold=True, vmerge="restart"),
+        cell(new, sum(widths[3:6]), bold=True, grid_span=3),
+        cell(old, sum(widths[6:9]), bold=True, grid_span=3),
+        cell("备注", widths[9], bold=True, vmerge="restart"),
+    ])
+    subheaders = ["幅值（V）", "磨损深度（壁厚%）", "磨损位置（mm）"]
+    header_two = "".join([
+        cell("", widths[0], vmerge="continue"),
+        cell("", widths[1], vmerge="continue"),
+        cell("", widths[2], vmerge="continue"),
+        *(cell(label, widths[3 + index], bold=True) for index, label in enumerate(subheaders)),
+        *(cell(label, widths[6 + index], bold=True) for index, label in enumerate(subheaders)),
+        cell("", widths[9], vmerge="continue"),
+    ])
+
+    groups = [(row[1], str(row[2] or "").strip()) for row in rows]
+    body_rows = []
+    for row_index, row in enumerate(rows):
+        group = groups[row_index]
+        merge_state = "none"
+        if group[0] not in (None, "") and group[1]:
+            if row_index > 0 and groups[row_index - 1] == group:
+                merge_state = "continue"
+            elif row_index + 1 < len(groups) and groups[row_index + 1] == group:
+                merge_state = "restart"
+        body_cells = []
+        for column, value in enumerate(row):
+            state = merge_state if column in (1, 2) else ""
+            if state == "continue":
+                value = ""
+            body_cells.append(cell(value, widths[column], vmerge=state))
+        body_rows.append(f'<w:tr>{"".join(body_cells)}</w:tr>')
+
+    borders = '<w:tblBorders><w:top w:val="single" w:sz="6"/><w:left w:val="single" w:sz="6"/><w:bottom w:val="single" w:sz="6"/><w:right w:val="single" w:sz="6"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders>'
+    return f'<w:tbl><w:tblPr>{borders}<w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>{grid}</w:tblGrid><w:tr>{header_one}</w:tr><w:tr>{header_two}</w:tr>{"".join(body_rows)}</w:tbl>'
+
+
 def _w_report_info_table(pairs: list[tuple[str, str]]) -> str:
     """Build the formal three-column label/value header used by the TH report sheet."""
     widths = [1050, 1800, 1050, 1800, 1050, 1800]
@@ -1485,21 +1559,54 @@ def export_inspection_docx(outage: str, unit: int, metadata: dict, finding_ids: 
 
 def build_comparison_preview(old: str, new: str, unit: int) -> dict:
     data = compare(old, new, unit)
-    body = "".join(
-        f"<tr><td>{index}</td><td>{row['thimble_id']}</td><td>{html.escape(row.get('position') or '')}</td>"
-        f"<td>{'' if row.get('volts') is None else row['volts']}</td><td>{'' if row.get('percent') is None else row['percent']}</td><td>{html.escape(format_location(row.get('location') or ''))}</td>"
-        f"<td>{'' if row.get('old_volts') is None else row['old_volts']}</td><td>{'' if row.get('old_percent') is None else row['old_percent']}</td><td>{html.escape(format_location(row.get('old_location') or ''))}</td><td><b class='{row['comparison'].lower()}'>{row['comparison']}</b></td></tr>"
-        for index, row in enumerate(data["items"], 1))
+    body_rows = []
+    for index, (row, rowspan) in enumerate(zip(data["items"], report_tube_rowspans(data["items"])), 1):
+        tube_cells = ""
+        if rowspan:
+            span = f" rowspan='{rowspan}'" if rowspan > 1 else ""
+            tube_cells = f"<td{span}>{row['thimble_id']}</td><td{span}>{html.escape(row.get('position') or '')}</td>"
+        old_values = (
+            '/' if row.get('old_volts') is None else row['old_volts'],
+            '/' if row.get('old_percent') is None else row['old_percent'],
+            '/' if not row.get('old_location') else format_location(row['old_location']),
+        )
+        body_rows.append(
+            f"<tr><td>{index}</td>{tube_cells}"
+            f"<td>{'' if row.get('volts') is None else row['volts']}</td><td>{'' if row.get('percent') is None else row['percent']}</td><td>{html.escape(format_location(row.get('location') or ''))}</td>"
+            f"<td>{old_values[0]}</td><td>{old_values[1]}</td><td>{html.escape(str(old_values[2]))}</td><td><b class='{row['comparison'].lower()}'>{row['comparison']}</b></td></tr>"
+        )
+    body = "".join(body_rows)
     title = f"{unit}号机组反应堆中子通量测量指套管涡流检验结果对比表"
-    preview = f"<article class='report-sheet comparison-sheet'><h1>{html.escape(title)}</h1><p class='report-lead'>本次大修（{html.escape(new)}）与历史大修（{html.escape(old)}）结果对比。历史缺陷 R：{data['summary']['R']}，新增缺陷 NI：{data['summary']['NI']}。</p><div class='report-table-wrap'><table><thead><tr><th rowspan='2'>序号</th><th rowspan='2'>通道编号</th><th rowspan='2'>堆芯位置</th><th colspan='3'>{html.escape(new)}</th><th colspan='3'>{html.escape(old)}</th><th rowspan='2'>备注</th></tr><tr><th>幅值(V)</th><th>磨损深度(%)</th><th>磨损位置</th><th>幅值(V)</th><th>磨损深度(%)</th><th>磨损位置</th></tr></thead><tbody>{body}</tbody></table></div></article>"
+    preview = f"<article class='report-sheet comparison-sheet'><h1>{html.escape(title)}</h1><p class='report-lead'>本次大修（{html.escape(new)}）与历史大修（{html.escape(old)}）结果对比。历史缺陷 R：{data['summary']['R']}，新增缺陷 NI：{data['summary']['NI']}。</p><div class='report-table-wrap'><table><thead><tr><th rowspan='2'>序号</th><th rowspan='2'>通道编号</th><th rowspan='2'>堆芯位置</th><th colspan='3'>{html.escape(new)}</th><th colspan='3'>{html.escape(old)}</th><th rowspan='2'>备注</th></tr><tr><th>幅值（V）</th><th>磨损深度（壁厚%）</th><th>磨损位置（mm）</th><th>幅值（V）</th><th>磨损深度（壁厚%）</th><th>磨损位置（mm）</th></tr></thead><tbody>{body}</tbody></table></div><footer>{html.escape(COMPARISON_NOTE)}</footer></article>"
     return {"title": title, "rows": len(data["items"]), "html": preview, **data["summary"]}
 
 
 def export_comparison_docx(old: str, new: str, unit: int) -> dict:
     data = compare(old, new, unit)
-    values = [[index, row["thimble_id"], row.get("position") or "", row.get("volts"), row.get("percent"), format_location(row.get("location") or ""), row.get("old_volts"), row.get("old_percent"), format_location(row.get("old_location") or ""), row["comparison"]] for index, row in enumerate(data["items"], 1)]
-    blocks = [_w_paragraph(f"{unit}号机组反应堆中子通量测量指套管涡流检验结果对比表", "center", True, 28), _w_paragraph(f"本次大修（{new}）与历史大修（{old}）结果对比。历史缺陷 R：{data['summary']['R']}，新增缺陷 NI：{data['summary']['NI']}。", "left", False, 18), _w_table(["序号", "通道编号", "堆芯位置", f"{new} 幅值(V)", f"{new} 磨损深度(%)", f"{new} 磨损位置", f"{old} 幅值(V)", f"{old} 磨损深度(%)", f"{old} 磨损位置", "备注"], values)]
-    return {**_write_docx(f"TH_机组{unit}_{new}_对比_{old}_综合报告_{datetime.now():%Y%m%d_%H%M%S}.docx", blocks), "rows": len(data["items"]), **data["summary"]}
+    values = []
+    for index, row in enumerate(data["items"], 1):
+        values.append([
+            index, row["thimble_id"], row.get("position") or "",
+            "/" if row.get("volts") is None else row.get("volts"),
+            "/" if row.get("percent") is None else row.get("percent"),
+            format_location(row.get("location") or "") or "/",
+            "/" if row.get("old_volts") is None else row.get("old_volts"),
+            "/" if row.get("old_percent") is None else row.get("old_percent"),
+            format_location(row.get("old_location") or "") or "/",
+            row["comparison"],
+        ])
+    pages = [values[index:index + 25] for index in range(0, len(values), 25)] or [[]]
+    blocks = []
+    for page_index, page_rows in enumerate(pages, 1):
+        blocks.append(_w_paragraph(f"II-{page_index}/{len(pages)}", "right", False, 14))
+        blocks.append(_w_paragraph(f"{unit}号机组反应堆中子通量测量指套管涡流检验结果对比表", "center", True, 24))
+        blocks.append(_w_paragraph(f"本次大修（{new}）与历史大修（{old}）的结果对比如下。", "left", False, 17))
+        blocks.append(_w_comparison_table(new, old, page_rows))
+        if page_index == len(pages):
+            blocks.append(_w_paragraph(f"备注：{COMPARISON_NOTE}", "left", False, 15))
+        if page_index < len(pages):
+            blocks.append(_w_page_break())
+    return {**_write_docx(f"TH_机组{unit}_{new}_对比_{old}_综合报告_{datetime.now():%Y%m%d_%H%M%S}.docx", blocks, landscape=False), "rows": len(data["items"]), **data["summary"]}
 
 
 def health_status() -> dict:

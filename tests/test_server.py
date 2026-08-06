@@ -124,6 +124,17 @@ class ParserTests(unittest.TestCase):
                 self.assertEqual(comparison["R"], 1)
                 self.assertEqual(comparison["NI"], 1)
                 self.assertTrue(Path(comparison["file_path"]).is_file())
+                with zipfile.ZipFile(comparison["file_path"]) as archive:
+                    comparison_xml = archive.read("word/document.xml").decode("utf-8")
+                self.assertIn('<w:gridSpan w:val="3"/>', comparison_xml)
+                self.assertIn("R</w:t>", comparison_xml)
+                self.assertIn("结果比对栏内", comparison_xml)
+                excel = server.export_comparison_excel("H208", "H209", 2)
+                workbook = load_workbook(excel["file_path"])
+                comparison_sheet = workbook.active
+                self.assertIn("D2:F2", {str(item) for item in comparison_sheet.merged_cells.ranges})
+                self.assertIn("G2:I2", {str(item) for item in comparison_sheet.merged_cells.ranges})
+                self.assertTrue(str(comparison_sheet.cell(comparison_sheet.max_row, 1).value).startswith("备注："))
 
     def test_report_merges_only_matching_channel_and_core_position(self):
         rows = [
