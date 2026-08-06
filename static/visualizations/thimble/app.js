@@ -46,8 +46,8 @@ const inspectionLights=new THREE.Group(),inspectionTarget=new THREE.Object3D();i
 scene.add(inspectionLights);scene.add(camera);
 
 const root=new THREE.Group();scene.add(root);
-const coreGroup=new THREE.Group(),tubesGroup=new THREE.Group(),structureGroup=new THREE.Group(),shellGroup=new THREE.Group(),labelsGroup=new THREE.Group(),singleTubeLabelsGroup=new THREE.Group(),numberGroup=new THREE.Group(),tubeHitGroup=new THREE.Group(),orientationGroup=new THREE.Group(),externalGroup=new THREE.Group(),dataDefectsGroup=new THREE.Group(),evolutionGroup=new THREE.Group();
-root.add(coreGroup,tubesGroup,structureGroup,shellGroup,labelsGroup,singleTubeLabelsGroup,numberGroup,tubeHitGroup,orientationGroup,externalGroup,dataDefectsGroup,evolutionGroup);
+const coreGroup=new THREE.Group(),tubesGroup=new THREE.Group(),singleTubeModelGroup=new THREE.Group(),structureGroup=new THREE.Group(),shellGroup=new THREE.Group(),labelsGroup=new THREE.Group(),singleTubeLabelsGroup=new THREE.Group(),numberGroup=new THREE.Group(),tubeHitGroup=new THREE.Group(),orientationGroup=new THREE.Group(),externalGroup=new THREE.Group(),dataDefectsGroup=new THREE.Group(),evolutionGroup=new THREE.Group();
+root.add(coreGroup,tubesGroup,singleTubeModelGroup,structureGroup,shellGroup,labelsGroup,singleTubeLabelsGroup,numberGroup,tubeHitGroup,orientationGroup,externalGroup,dataDefectsGroup,evolutionGroup);
 const tubeGroups=[],tubeSquareCells=[];let selected=0,workspaceRows=[],scanning=false,coreVisible=true,structureVisible=true,externalVisible=false,labelsVisible=true,orientationVisible=true,shellVisible=false,numbersVisible=true,cameraTween=null,currentCamera='overview';
 
 const metal=new THREE.MeshPhysicalMaterial({color:0x899791,metalness:.52,roughness:.38,envMapIntensity:.9,clearcoat:.16,clearcoatRoughness:.48});
@@ -122,6 +122,7 @@ const pointDefinitions=[
   ['P1',1.35,'下栅格板'],['P2',.45,'支撑板上表面'],['P3',-.45,'支撑板下表面'],
   ['P4',-3.05,'支撑柱与格架板'],['P5',-4.55,'支撑柱与RPV管座'],['P6',-5.85,'RPV管座与导向管']
 ];
+function buildSingleTubeModel(){singleTubeModelGroup.clear();const body=new THREE.Mesh(new THREE.CylinderGeometry(.115,.115,8.8,48),tubeMaterial);body.position.y=-2.15;singleTubeModelGroup.add(body);pointDefinitions.forEach(([zone,y],index)=>{const ring=new THREE.Mesh(new THREE.TorusGeometry(.18,.035,10,36),index===0||index===3?hotMaterial:edgeMetal);ring.rotation.x=Math.PI/2;ring.position.y=y;ring.userData.zone=zone;singleTubeModelGroup.add(ring)});singleTubeModelGroup.visible=false}
 function buildPointLabels(){
   labelsGroup.clear();
   pointDefinitions.forEach(([p,y],i)=>{const color=i===0||i===3?'#e45b4e':'#d7ef4a';
@@ -159,7 +160,7 @@ function buildExternalPath(){
   const drive=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.35,1.25),darkMetal);drive.position.set(25,-6.75,0);externalGroup.add(drive);const driveTag=makeLabel('传送装置');driveTag.position.set(25,-7.65,0);externalGroup.add(driveTag);
 }
 
-buildCore();buildInternalStructures();buildThimbles();buildTubeNumbers();buildOrientation();buildPointLabels();buildSingleTubeLabels();externalGroup.visible=externalVisible;shellGroup.visible=shellVisible;
+buildCore();buildInternalStructures();buildThimbles();buildSingleTubeModel();buildTubeNumbers();buildOrientation();buildPointLabels();buildSingleTubeLabels();externalGroup.visible=externalVisible;shellGroup.visible=shellVisible;
 const detector=cylinder(.05,.7,signalMaterial,14);root.add(detector);const detectorGlow=new THREE.PointLight(0xd7ef4a,0,3);root.add(detectorGlow);
 detector.visible=!EMBEDDED;detectorGlow.visible=!EMBEDDED;
 const defectMaterial=new THREE.MeshStandardMaterial({color:0xe45b4e,emissive:0x7a1912,emissiveIntensity:1.15,metalness:.22,roughness:.26});
@@ -167,7 +168,7 @@ const defectPreview=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),defectMater
 defectPreview.visible=!EMBEDDED;
 
 function updateDepth(){const value=+document.querySelector('#detectorDepth').value,y=-3.95+value/100*13.5;detector.position.y=y;detectorGlow.position.y=y;document.querySelector('#depthOutput').textContent=`${Math.round(value)}%`}
-function setSelected(index){selected=Math.max(0,Math.min(49,index));tubeGroups.forEach((g,i)=>{g.visible=currentCamera!=='tube'||i===selected;g.children.forEach(m=>{if(m.material===tubeMaterial||m.material===signalMaterial)m.material=i===selected?signalMaterial:tubeMaterial})});numberLabels.forEach((label,i)=>{label.scale.setScalar(i===selected?1.1:1);label.material.color.set(i===selected?0xd7ef4a:0xffffff)});const pos=POSITIONS[selected],{x,z}=coordinate(pos);detector.position.x=x;detector.position.z=z;detectorGlow.position.x=x;detectorGlow.position.z=z;document.querySelector('#tubeSelect').value=selected+1;document.querySelector('#tubeOutput').textContent=String(selected+1).padStart(2,'0');const embeddedTube=document.querySelector('#embeddedTubeSelect');if(embeddedTube){embeddedTube.value=selected+1;document.querySelector('#embeddedTubeOutput').textContent=String(selected+1).padStart(2,'0')}document.querySelector('#objectName').textContent=`指套管 #${String(selected+1).padStart(2,'0')}`;document.querySelector('#position').textContent=pos;buildSingleTubeLabels();buildExternalPath();updateDepth();updateArtificialDefect();updateSelectedTubeDetails();if(currentCamera==='tube')setCamera('tube')}
+function setSelected(index){selected=Math.max(0,Math.min(49,index));tubeGroups.forEach((g,i)=>{g.visible=currentCamera!=='tube'||i===selected;g.children.forEach(m=>{if(m.material===tubeMaterial||m.material===signalMaterial)m.material=i===selected?signalMaterial:tubeMaterial})});numberLabels.forEach((label,i)=>{label.scale.setScalar(i===selected?1.1:1);label.material.color.set(i===selected?0xd7ef4a:0xffffff)});const pos=POSITIONS[selected],{x,z}=coordinate(pos);singleTubeModelGroup.position.set(x,0,z);detector.position.x=x;detector.position.z=z;detectorGlow.position.x=x;detectorGlow.position.z=z;document.querySelector('#tubeSelect').value=selected+1;document.querySelector('#tubeOutput').textContent=String(selected+1).padStart(2,'0');const embeddedTube=document.querySelector('#embeddedTubeSelect');if(embeddedTube){embeddedTube.value=selected+1;document.querySelector('#embeddedTubeOutput').textContent=String(selected+1).padStart(2,'0')}document.querySelector('#objectName').textContent=`指套管 #${String(selected+1).padStart(2,'0')}`;document.querySelector('#position').textContent=pos;buildSingleTubeLabels();buildExternalPath();updateDepth();updateArtificialDefect();updateSelectedTubeDetails();if(currentCamera==='tube')setCamera('tube')}
 
 function updateArtificialDefect(){
   const zone=document.querySelector('#layerSelect')?.value||'P1';
@@ -232,12 +233,12 @@ function setCamera(name){currentCamera=name;const single=name==='tube',plate=nam
 const physicalSetCamera=setCamera;
 setCamera=function(name){
   if(name==='evolution'){
-    currentCamera='evolution';evolutionGroup.visible=true;coreGroup.visible=false;tubesGroup.visible=false;structureGroup.visible=false;shellGroup.visible=false;labelsGroup.visible=false;singleTubeLabelsGroup.visible=false;numberGroup.visible=false;tubeHitGroup.visible=false;orientationGroup.visible=false;dataDefectsGroup.visible=false;const preset=presets.evolution;cameraTween={start:performance.now(),fromP:camera.position.clone(),fromT:controls.target.clone(),toP:new THREE.Vector3(...preset.p),toT:new THREE.Vector3(...preset.t)};document.querySelectorAll('[data-camera],[data-embedded-view]').forEach(b=>b.classList.toggle('active',(b.dataset.camera||b.dataset.embeddedView)===name));return;
+    currentCamera='evolution';evolutionGroup.visible=true;singleTubeModelGroup.visible=false;coreGroup.visible=false;tubesGroup.visible=false;structureGroup.visible=false;shellGroup.visible=false;labelsGroup.visible=false;singleTubeLabelsGroup.visible=false;numberGroup.visible=false;tubeHitGroup.visible=false;orientationGroup.visible=false;dataDefectsGroup.visible=false;const preset=presets.evolution;cameraTween={start:performance.now(),fromP:camera.position.clone(),fromT:controls.target.clone(),toP:new THREE.Vector3(...preset.p),toT:new THREE.Vector3(...preset.t)};document.querySelectorAll('[data-camera],[data-embedded-view]').forEach(b=>b.classList.toggle('active',(b.dataset.camera||b.dataset.embeddedView)===name));return;
   }
   if(name==='tube'&&currentCamera==='tube'){
-    const {x,z}=coordinate(POSITIONS[selected]),offset=camera.position.clone().sub(controls.target);controls.target.set(x,-1.2,z);camera.position.set(x+offset.x, -1.2+offset.y, z+offset.z);document.querySelectorAll('[data-camera],[data-embedded-view]').forEach(b=>b.classList.toggle('active',(b.dataset.camera||b.dataset.embeddedView)===name));return;
+    const {x,z}=coordinate(POSITIONS[selected]),offset=camera.position.clone().sub(controls.target);tubeGroups.forEach(group=>group.visible=false);singleTubeModelGroup.visible=true;controls.target.set(x,-2.15,z);camera.position.set(x+offset.x, -2.15+offset.y, z+offset.z);document.querySelectorAll('[data-camera],[data-embedded-view]').forEach(b=>b.classList.toggle('active',(b.dataset.camera||b.dataset.embeddedView)===name));return;
   }
-  evolutionGroup.visible=false;physicalSetCamera(name);
+  evolutionGroup.visible=false;physicalSetCamera(name);singleTubeModelGroup.visible=name==='tube';if(name==='tube'){tubeGroups.forEach(group=>group.visible=false);if(cameraTween){const{x,z}=coordinate(POSITIONS[selected]);cameraTween.toT.set(x,-2.15,z)}}
 };
 function enter(){document.querySelector('.intro').classList.add('dismissed');document.querySelector('.inspector').classList.add('visible')}
 function resize(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}new ResizeObserver(resize).observe(host);resize();

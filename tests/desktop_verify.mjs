@@ -15,7 +15,7 @@ const executable = path.join(root, 'node_modules', 'electron', 'dist', process.p
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'thimble-desktop-'));
 const app = await electron.launch({
   executablePath: executable,
-  args: [root, '--disable-gpu', '--disable-gpu-compositing'],
+  args: [root, '--disable-gpu', '--disable-gpu-compositing', `--user-data-dir=${path.join(tempRoot, 'user-data')}`],
   cwd: root,
   env: {...process.env, THIMBLE_PORT: '18766', THIMBLE_DB_PATH: path.join(tempRoot, 'thimble.db'), THIMBLE_OUTPUT_DIR: path.join(tempRoot, 'excel'), THIMBLE_LOG_PATH: path.join(tempRoot, 'service.log')}
 });
