@@ -272,7 +272,21 @@ function resize(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(
 const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();let clickStart=null;
 renderer.domElement.addEventListener('pointerdown',event=>{if(event.button===0)clickStart={x:event.clientX,y:event.clientY}});
 renderer.domElement.addEventListener('pointerup',event=>{if(event.button!==0||!clickStart)return;const distance=Math.hypot(event.clientX-clickStart.x,event.clientY-clickStart.y);clickStart=null;if(distance>5)return;const r=renderer.domElement.getBoundingClientRect();pointer.set((event.clientX-r.left)/r.width*2-1,-(event.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects([dataDefectsGroup,tubeHitGroup,numberGroup,tubesGroup],true)[0];if(!hit)return;let object=hit.object;if(object.userData.id!==undefined){setSelected(Number(object.userData.id)-1);window.parent!==window&&window.parent.postMessage({type:'thimble-selected',thimble:selected+1,position:POSITIONS[selected]},location.origin);return}while(object.parent&&object.userData.index===undefined)object=object.parent;if(object.userData.index!==undefined){setSelected(object.userData.index);window.parent!==window&&window.parent.postMessage({type:'thimble-selected',thimble:selected+1,position:POSITIONS[selected]},location.origin)}});
-renderer.domElement.addEventListener('dblclick',()=>setCamera('plate'));
+renderer.domElement.addEventListener('dblclick',event=>{
+  const r=renderer.domElement.getBoundingClientRect();
+  pointer.set((event.clientX-r.left)/r.width*2-1,-(event.clientY-r.top)/r.height*2+1);
+  raycaster.setFromCamera(pointer,camera);
+  const hit=raycaster.intersectObjects([tubeHitGroup,numberGroup,tubesGroup],true)[0];
+  let object=hit?.object;
+  while(object&&object.userData.index===undefined)object=object.parent;
+  if(object?.userData?.index!==undefined){
+    setSelected(object.userData.index);
+    setCamera('tube');
+    notifyParentSelection();
+    return;
+  }
+  setCamera('plate');
+});
 document.querySelector('#enter').onclick=()=>{enter();setCamera('overview')};
 document.querySelectorAll('[data-camera]').forEach(b=>b.onclick=()=>{enter();setCamera(b.dataset.camera)});
 document.querySelectorAll('[data-embedded-view]').forEach(button=>button.onclick=()=>setCamera(button.dataset.embeddedView));

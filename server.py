@@ -855,7 +855,7 @@ def export_directory_excel(directory: str, selected_reports: list[str] | None = 
         raise ValueError("所选目录中没有找到符合 TH数字I数字CAL数字 规则的数据组")
     source_name = Path(directory).resolve().name or "指套管检测数据"
     safe_name = re.sub(r"[^0-9A-Za-z\u4e00-\u9fff_-]+", "_", source_name)
-    filename = f"{safe_name}_解析结果_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
+    filename = f"TH_{safe_name}_解析检查表_{datetime.now():%Y%m%d_%H%M%S}.xlsx"
     book = Workbook()
     sheet = book.active
     sheet.title = "缺陷明细表"
@@ -1149,7 +1149,7 @@ def export_evolution_excel(site: str, unit: int) -> dict:
             if state == "plugged": break
             if defects: previous = defects
     for cell in sheet[1]: cell.font = Font(bold=True)
-    return workbook_result(f"{site}{unit}_指套管纵向演变_{datetime.now():%Y%m%d_%H%M%S}.xlsx", book)
+    return workbook_result(f"TH_{site}_机组{unit}_纵向演变_{datetime.now():%Y%m%d_%H%M%S}.xlsx", book)
 
 
 def workbook_result(filename: str, book: Workbook) -> dict:
@@ -1188,7 +1188,7 @@ def export_comparison_excel(old: str, new: str, unit: int) -> dict:
     sheet.freeze_panes = "A3"
     for column in range(1, 11):
         sheet.column_dimensions[get_column_letter(column)].width = 15 if column > 3 else 11
-    return {**workbook_result(f"{new}_对比_{old}_{datetime.now():%Y%m%d_%H%M%S}.xlsx", book), **data["summary"]}
+    return {**workbook_result(f"TH_机组{unit}_{new}_对比_{old}_演变对比_{datetime.now():%Y%m%d_%H%M%S}.xlsx", book), **data["summary"]}
 
 
 def export_comparison_excel_many(outages: list[str], unit: int) -> dict:
@@ -1207,7 +1207,7 @@ def export_comparison_excel_many(outages: list[str], unit: int) -> dict:
     for cell in sheet[1]: cell.font = Font(bold=True); cell.alignment = Alignment(horizontal="center", wrap_text=True)
     sheet.freeze_panes = "A2"
     for column in range(1, len(headers) + 1): sheet.column_dimensions[get_column_letter(column)].width = 16
-    return {**workbook_result(f"{data['new']}_多次大修对比_{datetime.now():%Y%m%d_%H%M%S}.xlsx", book), **data["summary"]}
+    return {**workbook_result(f"TH_机组{unit}_{data['new']}_多次大修对比_{datetime.now():%Y%m%d_%H%M%S}.xlsx", book), **data["summary"]}
 
 
 def export_inspection_report(outage: str, unit: int, metadata: dict) -> dict:
@@ -1252,7 +1252,7 @@ def export_inspection_report(outage: str, unit: int, metadata: dict) -> dict:
     widths = [8, 12, 13, 12, 12, 18, 18, 16]
     for col, width in enumerate(widths, 1):
         sheet.column_dimensions[get_column_letter(col)].width = width
-    return {**workbook_result(f"{outage}_指套管涡流检验报告单_{datetime.now():%Y%m%d_%H%M%S}.xlsx", book), "rows": len(rows)}
+    return {**workbook_result(f"TH_机组{unit}_{outage}_检验结果_{datetime.now():%Y%m%d_%H%M%S}.xlsx", book), "rows": len(rows)}
 
 
 def inspection_report_rows(outage: str, unit: int, finding_ids: list[int] | None = None) -> list[dict]:
@@ -1345,7 +1345,7 @@ def export_inspection_docx(outage: str, unit: int, metadata: dict, finding_ids: 
         info_rows.append(row)
     values = [[index, row["thimble_id"], row.get("position") or "", row.get("indication") or "NDD", row.get("volts"), row.get("percent"), format_location(row.get("location") or ""), row.get("channel") or "", row.get("analyst") or ""] for index, row in enumerate(rows, 1)]
     blocks = [_w_paragraph(metadata.get("title") or "反应堆中子通量测量指套管涡流检验报告单", "center", True, 30), _w_table(["电厂", "", "机组", "", "检查类型", ""], info_rows), _w_paragraph("检验结果", "center", True, 20), _w_table(["序号", "通道编号", "堆芯位置", "显示类型", "幅值(V)", "磨损深度(壁厚%)", "磨损位置", "测量通道", "分析人员"], values), _w_paragraph("备注：\n\n分析人员/级别：__________    审核/级别：__________    批准：__________    业主：__________\n日期：__________", "left", False, 18)]
-    return {**_write_docx(f"{outage}_指套管涡流检验结果_{datetime.now():%Y%m%d_%H%M%S}.docx", blocks), "rows": len(rows)}
+    return {**_write_docx(f"TH_机组{unit}_{outage}_检验结果_{datetime.now():%Y%m%d_%H%M%S}.docx", blocks), "rows": len(rows)}
 
 
 def build_comparison_preview(old: str, new: str, unit: int) -> dict:
@@ -1364,7 +1364,7 @@ def export_comparison_docx(old: str, new: str, unit: int) -> dict:
     data = compare(old, new, unit)
     values = [[index, row["thimble_id"], row.get("position") or "", row.get("volts"), row.get("percent"), format_location(row.get("location") or ""), row.get("old_volts"), row.get("old_percent"), format_location(row.get("old_location") or ""), row["comparison"]] for index, row in enumerate(data["items"], 1)]
     blocks = [_w_paragraph(f"{unit}号机组反应堆中子通量测量指套管涡流检验结果对比表", "center", True, 28), _w_paragraph(f"本次大修（{new}）与历史大修（{old}）结果对比。历史缺陷 R：{data['summary']['R']}，新增缺陷 NI：{data['summary']['NI']}。", "left", False, 18), _w_table(["序号", "通道编号", "堆芯位置", f"{new} 幅值(V)", f"{new} 磨损深度(%)", f"{new} 磨损位置", f"{old} 幅值(V)", f"{old} 磨损深度(%)", f"{old} 磨损位置", "备注"], values)]
-    return {**_write_docx(f"{new}_对比_{old}_指套管综合报告_{datetime.now():%Y%m%d_%H%M%S}.docx", blocks), "rows": len(data["items"]), **data["summary"]}
+    return {**_write_docx(f"TH_机组{unit}_{new}_对比_{old}_综合报告_{datetime.now():%Y%m%d_%H%M%S}.docx", blocks), "rows": len(data["items"]), **data["summary"]}
 
 
 def health_status() -> dict:
@@ -1509,7 +1509,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Content-Disposition", "attachment; filename=thimble-report.xlsx")
+        self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
