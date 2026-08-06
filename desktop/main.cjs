@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const ROOT = path.resolve(__dirname, '..');
 const PORT = '18765';
 const BASE_URL = `http://127.0.0.1:${PORT}`;
-const URL = `${BASE_URL}/?build=20260806e`;
+const URL = `${BASE_URL}/?build=20260806f`;
 const SERVICE_VERSION = '2026.08.06';
 let serverProcess = null;
 let mainWindow = null;

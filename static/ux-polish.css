@@ -41,7 +41,7 @@ html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:
 @media(max-width:1080px){main{height:calc(100dvh - 58px)}#workspace .split{min-height:0}.table-wrap{max-height:calc(100dvh - 470px)}}
 #coreMap .orientation.left::after,
 #coreMap .orientation.right::before{border-top:6px solid transparent!important;border-bottom:6px solid transparent!important;border-left:10px solid #fff!important;border-right:0!important}
-#coreMap .orientation.right::before{border-left:0!important;border-right:10px solid #fff!important}
+#coreMap .orientation.right::before{border-left:10px solid #fff!important;border-right:0!important}
 #coreMap .orientation.top::after,#coreMap .orientation.bottom::before{content:none!important;border:0!important}
 .path-marker.mode-combined .odd-path,.path-marker.mode-combined .even-path{display:none!important}
 .path-marker.mode-odd .combined-path,.path-marker.mode-even .combined-path{display:none!important}
