@@ -70,6 +70,15 @@ function sync(scope) {
   // unit for the embedded model without mutating the workbench filters.
   const modelScope = {...latestScope};
   if (!modelScope.unit && selectedItems.length) modelScope.unit = String(selectedItems[0].unit_id || '');
+  if (!modelScope.unit && modelScope.outage) {
+    const combinations = window.__thimbleState?.overview?.combinations || [];
+    const matches = combinations.filter(item =>
+      String(item.outage || '') === String(modelScope.outage) &&
+      (!modelScope.site || String(item.site || '') === String(modelScope.site))
+    );
+    const units = [...new Set(matches.map(item => String(item.unit_id || '')).filter(Boolean))];
+    if (units.length === 1) modelScope.unit = units[0];
+  }
   send('thimble-scope', {scope: modelScope, selectedItems});
   if (selectedItems.length) send('thimble-focus', {thimble: Number(selectedItems[0].thimble_id || 0)});
 }
@@ -106,10 +115,18 @@ window.addEventListener('three-focus-tube', event => {
   sync(latestScope);
   send('thimble-focus', {thimble: Number(detail.thimble || 1)});
 });
-window.addEventListener('message', event => {
+window.addEventListener('message', async event => {
   if (event.origin !== location.origin || event.data?.type !== 'thimble-selected') return;
   const detail = event.data;
-  window.workspaceSelectTube?.(Number(detail.thimble || 0));
+  applyingFromThree = true;
+  try {
+    await window.workspaceSelectTube?.(Number(detail.thimble || 0));
+  } finally {
+    applyingFromThree = false;
+  }
+  latestScope = {...latestScope, selectedItems: []};
+  sync(latestScope);
+  send('thimble-focus', {thimble: Number(detail.thimble || 1)});
   window.dispatchEvent(new CustomEvent('three-tube-selected', {detail}));
 });
 document.querySelector('[data-view="threeD"]')?.addEventListener('click', () => requestAnimationFrame(() => sync(Object.keys(latestScope).length ? latestScope : readScope())));
