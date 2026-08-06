@@ -384,6 +384,8 @@ def init_db() -> None:
             if not backup.exists():
                 shutil.copy2(DB_PATH, backup)
     with connect() as db:
+        # WAL keeps the desktop UI responsive while an import or export is running.
+        db.execute("PRAGMA journal_mode=WAL")
         db.executescript("""
         CREATE TABLE IF NOT EXISTS findings (
           id INTEGER PRIMARY KEY, outage TEXT NOT NULL, unit_id INTEGER NOT NULL,
@@ -652,22 +654,27 @@ def import_excel_file(filename: str) -> dict:
     }
     # English templates vary in case, separators and wording. Add normalized aliases
     # by semantic field order while keeping the existing database field names intact.
+    # Keep aliases tied to the actual template columns. The previous positional
+    # mapping put outage aliases on the unit field and shifted every later field.
     semantic_aliases = {
         0: ["site", "station", "plant", "base"],
-        1: ["outage", "overhaul", "overhaul no", "maintenance"],
-        2: ["unit", "unit no", "unit number", "unitid"],
-        6: ["channel", "channel no", "channel number", "thimble", "thimble id"],
-        7: ["position", "core position", "core location"],
-        8: ["volts", "voltage", "amplitude"],
-        9: ["phase", "degrees", "angle"],
-        10: ["wear depth", "wear", "percent", "wear percent"],
-        11: ["indication", "defect", "three character code", "code"],
-        12: ["measurement channel", "test channel"],
-        13: ["location", "wear location", "defect location"],
-        15: ["analyst", "analyst name", "reviewer"],
-        16: ["data", "data file", "filename"],
-        17: ["data group", "calgroup", "group"],
-        18: ["note", "notes", "remark", "remarks"],
+        1: ["unit", "unit no", "unit number", "unitid"],
+        2: ["channel", "channel no", "channel number", "thimble", "thimble id"],
+        3: ["position", "core position", "core location"],
+        4: ["volts", "voltage", "amplitude"],
+        5: ["phase", "degrees", "angle"],
+        6: ["wear depth", "wear", "percent", "wear percent"],
+        7: ["indication", "defect", "three character code", "code"],
+        8: ["measurement channel", "test channel"],
+        9: ["location", "wear location", "defect location"],
+        10: ["analyst", "analyst name", "reviewer"],
+        11: ["data", "data file", "filename"],
+        12: ["data group", "calgroup", "group"],
+        13: ["note", "notes", "remark", "remarks"],
+        15: ["outage", "overhaul", "overhaul no", "maintenance"],
+        16: ["entry", "entry no", "entry number"],
+        17: ["datapoint", "data point"],
+        18: ["liss region size", "liss size"],
     }
     alias_keys = list(aliases)
     for index, names in semantic_aliases.items():
@@ -974,6 +981,16 @@ def query_findings(params: dict[str, list[str]]) -> dict:
             "page": page, "size": size, "pages": max(1, (total + size - 1) // size)}
 
 
+def query_all_findings(params: dict[str, list[str]]) -> list[dict]:
+    """Read every matching row for exports without weakening the UI page limit."""
+    first = query_findings({**params, "page": ["1"], "size": ["200"]})
+    items = list(first["items"])
+    for page in range(2, int(first["pages"]) + 1):
+        result = query_findings({**params, "page": [str(page)], "size": ["200"]})
+        items.extend(result["items"])
+    return items
+
+
 def overview() -> dict:
     with connect() as db:
         stats = dict(db.execute("SELECT COUNT(*) findings, COUNT(DISTINCT outage) outages, COUNT(DISTINCT unit_id) units, COUNT(DISTINCT analyst) analysts FROM findings").fetchone())
@@ -1245,7 +1262,27 @@ def health_status() -> dict:
     }
 
 
+def validate_state_payload(data: dict) -> tuple[str, int, int, str, float, str]:
+    outage = str(data.get("outage", "")).strip().upper()
+    unit = number(data.get("unit_id"), int)
+    thimble = number(data.get("thimble_id"), int)
+    state = str(data.get("state", "")).strip().lower()
+    offset = number(data.get("offset_mm", 0), float) or 0.0
+    note = str(data.get("note", "")).strip()
+    if not re.fullmatch(r"[A-Z]\d{3}", outage):
+        raise ValueError("大修编号格式应为基地字母加三位数字")
+    if not unit or unit < 1 or thimble < 1 or thimble > 50:
+        raise ValueError("机组号或套管号无效")
+    if state not in {"normal", "plugged", "replaced", "shifted"}:
+        raise ValueError("管状态无效")
+    if offset < 0 or offset > 1000:
+        raise ValueError("位移量应在 0 至 1000 mm 之间")
+    return outage, unit, thimble, state, offset, note
+
+
 class Handler(SimpleHTTPRequestHandler):
+    MAX_BODY_BYTES = 8 * 1024 * 1024
+
     def log_message(self, fmt, *args):
         sys.stdout.write("[%s] %s\n" % (self.log_date_time_string(), fmt % args))
 
@@ -1253,12 +1290,19 @@ class Handler(SimpleHTTPRequestHandler):
         payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
 
     def body(self):
-        return json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length > self.MAX_BODY_BYTES:
+            raise ValueError("请求体过大，请分批导入文件")
+        try:
+            return json.loads(self.rfile.read(length) or b"{}")
+        except json.JSONDecodeError as exc:
+            raise ValueError("请求数据格式无效") from exc
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -1281,7 +1325,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self.serve_static(parsed.path)
         except Exception as exc:
             LOGGER.exception("GET %s failed", self.path)
-            self.json_response({"error": str(exc)}, 400)
+            self.json_response({"error": str(exc) if isinstance(exc, ValueError) else "本地服务处理失败，请查看日志"}, 400 if isinstance(exc, ValueError) else 500)
 
     def do_POST(self):
         try:
@@ -1306,22 +1350,23 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json_response({"ok": True})
             if self.path == "/api/export-folder-excel": return self.json_response(export_directory_excel(data.get("path", ""), data.get("reports"), data.get("report_policy", "manual")))
             if self.path == "/api/state":
+                outage, unit, thimble, state, offset, note = validate_state_payload(data)
                 with connect() as db:
-                    db.execute("INSERT INTO tube_states(outage,unit_id,thimble_id,state,offset_mm,note) VALUES(?,?,?,?,?,?) ON CONFLICT(outage,unit_id,thimble_id) DO UPDATE SET state=excluded.state,offset_mm=excluded.offset_mm,note=excluded.note", (data["outage"], data["unit_id"], data["thimble_id"], data["state"], data.get("offset_mm", 0), data.get("note", "")))
+                    db.execute("INSERT INTO tube_states(outage,unit_id,thimble_id,state,offset_mm,note) VALUES(?,?,?,?,?,?) ON CONFLICT(outage,unit_id,thimble_id) DO UPDATE SET state=excluded.state,offset_mm=excluded.offset_mm,note=excluded.note", (outage, unit, thimble, state, offset, note))
                 return self.json_response({"ok": True})
             self.json_response({"error": "接口不存在"}, 404)
         except Exception as exc:
             LOGGER.exception("POST %s failed", self.path)
-            self.json_response({"error": str(exc)}, 400)
+            self.json_response({"error": str(exc) if isinstance(exc, ValueError) else "本地服务处理失败，请查看日志"}, 400 if isinstance(exc, ValueError) else 500)
 
     def export_csv(self, params):
-        result = query_findings({**params, "page": ["1"], "size": ["200"]})
+        rows = query_all_findings(params)
         output = io.StringIO()
         fields = ["outage","unit_id","thimble_id","position","entry_no","volts","degrees","indication","percent","channel","location","datapoint","analyst","analysis","filename","calgroup","state","offset_mm","note"]
         writer = csv.DictWriter(output, fields, extrasaction="ignore")
-        writer.writeheader(); writer.writerows(result["items"])
+        writer.writeheader(); writer.writerows(rows)
         payload = b"\xef\xbb\xbf" + output.getvalue().encode("utf-8")
-        self.send_response(200); self.send_header("Content-Type", "text/csv; charset=utf-8")
+        self.send_response(200); self.send_header("Content-Type", "text/csv; charset=utf-8"); self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Disposition", "attachment; filename=thimble-findings.csv")
         self.send_header("Content-Length", str(len(payload))); self.end_headers(); self.wfile.write(payload)
 
@@ -1333,6 +1378,7 @@ class Handler(SimpleHTTPRequestHandler):
         payload = target.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Disposition", "attachment; filename=thimble-report.xlsx")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
@@ -1346,6 +1392,8 @@ class Handler(SimpleHTTPRequestHandler):
         if not target.is_file(): return self.send_error(HTTPStatus.NOT_FOUND)
         payload = target.read_bytes(); self.send_response(200)
         self.send_header("Content-Type", mimetypes.guess_type(target.name)[0] or "application/octet-stream")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'self'")
         self.send_header("Cache-Control", "no-store, max-age=0")
         self.send_header("Content-Length", str(len(payload))); self.end_headers(); self.wfile.write(payload)
 

@@ -8,7 +8,8 @@
     "desktop": "electron .",
     "server": "python server.py",
     "test:python": "python -m unittest discover -s tests",
-    "check:js": "node --check static/app.js && node --check static/workspace-actions.js && node --check static/visualizations/thimble/app.js",
+    "test:desktop": "node tests/desktop_verify.mjs",
+    "check:js": "node --check desktop/main.cjs && node --check static/app.js && node --check static/workspace-actions.js && node --check static/modules/three-d/main-view.js && node --check static/visualizations/thimble/app.js",
     "build:win": "electron-builder --win nsis portable"
   },
   "dependencies": {

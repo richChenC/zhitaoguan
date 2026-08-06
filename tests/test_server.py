@@ -84,6 +84,27 @@ class ParserTests(unittest.TestCase):
             self.assertEqual(severity, {1: 47, 42: 22})
             self.assertEqual(len(result["items"]), 1)
 
+    def test_export_query_is_not_truncated_at_ui_page_limit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = Path(directory) / "export.db"
+            with patch.object(server, "DB_PATH", db):
+                server.init_db()
+                with server.connect() as connection:
+                    connection.executemany(
+                        "INSERT INTO findings(outage,unit_id,thimble_id,position,imported_at) VALUES(?,?,?,?,?)",
+                        [("H209", 2, index % 50 + 1, "B5", "now") for index in range(205)],
+                    )
+                rows = server.query_all_findings({"unit": ["2"]})
+            self.assertEqual(len(rows), 205)
+
+    def test_state_payload_validation_rejects_invalid_values(self):
+        with self.assertRaises(ValueError):
+            server.validate_state_payload({"outage": "bad", "unit_id": 2, "thimble_id": 1, "state": "normal"})
+        with self.assertRaises(ValueError):
+            server.validate_state_payload({"outage": "H209", "unit_id": 2, "thimble_id": 51, "state": "normal"})
+        with self.assertRaises(ValueError):
+            server.validate_state_payload({"outage": "H209", "unit_id": 2, "thimble_id": 1, "state": "unknown"})
+
     def test_database_migration_backs_up_and_preserves_legacy_rows(self):
         with tempfile.TemporaryDirectory() as directory:
             db = Path(directory) / "legacy.db"
@@ -195,6 +216,20 @@ class ParserTests(unittest.TestCase):
                 with server.connect() as connection:
                     row = connection.execute("SELECT outage,unit_id,thimble_id,position,location FROM findings").fetchone()
                 self.assertEqual(tuple(row), ("D120", 1, 2, "G14", "P1+40"))
+
+    def test_imports_case_insensitive_english_template_without_column_shift(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, db = Path(directory) / "english.xlsx", Path(directory) / "test.db"
+            book = Workbook(); sheet = book.active
+            sheet.append(["Outage", "Unit Number", "Thimble ID", "Core Position", "Amplitude", "Phase", "Wear Percent", "Defect", "Measurement Channel", "Wear Location", "Analyst", "Filename", "Data Group", "Notes"])
+            sheet.append(["H209", 2, 42, "M5", 5.07, 258, 22, "WAR", "P1: 4-6", "P1+10", "MQQ", "DIR042C042I001.ECT", "TH2I09CAL00001", "english import"])
+            book.save(source); book.close()
+            with patch.object(server, "DB_PATH", db):
+                server.init_db(); result = server.import_excel_file(str(source))
+                with server.connect() as connection:
+                    row = connection.execute("SELECT outage,unit_id,thimble_id,position,percent,location,analyst,calgroup FROM findings").fetchone()
+            self.assertEqual(result["inserted"], 1)
+            self.assertEqual(tuple(row), ("H209", 2, 42, "M5", 22, "P1+10", "MQQ", "TH2I09CAL00001"))
 
     def test_discovers_server_thimble_directories_without_fixed_depth(self):
         with tempfile.TemporaryDirectory() as directory:

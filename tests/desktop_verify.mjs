@@ -1,24 +1,49 @@
-import { _electron as electron } from 'file:///C:/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/.pnpm/playwright@1.61.1/node_modules/playwright/index.mjs';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-fs.mkdirSync('tmp/browser', { recursive: true });
+const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
+const bundledNodeModules = process.env.CODEX_NODE_MODULES || path.join(process.env.USERPROFILE || '', '.cache', 'codex-runtimes', 'codex-primary-runtime', 'dependencies', 'node', 'node_modules');
+const playwrightPath = process.env.PLAYWRIGHT_PATH || path.join(bundledNodeModules, 'playwright', 'index.mjs');
+if (!fs.existsSync(playwrightPath)) {
+  console.log(`desktop smoke skipped: Playwright not found at ${playwrightPath}`);
+  process.exit(0);
+}
+const { _electron: electron } = await import(pathToFileURL(playwrightPath).href);
+const executable = path.join(root, 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
+const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'thimble-desktop-'));
 const app = await electron.launch({
-  executablePath: 'D:/指套管/软件部分/node_modules/electron/dist/electron.exe',
-  args: ['D:/指套管/软件部分', '--disable-gpu', '--disable-gpu-compositing'],
-  cwd: 'D:/指套管/软件部分'
+  executablePath: executable,
+  args: [root, '--disable-gpu', '--disable-gpu-compositing'],
+  cwd: root,
+  env: {...process.env, THIMBLE_PORT: '18766', THIMBLE_DB_PATH: path.join(tempRoot, 'thimble.db'), THIMBLE_OUTPUT_DIR: path.join(tempRoot, 'excel'), THIMBLE_LOG_PATH: path.join(tempRoot, 'service.log')}
 });
-const window = await app.firstWindow();
-await window.waitForLoadState('networkidle');
-const title = await window.title();
-const chrome = await app.evaluate(({ BrowserWindow }) => {
-  const current = BrowserWindow.getAllWindows()[0];
-  return { menuVisible: current.isMenuBarVisible(), size: current.getSize(), title: current.getTitle() };
-});
-await window.getByRole('button', { name: '导入数据', exact: true }).first().click();
-await window.locator('#importDialog').waitFor();
-await window.locator('#importDialog button[value="cancel"]').click();
-await window.getByRole('button', { name: '三维缺陷模型', exact: true }).click();
-await window.locator('#threeCanvas canvas').waitFor();
-await window.screenshot({ path: 'tmp/browser/desktop-app.png', fullPage: true });
-console.log(JSON.stringify({ title, chrome, canvas: await window.locator('#threeCanvas canvas').count(), navHeight: await window.locator('.app-nav').evaluate(el=>el.getBoundingClientRect().height) }));
-await app.close();
+try {
+  const page = await app.firstWindow();
+  await page.waitForLoadState('networkidle');
+  await page.locator('[data-view="threeD"]').click();
+  const frame = page.locator('#threeModelFrame');
+  await frame.waitFor();
+  const model = frame.contentFrame();
+  await model.locator('.embedded-tools').waitFor();
+  await model.locator('.inspector').waitFor();
+  const layout = await page.evaluate(() => ({
+    viewport: innerWidth,
+    scope: document.querySelector('.three-scope-controls').getBoundingClientRect().toJSON(),
+    frame: document.querySelector('#threeModelFrame').getBoundingClientRect().toJSON(),
+  }));
+  const innerLayout = await model.locator('body').evaluate(() => ({
+    width: innerWidth,
+    tools: document.querySelector('.embedded-tools').getBoundingClientRect().toJSON(),
+    inspector: document.querySelector('.inspector').getBoundingClientRect().toJSON(),
+    details: Boolean(document.querySelector('#selectedTubeDetails')),
+  }));
+  if (!(layout.scope.x < layout.viewport / 2)) throw new Error('3D scope controls are not on the left');
+  if (!(innerLayout.tools.x > innerLayout.width / 2)) throw new Error('3D view controls are not on the right');
+  if (!innerLayout.details) throw new Error('tube detail panel is missing');
+  await page.screenshot({path: path.join(root, 'tmp', 'desktop-smoke.png'), fullPage: true});
+  console.log(JSON.stringify({layout, innerLayout}));
+} finally {
+  await app.close();
+}

@@ -5,7 +5,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 
 const ROOT = path.resolve(__dirname, '..');
-const PORT = '18765';
+const PORT = process.env.THIMBLE_PORT || '18765';
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const URL = `${BASE_URL}/?build=20260806m`;
 const SERVICE_VERSION = '2026.08.06';
@@ -100,6 +100,9 @@ async function createWindow() {
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, 'preload.cjs') }
   });
   Menu.setApplicationMenu(null);
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith(`${BASE_URL}/`)) event.preventDefault();
+  });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
@@ -110,7 +113,17 @@ async function createWindow() {
   mainWindow.show();
 }
 
-app.whenReady().then(createWindow);
+const singleInstance = app.requestSingleInstanceLock();
+if (!singleInstance) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
+  app.whenReady().then(createWindow);
+}
 ipcMain.handle('select-directory', async () => {
   const result = await dialog.showOpenDialog({ title: '选择指套管检测数据文件夹', properties: ['openDirectory'] });
   return result.canceled ? null : result.filePaths[0];
