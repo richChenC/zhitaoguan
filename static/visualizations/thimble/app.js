@@ -125,14 +125,18 @@ const pointDefinitions=[
 ];
 function buildSingleTubeModel(){
   singleTubeModelGroup.clear();
-  const body=new THREE.Mesh(new THREE.CylinderGeometry(.115,.115,8.8,56),tubeMaterial);body.position.y=-2.15;singleTubeModelGroup.add(body);
-  const topCap=cylinder(.145,.18,fastenerMetal,40);topCap.position.y=2.22;singleTubeModelGroup.add(topCap);
-  const lowerSocket=cylinder(.18,.38,darkMetal,40);lowerSocket.position.y=-6.57;singleTubeModelGroup.add(lowerSocket);
-  const lowerFlange=new THREE.Mesh(new THREE.TorusGeometry(.22,.055,12,48),layerRingMaterial);lowerFlange.rotation.x=Math.PI/2;lowerFlange.position.y=-6.38;singleTubeModelGroup.add(lowerFlange);
+  // The radial proportions follow the brief: 8.6 mm OD and 1.7 mm wall.
+  // Axial length is intentionally compressed so P1-P6 remain inspectable.
+  const outerRadius=.14,wall=.14*(1.7/4.3),innerRadius=outerRadius-wall;
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(outerRadius,outerRadius,8.8,64),tubeMaterial);body.position.y=-2.15;singleTubeModelGroup.add(body);
+  const bulletTip=new THREE.Mesh(new THREE.SphereGeometry(outerRadius,48,20,0,Math.PI*2,0,Math.PI/2),tubeMaterial);bulletTip.position.y=2.25;singleTubeModelGroup.add(bulletTip);
+  const lowerSocket=cylinder(.19,.42,darkMetal,48);lowerSocket.position.y=-6.59;singleTubeModelGroup.add(lowerSocket);
+  const socketBore=cylinder(innerRadius,.012,darkMetal,40);socketBore.position.y=-6.805;singleTubeModelGroup.add(socketBore);
+  const lowerFlange=new THREE.Mesh(new THREE.TorusGeometry(.205,.045,14,56),layerRingMaterial);lowerFlange.rotation.x=Math.PI/2;lowerFlange.position.y=-6.38;singleTubeModelGroup.add(lowerFlange);
   pointDefinitions.forEach(([zone,y])=>{
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(.19,.042,12,48),layerRingMaterial);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.18,.032,12,56),layerRingMaterial);
     ring.rotation.x=Math.PI/2;ring.position.y=y;ring.userData.zone=zone;singleTubeModelGroup.add(ring);
-    const band=new THREE.Mesh(new THREE.CylinderGeometry(.132,.132,.08,48),layerRingMaterial);band.position.y=y;singleTubeModelGroup.add(band);
+    const band=new THREE.Mesh(new THREE.CylinderGeometry(.155,.155,.065,56),layerRingMaterial);band.position.y=y;singleTubeModelGroup.add(band);
   });
   singleTubeModelGroup.visible=false;
 }
