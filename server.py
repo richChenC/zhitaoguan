@@ -955,6 +955,14 @@ def query_findings(params: dict[str, list[str]]) -> dict:
                  COALESCE(s.note,'') note FROM findings f LEFT JOIN tube_states s
                  ON s.outage=f.outage AND s.unit_id=f.unit_id AND s.thimble_id=f.thimble_id"""
         rows = db.execute(sql + clause + " ORDER BY f.outage DESC,f.thimble_id,f.entry_no LIMIT ? OFFSET ?", args + [size, (page - 1) * size]).fetchall()
+        severity_clause = clause + (" AND " if clause else " WHERE ") + """
+            UPPER(TRIM(COALESCE(f.indication,''))) NOT IN ('', 'NDD', 'NONE', 'NO DEFECT')
+            AND f.percent IS NOT NULL AND f.percent > 0"""
+        core_rows = db.execute("""SELECT f.unit_id, f.thimble_id, f.position,
+                MAX(f.percent) AS percent
+            FROM findings f""" + severity_clause + """
+            GROUP BY f.unit_id, f.thimble_id, f.position
+            ORDER BY f.unit_id, f.thimble_id""", args).fetchall()
     items = []
     for row in rows:
         item = dict(row)
@@ -962,7 +970,8 @@ def query_findings(params: dict[str, list[str]]) -> dict:
         item["p_zone"], item["p_offset"] = split_location(item["location_raw"])
         item["location"] = format_location(item["location_raw"])
         items.append(item)
-    return {"items": items, "total": total, "page": page, "size": size, "pages": max(1, (total + size - 1) // size)}
+    return {"items": items, "core_items": [dict(row) for row in core_rows], "total": total,
+            "page": page, "size": size, "pages": max(1, (total + size - 1) // size)}
 
 
 def overview() -> dict:

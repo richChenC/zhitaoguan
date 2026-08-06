@@ -62,6 +62,28 @@ class ParserTests(unittest.TestCase):
                 with server.connect() as connection:
                     self.assertEqual(connection.execute("SELECT COUNT(*) FROM findings").fetchone()[0], 0)
 
+    def test_core_severity_uses_valid_percent_and_ignores_ndd(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = Path(directory) / "severity.db"
+            with patch.object(server, "DB_PATH", db):
+                server.init_db()
+                with server.connect() as connection:
+                    connection.executemany(
+                        """INSERT INTO findings(
+                            outage,unit_id,thimble_id,position,indication,percent,imported_at
+                        ) VALUES(?,?,?,?,?,?,?)""",
+                        [
+                            ("H209", 2, 42, "M5", "WAR", 22, "now"),
+                            ("H209", 2, 20, "D7", "NDD", None, "now"),
+                            ("H209", 2, 21, "G7", "WAR", None, "now"),
+                            ("H209", 2, 1, "B5", "WAR", 47, "now"),
+                        ],
+                    )
+                result = server.query_findings({"unit": ["2"], "page": ["1"], "size": ["1"]})
+            severity = {item["thimble_id"]: item["percent"] for item in result["core_items"]}
+            self.assertEqual(severity, {1: 47, 42: 22})
+            self.assertEqual(len(result["items"]), 1)
+
     def test_database_migration_backs_up_and_preserves_legacy_rows(self):
         with tempfile.TemporaryDirectory() as directory:
             db = Path(directory) / "legacy.db"
