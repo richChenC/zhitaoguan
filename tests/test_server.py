@@ -84,6 +84,20 @@ class ParserTests(unittest.TestCase):
             self.assertEqual(severity, {1: 47, 42: 22})
             self.assertEqual(len(result["items"]), 1)
 
+    def test_site_filter_uses_explicit_site_code(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = Path(directory) / "site-filter.db"
+            with patch.object(server, "DB_PATH", db):
+                server.init_db()
+                with server.connect() as connection:
+                    connection.executemany(
+                        "INSERT INTO findings(outage,unit_id,thimble_id,site_code,position,imported_at) VALUES(?,?,?,?,?,?)",
+                        [("H209", 2, 1, "LHNP", "B5", "now"), ("H209", 2, 2, "DNP", "C8", "now")],
+                    )
+                result = server.query_findings({"site": ["LHNP"], "page": ["1"], "size": ["50"]})
+            self.assertEqual(result["total"], 1)
+            self.assertEqual(result["items"][0]["site_code"], "LHNP")
+
     def test_export_query_is_not_truncated_at_ui_page_limit(self):
         with tempfile.TemporaryDirectory() as directory:
             db = Path(directory) / "export.db"

@@ -950,7 +950,7 @@ def query_findings(params: dict[str, list[str]]) -> dict:
     page = max(1, number(params.get("page", ["1"])[0], int) or 1)
     size = min(200, max(1, number(params.get("size", ["50"])[0], int) or 50))
     where, args = [], []
-    for query_key, column in (("site", "SUBSTR(f.outage,1,1)"), ("outage", "f.outage"), ("unit", "f.unit_id"), ("analyst", "f.analyst"), ("channel", "f.channel"), ("thimble", "f.thimble_id"), ("calgroup", "f.calgroup")):
+    for query_key, column in (("site", "f.site_code"), ("outage", "f.outage"), ("unit", "f.unit_id"), ("analyst", "f.analyst"), ("channel", "f.channel"), ("thimble", "f.thimble_id"), ("calgroup", "f.calgroup")):
         val = params.get(query_key, [""])[0].strip()
         if val:
             where.append(f"CAST({column} AS TEXT) LIKE ?")

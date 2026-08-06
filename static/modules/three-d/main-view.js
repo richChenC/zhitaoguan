@@ -65,7 +65,13 @@ function send(type, payload = {}) {
 function sync(scope) {
   latestScope = {...readScope(), ...(scope || {})};
   fillScopeControls(latestScope);
-  send('thimble-scope', {scope: latestScope});
+  const selectedItems = Array.isArray(scope?.selectedItems) ? scope.selectedItems : [];
+  // A row can be selected before the unit filter is chosen. Use that row's
+  // unit for the embedded model without mutating the workbench filters.
+  const modelScope = {...latestScope};
+  if (!modelScope.unit && selectedItems.length) modelScope.unit = String(selectedItems[0].unit_id || '');
+  send('thimble-scope', {scope: modelScope, selectedItems});
+  if (selectedItems.length) send('thimble-focus', {thimble: Number(selectedItems[0].thimble_id || 0)});
 }
 
 async function applyThreeSelection() {
@@ -87,7 +93,12 @@ async function applyThreeSelection() {
 
 frame.addEventListener('load', () => sync(Object.keys(latestScope).length ? latestScope : readScope()));
 window.addEventListener('workspace-filter-changed', event => {
-  if (!applyingFromThree) sync(event.detail || readScope());
+  if (applyingFromThree) return;
+  latestScope = {...readScope(), ...(event.detail || {})};
+  fillScopeControls(latestScope);
+  // Keep row selection cheap while the workbench is visible. The 3D iframe
+  // receives one consolidated update when its page is opened.
+  if (section.classList.contains('active')) sync(latestScope);
 });
 window.addEventListener('three-focus-tube', event => {
   const detail = event.detail || {};
@@ -101,7 +112,7 @@ window.addEventListener('message', event => {
   window.workspaceSelectTube?.(Number(detail.thimble || 0));
   window.dispatchEvent(new CustomEvent('three-tube-selected', {detail}));
 });
-document.querySelector('[data-view="threeD"]')?.addEventListener('click', () => requestAnimationFrame(() => sync(readScope())));
+document.querySelector('[data-view="threeD"]')?.addEventListener('click', () => requestAnimationFrame(() => sync(Object.keys(latestScope).length ? latestScope : readScope())));
 document.querySelectorAll('#threeSite,#threeUnit,#threeOutage').forEach(control => control.addEventListener('change', async event => {
   if (event.currentTarget.id !== 'threeOutage') {
     const partial = {
