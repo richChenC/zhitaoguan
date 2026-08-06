@@ -10,3 +10,6 @@
 .embedded .inspection-list{min-height:0}.embedded .inspection-summary{border-radius:7px;background:#16211d;border-color:#42524a;padding:10px 11px}.embedded .inspection-summary b{font-size:13px}.embedded .inspection-summary span{display:block;margin-top:4px;color:#b9ca68;font-size:11px}
 .embedded .inspection-records{max-height:calc(100vh - 330px);overflow:auto;padding-right:3px}.embedded .inspection-record{border-radius:7px;overflow:hidden}.embedded .inspection-record header{padding:8px 9px;background:#111a17}.embedded .inspection-record dl div{padding:7px 9px!important}.embedded .inspection-record dd{font-family:"Microsoft YaHei UI","Microsoft YaHei",sans-serif;font-size:11px!important}
 @media(max-width:760px){.embedded .inspector{width:min(360px,calc(100vw - 20px));right:10px}.embedded .inspection-records{max-height:calc(100vh - 300px)}}
+
+/* Keep inspection details reachable in a narrow desktop window. */
+@media(max-width:650px){.embedded .inspector{display:block!important;left:10px;right:10px;top:132px;width:auto;max-height:calc(100vh - 160px);transform:none!important}}

@@ -136,6 +136,23 @@ ipcMain.handle('select-excel', async () => {
   });
   return result.canceled ? null : result.filePaths[0];
 });
+ipcMain.handle('save-core-image', async (_event, payload = {}) => {
+  const match = String(payload.dataUrl || '').match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) throw new Error('管板图片数据格式无效');
+  const image = Buffer.from(match[1], 'base64');
+  if (image.length < 100 || image.length > 20 * 1024 * 1024 || image.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') {
+    throw new Error('管板图片数据校验失败');
+  }
+  const defaultName = String(payload.defaultName || '指套管缺陷分布图.png').replace(/[<>:"/\\|?*]/g, '_');
+  const result = await dialog.showSaveDialog({
+    title: '导出指套管缺陷分布图',
+    defaultPath: path.join(app.getPath('documents'), defaultName),
+    filters: [{ name: 'PNG 图片', extensions: ['png'] }]
+  });
+  if (result.canceled || !result.filePath) return null;
+  await fs.promises.writeFile(result.filePath, image, { flag: 'w' });
+  return result.filePath;
+});
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', () => {
   if (serverProcess && !serverProcess.killed) serverProcess.kill();
