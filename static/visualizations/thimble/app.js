@@ -222,7 +222,7 @@ function defectY(location){const match=String(location||'').match(/(P[1-6])(?:\s
 function defectStyle(percent){const mid=Math.max(0,Math.min(100,Number(localStorage.getItem('thimbleSeverityMidThreshold')||20))),high=Math.max(mid,Math.min(100,Number(localStorage.getItem('thimbleSeverityHighThreshold')||40))),color=key=>{const value=localStorage.getItem(key);return /^#[0-9a-f]{6}$/i.test(value||'')?value:null};const hex=percent>=high?(color('thimbleSeverityHighColor')||'#df4b45'):percent>=mid?(color('thimbleSeverityMidColor')||'#e5a83b'):(color('thimbleSeverityLowColor')||'#79b98c');return{color:new THREE.Color(hex),radius:.10+Math.min(.13,Math.max(0,percent)/100*.13)}}
 function renderDataDefects(rows=[]){
   dataDefectsGroup.clear();const grouped=new Map();rows.filter(isDefect).forEach(row=>{const key=`${row.thimble_id}|${row.location}`;if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(row)});
-  grouped.forEach(records=>{const row=records.reduce((best,item)=>Number(item.percent||0)>Number(best.percent||0)?item:best,records[0]),position=row.position||POSITIONS[Number(row.thimble_id)-1],{x,z}=coordinate(position),percent=Number(row.percent||0),style=defectStyle(percent),point=new THREE.Mesh(new THREE.SphereGeometry(style.radius,18,12),new THREE.MeshStandardMaterial({color:style.color,emissive:style.color,emissiveIntensity:.85}));point.position.set(x,defectY(row.location),z);point.userData={records,id:Number(row.thimble_id),position};dataDefectsGroup.add(point)});
+  grouped.forEach(records=>{const row=records.reduce((best,item)=>Number(item.percent||0)>Number(best.percent||0)?item:best,records[0]),position=row.position||POSITIONS[Number(row.thimble_id)-1],{x,z}=coordinate(position),percent=Number(row.percent||0),style=defectStyle(percent),point=new THREE.Mesh(new THREE.SphereGeometry(style.radius,18,12),new THREE.MeshStandardMaterial({color:style.color,emissive:style.color,emissiveIntensity:.85}));point.position.set(x,defectY(row.location),z);point.userData={records,id:Number(row.thimble_id),position};point.visible=currentCamera!=='tube'||Number(row.thimble_id)===selected+1;dataDefectsGroup.add(point)});
 }
 function renderEvolution(rows=[]){
   evolutionGroup.clear();const outages=[...new Set(rows.map(row=>String(row.outage||'未标注大修')))].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
@@ -239,6 +239,7 @@ async function fetchScopeRows(scope,request){
 async function applyWorkspaceScope(scope={}){
   const request=++scopeRequest,unit=Number(scope.unit||0);if(unit){const parity=unit%2?'odd':'even';document.querySelector('#paritySelect').value=parity;applyParity(parity)}
   const rows=await fetchScopeRows(scope,request);if(rows===null||request!==scopeRequest)return;
+  const outages=new Set(rows.map(row=>String(row.outage||'')));if(!scope.outage&&outages.size>1){workspaceRows=[];renderDataDefects([]);renderEvolution([]);updateSelectedTubeDetails();const status=document.querySelector('.status span');if(status)status.textContent='请选择单一大修批次查看三维缺陷';return}
   workspaceRows=rows;renderDataDefects(workspaceRows);renderEvolution(workspaceRows);updateSelectedTubeDetails();
 }
 

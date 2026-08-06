@@ -1475,6 +1475,15 @@ class Handler(SimpleHTTPRequestHandler):
                 with connect() as db:
                     db.execute("INSERT INTO tube_states(outage,unit_id,thimble_id,state,offset_mm,note) VALUES(?,?,?,?,?,?) ON CONFLICT(outage,unit_id,thimble_id) DO UPDATE SET state=excluded.state,offset_mm=excluded.offset_mm,note=excluded.note", (outage, unit, thimble, state, offset, note))
                 return self.json_response({"ok": True})
+            if self.path == "/api/state-delete":
+                outage = str(data.get("outage", "")).strip()
+                unit = number(data.get("unit_id"), int)
+                thimble = number(data.get("thimble_id"), int)
+                if not outage or not unit or not thimble:
+                    raise ValueError("删除管状态需要大修、机组和通道编号")
+                with connect() as db:
+                    db.execute("DELETE FROM tube_states WHERE outage=? AND unit_id=? AND thimble_id=?", (outage, unit, thimble))
+                return self.json_response({"ok": True})
             self.json_response({"error": "接口不存在"}, 404)
         except Exception as exc:
             LOGGER.exception("POST %s failed", self.path)
