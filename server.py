@@ -1275,12 +1275,28 @@ def inspection_report_rows(outage: str, unit: int, finding_ids: list[int] | None
 
 def report_metadata(metadata: dict, outage: str, unit: int) -> list[tuple[str, str]]:
     return [
-        ("电厂名称", str(metadata.get("plant") or "")), ("机组", str(unit)),
+        ("设备/部件编号", str(metadata.get("component_no") or "")),
+        ("涡流检验报告单（TH）", ""),
+        ("报告单编号", str(metadata.get("report_no") or "")),
+        ("电厂名称", str(metadata.get("plant") or "")),
+        ("机组", str(unit)),
         ("检查类型", str(metadata.get("inspection") or outage)),
         ("设备/部件名称", str(metadata.get("component") or "指套管")),
-        ("安全等级", str(metadata.get("safety") or "")), ("方向号", str(metadata.get("direction") or "")),
-        ("材料", str(metadata.get("material") or "")), ("尺寸", str(metadata.get("size") or "")),
-        ("报告单编号", str(metadata.get("report_no") or "")),
+        ("安全等级", str(metadata.get("safety") or "")),
+        ("房间号", str(metadata.get("room") or "")),
+        ("检验范围", str(metadata.get("scope") or "")),
+        ("材料", str(metadata.get("material") or "")),
+        ("尺寸", str(metadata.get("size") or "Φ8.6 × 1.7 mm")),
+        ("涡流仪型号", str(metadata.get("instrument_model") or "")),
+        ("涡流仪出厂编号", str(metadata.get("instrument_serial") or "")),
+        ("标定管编号", str(metadata.get("calibration_no") or "")),
+        ("探头类型", str(metadata.get("probe_type") or "")),
+        ("探头型号", str(metadata.get("probe_model") or "")),
+        ("探头规格", str(metadata.get("probe_spec") or "Φ4.8 mm")),
+        ("检验速度", str(metadata.get("speed") or "250 mm/s")),
+        ("采样率", str(metadata.get("sample_rate") or "2000 点/秒")),
+        ("检验频率", str(metadata.get("frequency") or "160、80、40、20 kHz")),
+        ("检验程序/版次", str(metadata.get("procedure") or "")),
     ]
 
 
@@ -1301,6 +1317,31 @@ def _w_table(headers: list[str], rows: list[list]) -> str:
         cells = "".join(f'<w:tc><w:tcPr><w:tcW w:w="{width}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>{_w_paragraph(value, "center", header, 16)}</w:tc>' for value in values)
         return f'<w:tr>{cells}</w:tr>'
     return f'<w:tbl><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="6"/><w:left w:val="single" w:sz="6"/><w:bottom w:val="single" w:sz="6"/><w:right w:val="single" w:sz="6"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>{grid}</w:tblGrid>{row_xml(headers, True)}{''.join(row_xml(row) for row in rows)}</w:tbl>'
+
+
+def _w_report_info_table(pairs: list[tuple[str, str]]) -> str:
+    """Build the formal three-column label/value header used by the TH report sheet."""
+    widths = [1050, 1800, 1050, 1800, 1050, 1800]
+    grid = "".join(f'<w:gridCol w:w="{width}"/>' for width in widths)
+    cells = []
+    for index in range(0, len(pairs), 3):
+        row = pairs[index:index + 3]
+        row += [("", "")] * (3 - len(row))
+        row_cells = []
+        for pair_index, (label, value) in enumerate(row):
+            label_width, value_width = widths[pair_index * 2:pair_index * 2 + 2]
+            row_cells.append(
+                f'<w:tc><w:tcPr><w:tcW w:w="{label_width}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>{_w_paragraph(label, "center", True, 15)}</w:tc>'
+            )
+            row_cells.append(
+                f'<w:tc><w:tcPr><w:tcW w:w="{value_width}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>{_w_paragraph(value, "center", False, 15)}</w:tc>'
+            )
+        cells.append(f'<w:tr>{"".join(row_cells)}</w:tr>')
+    return f'<w:tbl><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="6"/><w:left w:val="single" w:sz="6"/><w:bottom w:val="single" w:sz="6"/><w:right w:val="single" w:sz="6"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>{grid}</w:tblGrid>{"".join(cells)}</w:tbl>'
+
+
+def _w_page_break() -> str:
+    return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
 
 
 def _write_docx(filename: str, blocks: list[str], landscape=True) -> dict:
@@ -1328,24 +1369,42 @@ def build_inspection_preview(outage: str, unit: int, metadata: dict, finding_ids
     info = "".join(f"<div><span>{html.escape(label)}</span><b>{html.escape(value or '待填写')}</b></div>" for label, value in report_metadata(metadata, outage, unit))
     body = "".join(
         f"<tr><td>{index}</td><td>{row['thimble_id']}</td><td>{html.escape(row.get('position') or '')}</td>"
-        f"<td>{html.escape(row.get('indication') or 'NDD')}</td><td>{'' if row.get('volts') is None else row['volts']}</td>"
-        f"<td>{'' if row.get('percent') is None else row['percent']}</td><td>{html.escape(format_location(row.get('location') or ''))}</td>"
-        f"<td>{html.escape(row.get('channel') or '')}</td><td>{html.escape(row.get('analyst') or '')}</td></tr>"
+        f"<td>{html.escape(row.get('indication') or 'NDD')}</td><td>{'/' if row.get('volts') is None else row['volts']}</td>"
+        f"<td>{'/' if row.get('percent') is None else row['percent']}</td><td>{html.escape('/' if str(row.get('indication') or 'NDD').upper() == 'NDD' else format_location(row.get('location') or ''))}</td>"
+        f"<td>{html.escape('/' if str(row.get('indication') or 'NDD').upper() == 'NDD' else row.get('channel') or '')}</td></tr>"
         for index, row in enumerate(rows, 1))
-    preview = f"<article class='report-sheet'><h1>{html.escape(title)}</h1><section class='report-info'>{info}</section><h2>检验结果</h2><div class='report-table-wrap'><table><thead><tr><th>序号</th><th>通道编号</th><th>堆芯位置</th><th>显示类型</th><th>幅值(V)</th><th>磨损深度(%)</th><th>磨损位置</th><th>测量通道</th><th>分析人员</th></tr></thead><tbody>{body}</tbody></table></div><footer>备注：无数据字段保留空白，签字和日期由工作人员补充。</footer></article>"
+    preview = f"<article class='report-sheet'><div class='report-page-mark'>II-1/1</div><h1>{html.escape(title)}</h1><section class='report-info'>{info}</section><h2>检验结果</h2><div class='report-table-wrap'><table><thead><tr><th>序号</th><th>通道编号</th><th>堆芯位置</th><th>显示类型</th><th>幅值（V）</th><th>磨损深度（壁厚%）</th><th>磨损位置</th><th>测量通道</th></tr></thead><tbody>{body}</tbody></table></div><footer>备注：无。<br><br>分析人员/级别：____________　审核/级别：____________　批准：____________　业主：____________</footer></article>"
     return {"title": title, "rows": len(rows), "html": preview}
 
 
 def export_inspection_docx(outage: str, unit: int, metadata: dict, finding_ids: list[int] | None = None) -> dict:
     rows = inspection_report_rows(outage, unit, finding_ids)
-    info_values = report_metadata(metadata, outage, unit); info_rows = []
-    for index in range(0, len(info_values), 3):
-        row = []
-        for label, value in info_values[index:index + 3]: row.extend([label, value])
-        info_rows.append(row)
-    values = [[index, row["thimble_id"], row.get("position") or "", row.get("indication") or "NDD", row.get("volts"), row.get("percent"), format_location(row.get("location") or ""), row.get("channel") or "", row.get("analyst") or ""] for index, row in enumerate(rows, 1)]
-    blocks = [_w_paragraph(metadata.get("title") or "反应堆中子通量测量指套管涡流检验报告单", "center", True, 30), _w_table(["电厂", "", "机组", "", "检查类型", ""], info_rows), _w_paragraph("检验结果", "center", True, 20), _w_table(["序号", "通道编号", "堆芯位置", "显示类型", "幅值(V)", "磨损深度(壁厚%)", "磨损位置", "测量通道", "分析人员"], values), _w_paragraph("备注：\n\n分析人员/级别：__________    审核/级别：__________    批准：__________    业主：__________\n日期：__________", "left", False, 18)]
-    return {**_write_docx(f"TH_机组{unit}_{outage}_检验结果_{datetime.now():%Y%m%d_%H%M%S}.docx", blocks), "rows": len(rows)}
+    title = metadata.get("title") or "反应堆中子通量测量指套管涡流检验报告单"
+    columns = ["序号", "通道编号", "堆芯位置", "显示类型", "幅值（V）", "磨损深度（壁厚%）", "磨损位置", "测量通道"]
+    pages = [rows[index:index + 20] for index in range(0, len(rows), 20)] or [[]]
+    blocks = []
+    for page_index, page_rows in enumerate(pages, 1):
+        blocks.append(_w_paragraph(f"II-{page_index}/{len(pages)}", "right", False, 14))
+        blocks.append(_w_paragraph(title, "center", True, 24))
+        blocks.append(_w_report_info_table(report_metadata(metadata, outage, unit)))
+        blocks.append(_w_paragraph("检验结果", "center", True, 18))
+        values = []
+        for row_index, row in enumerate(page_rows, page_index * 20 - 19):
+            indication = row.get("indication") or "NDD"
+            is_ndd = str(indication).strip().upper() in {"NDD", "NONE", "NO DEFECT"}
+            values.append([
+                row_index, row.get("thimble_id") or "", row.get("position") or "", indication,
+                "/" if is_ndd or row.get("volts") is None else row.get("volts"),
+                "/" if is_ndd or row.get("percent") is None else row.get("percent"),
+                "/" if is_ndd else format_location(row.get("location") or ""),
+                "/" if is_ndd else row.get("channel") or "",
+            ])
+        blocks.append(_w_table(columns, values))
+        if page_index == len(pages):
+            blocks.append(_w_paragraph("备注：\n无。", "left", False, 15))
+            blocks.append(_w_table(["", "分析人员/级别", "审核/级别", "批准", "业主"], [["签名", "", "", "", ""], ["日期", "", "", "", ""]]))
+        if page_index < len(pages): blocks.append(_w_page_break())
+    return {**_write_docx(f"TH_机组{unit}_{outage}_检验结果_{datetime.now():%Y%m%d_%H%M%S}.docx", blocks, landscape=False), "rows": len(rows)}
 
 
 def build_comparison_preview(old: str, new: str, unit: int) -> dict:
