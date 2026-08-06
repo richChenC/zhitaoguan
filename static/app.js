@@ -172,7 +172,21 @@ function installReportWorkflow(){
   const stylesheet=document.createElement('link');stylesheet.rel='stylesheet';stylesheet.href='/report-preview.css?v=20260806a';document.head.append(stylesheet);
   document.body.insertAdjacentHTML('beforeend','<dialog id="reportPreviewDialog" class="report-preview-dialog"><div class="report-preview-head"><div><span>REPORT PREVIEW</span><h2 id="reportPreviewTitle">报告预览</h2></div><button id="closeReportPreview" type="button" aria-label="关闭预览">×</button></div><div id="reportPreviewContent" class="report-preview-content"></div></dialog>');
   $('.export-catalog')?.remove();$('.report-workspace')?.classList.add('report-workspace-single');
-  const workspace=$('.report-workspace');if(workspace&&!$('#reportInlinePreview'))workspace.insertAdjacentHTML('afterend','<section id="reportInlinePanel" class="panel report-inline-panel"><div class="panel-title"><div><h2>检验结果预览</h2><span id="reportInlineStatus">选择基地、机组和大修后自动生成</span></div></div><div id="reportInlinePreview" class="report-preview-content empty">尚未选择完整数据范围</div></section>');
+  const workspace=$('.report-workspace');
+  if(workspace&&!$('#reportModeTabs')){
+    workspace.insertAdjacentHTML('beforebegin','<div id="reportModeTabs" class="report-mode-tabs" role="tablist"><button type="button" class="active" data-report-mode="result">结果报告</button><button type="button" data-report-mode="history">历次大修对比</button></div>');
+    const comparePanel=$('#comparePanel');
+    const setMode=mode=>{
+      const result=mode==='result';
+      workspace.hidden=!result;
+      $('#reportInlinePanel')?.toggleAttribute('hidden',!result);
+      if(comparePanel)comparePanel.hidden=result;
+      $$('#reportModeTabs [data-report-mode]').forEach(button=>button.classList.toggle('active',button.dataset.reportMode===mode));
+    };
+    $$('#reportModeTabs [data-report-mode]').forEach(button=>button.addEventListener('click',()=>setMode(button.dataset.reportMode)));
+  }
+  if(workspace&&!$('#reportInlinePreview'))workspace.insertAdjacentHTML('afterend','<section id="reportInlinePanel" class="panel report-inline-panel"><div class="panel-title"><div><h2>检验结果预览</h2><span id="reportInlineStatus">选择基地、机组和大修后自动生成</span></div></div><div id="reportInlinePreview" class="report-preview-content empty">尚未选择完整数据范围</div></section>');
+  if($('#comparePanel'))$('#comparePanel').hidden=true;
   const form=$('#reportForm'),submit=form?.querySelector('button[type="submit"]');
   if(submit){submit.textContent='导出结果报告 Word';const actions=document.createElement('div');actions.className='report-form-actions wide';submit.before(actions);actions.append(submit);actions.insertAdjacentHTML('afterbegin','<span id="reportExportStatus">按当前筛选导出</span>')}
   const exportCompare=$('#exportCompareBtn');if(exportCompare)exportCompare.textContent='导出对比报告 Word';

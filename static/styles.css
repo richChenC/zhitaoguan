@@ -2,3 +2,8 @@
 
 /* Full-window layout */
 main{width:100%;max-width:none;min-height:calc(100dvh - 48px)}.split{min-height:calc(100dvh - 210px)}.core-panel{display:flex;flex-direction:column}.core-panel .detail{flex:1;min-height:110px}
+.report-mode-tabs{display:flex;gap:8px;align-items:center;margin:0 0 14px;padding:4px;background:#e9f0ee;border:1px solid #cfdcd8;border-radius:8px;width:max-content;box-shadow:0 2px 8px rgba(25,53,47,.06)}
+.report-mode-tabs button{appearance:none;border:1px solid transparent;background:transparent;color:#42605a;font:600 14px/1.2 inherit;padding:9px 18px;border-radius:6px;cursor:pointer;transition:background .16s,color .16s,border-color .16s}
+.report-mode-tabs button:hover{background:#f7fbfa;border-color:#b8cbc5}
+.report-mode-tabs button.active{background:#0d6f72;color:#fff;border-color:#0d6f72;box-shadow:0 2px 5px rgba(13,111,114,.22)}
+#comparePanel[hidden],#reportInlinePanel[hidden],.report-workspace[hidden]{display:none!important}

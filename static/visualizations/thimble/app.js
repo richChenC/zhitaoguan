@@ -57,7 +57,7 @@ const metal=new THREE.MeshPhysicalMaterial({color:0x899791,metalness:.52,roughne
 const darkMetal=new THREE.MeshPhysicalMaterial({color:0x35413c,metalness:.42,roughness:.42,envMapIntensity:.8});
 const fuelMaterial=new THREE.MeshStandardMaterial({color:0x435a51,emissive:0x0b0f0d,emissiveIntensity:.06,metalness:.08,roughness:.76,transparent:true,opacity:.11,depthWrite:false});
 const shellMaterial=new THREE.MeshPhysicalMaterial({color:0x718b82,metalness:.04,roughness:.58,envMapIntensity:.35,transparent:true,opacity:.18,side:THREE.DoubleSide,depthWrite:false});
-const tubeMaterial=new THREE.MeshPhysicalMaterial({color:0xc9d5cf,map:brushedMetalTexture,metalness:.58,roughness:.29,envMapIntensity:1.08,clearcoat:.26,clearcoatRoughness:.34});
+const tubeMaterial=new THREE.MeshPhysicalMaterial({color:0xdbe5df,map:brushedMetalTexture,metalness:.56,roughness:.31,envMapIntensity:1.06,clearcoat:.24,clearcoatRoughness:.36});
 const sleeveMaterial=new THREE.MeshPhysicalMaterial({color:0x789087,map:brushedMetalTexture,metalness:.38,roughness:.4,envMapIntensity:.82,transparent:true,opacity:.2,depthWrite:false});
 const signalMaterial=new THREE.MeshStandardMaterial({color:0xd7ef4a,emissive:0x829500,emissiveIntensity:1.5,metalness:.25,roughness:.28});
 const edgeMetal=new THREE.MeshPhysicalMaterial({color:0x596660,metalness:.72,roughness:.26,envMapIntensity:1.1,clearcoat:.2,clearcoatRoughness:.32});
@@ -115,7 +115,8 @@ function buildThimbles(){
     const tip=new THREE.Mesh(new THREE.SphereGeometry(tubeRadius,44,20,0,Math.PI*2,0,Math.PI/2),tubeMaterial);tip.position.set(x,tipY,z);g.add(tip);
     const guide=new THREE.Mesh(new THREE.CylinderGeometry(.245,.245,6.7,48,1,true),sleeveMaterial);guide.position.set(x,-2.15,z);g.add(guide);
     const nozzle=cylinder(.3,1.15,darkMetal,40);nozzle.position.set(x,-5.5,z);g.add(nozzle);
-    [[1.35,.16],[-3.05,.19],[-5.85,.22]].forEach(([y,radius])=>{const collar=new THREE.Mesh(new THREE.TorusGeometry(radius,.028,12,40),layerRingMaterial);collar.rotation.x=Math.PI/2;collar.position.set(x,y,z);g.add(collar)});
+    // Every overview tube uses the same six inspection layers as the single-tube view.
+    pointDefinitions.forEach(([,y],layerIndex)=>{const radius=.145+layerIndex*.006;const collar=new THREE.Mesh(new THREE.TorusGeometry(radius,.026,12,40),layerRingMaterial);collar.rotation.x=Math.PI/2;collar.position.set(x,y,z);g.add(collar)});
     const baseFlange=new THREE.Mesh(new THREE.TorusGeometry(.245,.038,12,40),layerRingMaterial);baseFlange.rotation.x=Math.PI/2;baseFlange.position.set(x,-6.12,z);g.add(baseFlange);
     tubesGroup.add(g);tubeGroups.push(g);
   });
