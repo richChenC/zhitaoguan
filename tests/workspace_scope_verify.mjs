@@ -36,6 +36,8 @@ try {
     await page.waitForTimeout(250);
     const details = await model.locator('#selectedTubeDetails').textContent();
     if (!details.includes('02')) throw new Error(`单管切换未同步详情: ${details}`);
+    const recordLayout = await model.locator('.inspection-records').evaluate(node => ({display: getComputedStyle(node).display, columns: getComputedStyle(node).gridTemplateColumns}));
+    if (recordLayout.display !== 'grid' || recordLayout.columns.split(' ').length !== 1) throw new Error(`检测记录未按单列横向显示: ${JSON.stringify(recordLayout)}`);
   }
   console.log(JSON.stringify({disabledNoDefect: true, outage: outageOptions[0], threeD: true}));
 } finally { await browser.close(); }
