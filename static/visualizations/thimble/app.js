@@ -57,9 +57,10 @@ const shellMaterial=new THREE.MeshPhysicalMaterial({color:0x718b82,metalness:.04
 const tubeMaterial=new THREE.MeshPhysicalMaterial({color:0xc0cbc5,map:brushedMetalTexture,metalness:.58,roughness:.28,envMapIntensity:1.12,clearcoat:.3,clearcoatRoughness:.32});
 const sleeveMaterial=new THREE.MeshPhysicalMaterial({color:0x687b73,map:brushedMetalTexture,metalness:.42,roughness:.38,envMapIntensity:.9,transparent:true,opacity:.4});
 const signalMaterial=new THREE.MeshStandardMaterial({color:0xd7ef4a,emissive:0x829500,emissiveIntensity:1.5,metalness:.25,roughness:.28});
-const hotMaterial=new THREE.MeshStandardMaterial({color:0xe45b4e,emissive:0x6d1710,emissiveIntensity:.65,metalness:.35,roughness:.3});
 const edgeMetal=new THREE.MeshPhysicalMaterial({color:0x596660,metalness:.72,roughness:.26,envMapIntensity:1.1,clearcoat:.2,clearcoatRoughness:.32});
 const fastenerMetal=new THREE.MeshPhysicalMaterial({color:0xb7c1bc,metalness:.8,roughness:.2,envMapIntensity:1.15});
+const layerRingMaterial=new THREE.MeshPhysicalMaterial({color:0x9ba9a2,metalness:.86,roughness:.22,envMapIntensity:1.25,clearcoat:.28,clearcoatRoughness:.24});
+const layerAccent='#d7ef4a';
 const supportMaterials=[];
 
 function coordinate(position){const m=position.match(/([A-Z])(\d+)/);return{x:(COLS.indexOf(m[1])-7)*1.08,z:(+m[2]-8)*1.08}}
@@ -122,10 +123,22 @@ const pointDefinitions=[
   ['P1',1.35,'下栅格板'],['P2',.45,'支撑板上表面'],['P3',-.45,'支撑板下表面'],
   ['P4',-3.05,'支撑柱与格架板'],['P5',-4.55,'支撑柱与RPV管座'],['P6',-5.85,'RPV管座与导向管']
 ];
-function buildSingleTubeModel(){singleTubeModelGroup.clear();const body=new THREE.Mesh(new THREE.CylinderGeometry(.115,.115,8.8,48),tubeMaterial);body.position.y=-2.15;singleTubeModelGroup.add(body);pointDefinitions.forEach(([zone,y],index)=>{const ring=new THREE.Mesh(new THREE.TorusGeometry(.18,.035,10,36),index===0||index===3?hotMaterial:edgeMetal);ring.rotation.x=Math.PI/2;ring.position.y=y;ring.userData.zone=zone;singleTubeModelGroup.add(ring)});singleTubeModelGroup.visible=false}
+function buildSingleTubeModel(){
+  singleTubeModelGroup.clear();
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.115,.115,8.8,56),tubeMaterial);body.position.y=-2.15;singleTubeModelGroup.add(body);
+  const topCap=cylinder(.145,.18,fastenerMetal,40);topCap.position.y=2.22;singleTubeModelGroup.add(topCap);
+  const lowerSocket=cylinder(.18,.38,darkMetal,40);lowerSocket.position.y=-6.57;singleTubeModelGroup.add(lowerSocket);
+  const lowerFlange=new THREE.Mesh(new THREE.TorusGeometry(.22,.055,12,48),layerRingMaterial);lowerFlange.rotation.x=Math.PI/2;lowerFlange.position.y=-6.38;singleTubeModelGroup.add(lowerFlange);
+  pointDefinitions.forEach(([zone,y])=>{
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(.19,.042,12,48),layerRingMaterial);
+    ring.rotation.x=Math.PI/2;ring.position.y=y;ring.userData.zone=zone;singleTubeModelGroup.add(ring);
+    const band=new THREE.Mesh(new THREE.CylinderGeometry(.132,.132,.08,48),layerRingMaterial);band.position.y=y;singleTubeModelGroup.add(band);
+  });
+  singleTubeModelGroup.visible=false;
+}
 function buildPointLabels(){
   labelsGroup.clear();
-  pointDefinitions.forEach(([p,y],i)=>{const color=i===0||i===3?'#e45b4e':'#d7ef4a';
+  pointDefinitions.forEach(([p,y])=>{const color=layerAccent;
     [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dz])=>{const radial=9.15,labelRadius=10.15,horizontal=dx!==0;
       const line=new THREE.Mesh(horizontal?new THREE.BoxGeometry(1.25,.032,.032):new THREE.BoxGeometry(.032,.032,1.25),new THREE.MeshBasicMaterial({color,depthTest:false}));line.position.set(dx*radial,y,dz*radial);line.renderOrder=18;labelsGroup.add(line);
       const sprite=makeLabel(p,color);sprite.position.set(dx*labelRadius,y,dz*labelRadius);sprite.scale.set(.9,.36,1);labelsGroup.add(sprite)
@@ -135,8 +148,8 @@ function buildPointLabels(){
 function buildSingleTubeLabels(){
   singleTubeLabelsGroup.clear();
   const {x,z}=coordinate(POSITIONS[selected]);
-  pointDefinitions.forEach(([p,y],i)=>{
-    const color=i===0||i===3?'#e45b4e':'#d7ef4a';
+  pointDefinitions.forEach(([p,y])=>{
+    const color=layerAccent;
     const guide=new THREE.Mesh(new THREE.BoxGeometry(.75,.025,.025),new THREE.MeshBasicMaterial({color,depthTest:false}));
     guide.position.set(x+.55,y,z);guide.renderOrder=24;singleTubeLabelsGroup.add(guide);
     const label=makeLabel(p,color);label.position.set(x+1.2,y,z);label.scale.set(.75,.3,1);label.renderOrder=25;singleTubeLabelsGroup.add(label);
