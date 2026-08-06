@@ -1577,7 +1577,7 @@ def build_comparison_preview(old: str, new: str, unit: int) -> dict:
         )
     body = "".join(body_rows)
     title = f"{unit}号机组反应堆中子通量测量指套管涡流检验结果对比表"
-    preview = f"<article class='report-sheet comparison-sheet'><h1>{html.escape(title)}</h1><p class='report-lead'>本次大修（{html.escape(new)}）与历史大修（{html.escape(old)}）结果对比。历史缺陷 R：{data['summary']['R']}，新增缺陷 NI：{data['summary']['NI']}。</p><div class='report-table-wrap'><table><thead><tr><th rowspan='2'>序号</th><th rowspan='2'>通道编号</th><th rowspan='2'>堆芯位置</th><th colspan='3'>{html.escape(new)}</th><th colspan='3'>{html.escape(old)}</th><th rowspan='2'>备注</th></tr><tr><th>幅值（V）</th><th>磨损深度（壁厚%）</th><th>磨损位置（mm）</th><th>幅值（V）</th><th>磨损深度（壁厚%）</th><th>磨损位置（mm）</th></tr></thead><tbody>{body}</tbody></table></div><footer>{html.escape(COMPARISON_NOTE)}</footer></article>"
+    preview = f"<article class='report-sheet comparison-sheet'><h1>{html.escape(title)}</h1><p class='report-lead'>本次大修（{html.escape(new)}）与历史大修（{html.escape(old)}）结果对比。历史缺陷 R：{data['summary']['R']}，新增缺陷 NI：{data['summary']['NI']}。</p><div class='report-table-wrap'><table><caption>表 5　涡流检验结果比对表</caption><thead><tr><th rowspan='2'>序号</th><th rowspan='2'>通道编号</th><th rowspan='2'>堆芯位置</th><th colspan='3'>{html.escape(new)}</th><th colspan='3'>{html.escape(old)}</th><th rowspan='2'>结果比对</th></tr><tr><th>幅值（V）</th><th>磨损深度（壁厚%）</th><th>磨损位置（mm）</th><th>幅值（V）</th><th>磨损深度（壁厚%）</th><th>磨损位置（mm）</th></tr></thead><tbody>{body}</tbody></table></div><footer>备注：{html.escape(COMPARISON_NOTE)}</footer></article>"
     return {"title": title, "rows": len(data["items"]), "html": preview, **data["summary"]}
 
 
@@ -1601,6 +1601,7 @@ def export_comparison_docx(old: str, new: str, unit: int) -> dict:
         blocks.append(_w_paragraph(f"II-{page_index}/{len(pages)}", "right", False, 14))
         blocks.append(_w_paragraph(f"{unit}号机组反应堆中子通量测量指套管涡流检验结果对比表", "center", True, 24))
         blocks.append(_w_paragraph(f"本次大修（{new}）与历史大修（{old}）的结果对比如下。", "left", False, 17))
+        blocks.append(_w_paragraph("表 5　涡流检验结果比对表", "center", True, 17))
         blocks.append(_w_comparison_table(new, old, page_rows))
         if page_index == len(pages):
             blocks.append(_w_paragraph(f"备注：{COMPARISON_NOTE}", "left", False, 15))

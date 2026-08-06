@@ -34,6 +34,19 @@ try {
   if (state.speed.top !== state.sampleRate.top) throw new Error('speed and sample rate must share one row');
   if (state.frequency.top !== state.procedureBox.top || state.frequency.top <= state.speed.top) throw new Error('frequency and procedure must share the final row');
   if (state.speed.width <= state.componentNoBox.width || state.procedureBox.width <= state.componentNoBox.width) throw new Error('merged report value cells have invalid proportions');
+  if (await page.locator('#reportUnit').inputValue() && await page.locator('#reportOutage').inputValue()) {
+    await page.locator('#reportInlinePreview .report-sheet').waitFor({timeout: 15000});
+  }
+  await page.locator('[data-report-mode="history"]').click();
+  const comparison = await page.evaluate(() => ({
+    firstRowHeaders: document.querySelectorAll('.comparison-table thead tr:first-child th').length,
+    secondRowHeaders: document.querySelectorAll('.comparison-table thead tr:nth-child(2) th').length,
+    footer: document.querySelector('.comparison-table tfoot')?.textContent || '',
+    text: document.querySelector('.comparison-table')?.textContent || '',
+  }));
+  if (comparison.firstRowHeaders !== 6 || comparison.secondRowHeaders !== 6) throw new Error('comparison report must use the formal two-level 10-column header');
+  if (comparison.text.includes('数据点')) throw new Error('comparison report still contains the removed datapoint columns');
+  if (!comparison.footer.includes('R') || !comparison.footer.includes('NI')) throw new Error('comparison result meanings are missing');
   await page.screenshot({path: 'tmp/report-header-layout.png', fullPage: true});
   console.log(JSON.stringify(state));
 } finally {
