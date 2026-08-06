@@ -1273,6 +1273,28 @@ def inspection_report_rows(outage: str, unit: int, finding_ids: list[int] | None
     return rows
 
 
+def report_tube_rowspans(rows: list[dict]) -> list[int]:
+    """Return per-row spans for consecutive records of the same physical tube."""
+    spans = [1] * len(rows)
+    index = 0
+    while index < len(rows):
+        channel = rows[index].get("thimble_id")
+        position = str(rows[index].get("position") or "").strip()
+        end = index + 1
+        if channel not in (None, "") and position:
+            while end < len(rows):
+                candidate = rows[end]
+                if candidate.get("thimble_id") != channel or str(candidate.get("position") or "").strip() != position:
+                    break
+                end += 1
+        if end - index > 1:
+            spans[index] = end - index
+            for continuation in range(index + 1, end):
+                spans[continuation] = 0
+        index = end
+    return spans
+
+
 def report_metadata(metadata: dict, outage: str, unit: int) -> list[tuple[str, str]]:
     return [
         ("设备/部件编号", str(metadata.get("component_no") or "")),
@@ -1334,13 +1356,33 @@ def _w_paragraph(value="", align="center", bold=False, size=20) -> str:
     return f'<w:p><w:pPr>{alignment}</w:pPr><w:r><w:rPr>{weight}<w:sz w:val="{size}"/><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="宋体"/></w:rPr><w:t xml:space="preserve">{_w_text(value)}</w:t></w:r></w:p>'
 
 
-def _w_table(headers: list[str], rows: list[list]) -> str:
+def _w_table(headers: list[str], rows: list[list], merge_group_columns: tuple[int, ...] = (), merge_columns: tuple[int, ...] = ()) -> str:
     count = len(headers); width = max(900, 10200 // max(1, count))
     grid = "".join(f'<w:gridCol w:w="{width}"/>' for _ in headers)
-    def row_xml(values, header=False):
-        cells = "".join(f'<w:tc><w:tcPr><w:tcW w:w="{width}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>{_w_paragraph(value, "center", header, 16)}</w:tc>' for value in values)
-        return f'<w:tr>{cells}</w:tr>'
-    return f'<w:tbl><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="6"/><w:left w:val="single" w:sz="6"/><w:bottom w:val="single" w:sz="6"/><w:right w:val="single" w:sz="6"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>{grid}</w:tblGrid>{row_xml(headers, True)}{''.join(row_xml(row) for row in rows)}</w:tbl>'
+    merge_states = ["none"] * len(rows)
+    if merge_group_columns and merge_columns:
+        groups = [tuple(row[column] for column in merge_group_columns) for row in rows]
+        for index, group in enumerate(groups):
+            if any(value in (None, "") for value in group):
+                continue
+            previous_same = index > 0 and groups[index - 1] == group
+            next_same = index + 1 < len(groups) and groups[index + 1] == group
+            if previous_same:
+                merge_states[index] = "continue"
+            elif next_same:
+                merge_states[index] = "restart"
+    def row_xml(values, header=False, merge_state="none"):
+        cells = []
+        for column, value in enumerate(values):
+            vertical_merge = ""
+            if not header and column in merge_columns and merge_state != "none":
+                vertical_merge = '<w:vMerge w:val="restart"/>' if merge_state == "restart" else "<w:vMerge/>"
+                if merge_state == "continue":
+                    value = ""
+            cells.append(f'<w:tc><w:tcPr><w:tcW w:w="{width}" w:type="dxa"/><w:vAlign w:val="center"/>{vertical_merge}</w:tcPr>{_w_paragraph(value, "center", header, 16)}</w:tc>')
+        return f'<w:tr>{"".join(cells)}</w:tr>'
+    body = "".join(row_xml(row, merge_state=merge_states[index]) for index, row in enumerate(rows))
+    return f'<w:tbl><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="6"/><w:left w:val="single" w:sz="6"/><w:bottom w:val="single" w:sz="6"/><w:right w:val="single" w:sz="6"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>{grid}</w:tblGrid>{row_xml(headers, True)}{body}</w:tbl>'
 
 
 def _w_report_info_table(pairs: list[tuple[str, str]]) -> str:
@@ -1392,12 +1434,20 @@ def build_inspection_preview(outage: str, unit: int, metadata: dict, finding_ids
     metadata = enrich_report_metadata(metadata, rows, outage, unit)
     title = metadata.get("title") or "反应堆中子通量测量指套管涡流检验报告单"
     info = "".join(f"<div><span>{html.escape(label)}</span><b>{html.escape(value or '待填写')}</b></div>" for label, value in report_metadata(metadata, outage, unit))
-    body = "".join(
-        f"<tr><td>{index}</td><td>{row['thimble_id']}</td><td>{html.escape(row.get('position') or '')}</td>"
-        f"<td>{html.escape(row.get('indication') or 'NDD')}</td><td>{'/' if row.get('volts') is None else row['volts']}</td>"
-        f"<td>{'/' if row.get('percent') is None else row['percent']}</td><td>{html.escape('/' if str(row.get('indication') or 'NDD').upper() == 'NDD' else format_location(row.get('location') or ''))}</td>"
-        f"<td>{html.escape('/' if str(row.get('indication') or 'NDD').upper() == 'NDD' else row.get('channel') or '')}</td></tr>"
-        for index, row in enumerate(rows, 1))
+    body_rows = []
+    for index, (row, rowspan) in enumerate(zip(rows, report_tube_rowspans(rows)), 1):
+        tube_cells = ""
+        if rowspan:
+            span = f" rowspan='{rowspan}'" if rowspan > 1 else ""
+            tube_cells = f"<td{span}>{row['thimble_id']}</td><td{span}>{html.escape(row.get('position') or '')}</td>"
+        body_rows.append(
+            f"<tr><td>{index}</td>{tube_cells}<td>{html.escape(row.get('indication') or 'NDD')}</td>"
+            f"<td>{'/' if row.get('volts') is None else row['volts']}</td>"
+            f"<td>{'/' if row.get('percent') is None else row['percent']}</td>"
+            f"<td>{html.escape('/' if str(row.get('indication') or 'NDD').upper() == 'NDD' else format_location(row.get('location') or ''))}</td>"
+            f"<td>{html.escape('/' if str(row.get('indication') or 'NDD').upper() == 'NDD' else row.get('channel') or '')}</td></tr>"
+        )
+    body = "".join(body_rows)
     preview = f"<article class='report-sheet'><div class='report-page-mark'>II-1/1</div><h1>{html.escape(title)}</h1><section class='report-info'>{info}</section><h2>检验结果</h2><div class='report-table-wrap'><table><thead><tr><th>序号</th><th>通道编号</th><th>堆芯位置</th><th>显示类型</th><th>幅值（V）</th><th>磨损深度（壁厚%）</th><th>磨损位置</th><th>测量通道</th></tr></thead><tbody>{body}</tbody></table></div><footer>备注：无。<br><br>分析人员/级别：____________　审核/级别：____________　批准：____________　业主：____________</footer></article>"
     return {"title": title, "rows": len(rows), "html": preview}
 
@@ -1425,7 +1475,7 @@ def export_inspection_docx(outage: str, unit: int, metadata: dict, finding_ids: 
                 "/" if is_ndd else format_location(row.get("location") or ""),
                 "/" if is_ndd else row.get("channel") or "",
             ])
-        blocks.append(_w_table(columns, values))
+        blocks.append(_w_table(columns, values, merge_group_columns=(1, 2), merge_columns=(1, 2)))
         if page_index == len(pages):
             blocks.append(_w_paragraph("备注：\n无。", "left", False, 15))
             blocks.append(_w_table(["", "分析人员/级别", "审核/级别", "批准", "业主"], [["签名", "", "", "", ""], ["日期", "", "", "", ""]]))

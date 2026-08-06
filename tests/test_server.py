@@ -125,6 +125,26 @@ class ParserTests(unittest.TestCase):
                 self.assertEqual(comparison["NI"], 1)
                 self.assertTrue(Path(comparison["file_path"]).is_file())
 
+    def test_report_merges_only_matching_channel_and_core_position(self):
+        rows = [
+            {"thimble_id": 1, "position": "L11"},
+            {"thimble_id": 1, "position": "L11"},
+            {"thimble_id": 1, "position": "G14"},
+            {"thimble_id": 2, "position": "L11"},
+            {"thimble_id": 2, "position": "L11"},
+            {"thimble_id": 3, "position": ""},
+            {"thimble_id": 3, "position": ""},
+        ]
+        self.assertEqual(server.report_tube_rowspans(rows), [2, 0, 1, 2, 0, 1, 1])
+
+        xml = server._w_table(
+            ["序号", "通道编号", "堆芯位置"],
+            [[1, 1, "L11"], [2, 1, "L11"], [3, 1, "G14"]],
+            merge_group_columns=(1, 2), merge_columns=(1, 2),
+        )
+        self.assertEqual(xml.count('<w:vMerge w:val="restart"/>'), 2)
+        self.assertEqual(xml.count("<w:vMerge/>") , 2)
+
     def test_export_query_is_not_truncated_at_ui_page_limit(self):
         with tempfile.TemporaryDirectory() as directory:
             db = Path(directory) / "export.db"
