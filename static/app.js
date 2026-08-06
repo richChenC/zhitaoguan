@@ -129,3 +129,32 @@ $('#scanServerBtn').onclick=async()=>{const root=$('#serverRoot').value.trim(),s
 function renderSelectedStatistics(){const selected=state.items.filter(item=>state.selectedIds.has(item.id));if(!selected.length)return;const max=Math.max(0,...selected.map(item=>Number(item.percent)||0)),tubes=new Set(selected.map(item=>item.thimble_id)),defects=selected.filter(item=>item.indication&&item.indication!=='NDD');$('#detail').className='detail';$('#detail').innerHTML=`<div class="detail-grid"><div><span>当前机组</span><b>${selected[0].unit_id}号机</b></div><div><span>已选记录</span><b>${selected.length} 条</b></div><div><span>涉及管数</span><b>${tubes.size} 根</b></div><div><span>缺陷记录</span><b>${defects.length} 条</b></div><div><span>最大磨损</span><b>${max?max+'%':'无缺陷'}</b></div><div><span>综合结论</span><b>${max>=70?'三级':max>=35?'二级':max>0?'一级':'无缺陷'}</b></div></div>`}
 $('#rows').addEventListener('change',()=>setTimeout(renderSelectedStatistics,0));
 
+function installReportWorkflow(){
+  if($('#reportPreviewDialog'))return;
+  const stylesheet=document.createElement('link');stylesheet.rel='stylesheet';stylesheet.href='/report-preview.css?v=20260806a';document.head.append(stylesheet);
+  document.body.insertAdjacentHTML('beforeend','<dialog id="reportPreviewDialog" class="report-preview-dialog"><div class="report-preview-head"><div><span>REPORT PREVIEW</span><h2 id="reportPreviewTitle">报告预览</h2></div><button id="closeReportPreview" type="button" aria-label="关闭预览">×</button></div><div id="reportPreviewContent" class="report-preview-content"></div></dialog>');
+  const form=$('#reportForm'),submit=form?.querySelector('button[type="submit"]');
+  if(submit){submit.textContent='导出结果报告 Word';const actions=document.createElement('div');actions.className='report-form-actions wide';submit.before(actions);actions.append(submit);const preview=document.createElement('button');preview.id='previewInspectionReport';preview.type='button';preview.textContent='预览结果报告';actions.prepend(preview)}
+  const exportCompare=$('#exportCompareBtn');if(exportCompare){exportCompare.textContent='导出对比报告 Word';const preview=document.createElement('button');preview.id='previewCompareReport';preview.type='button';preview.textContent='预览对比报告';exportCompare.before(preview)}
+  $('#closeReportPreview').onclick=()=>$('#reportPreviewDialog').close();
+}
+
+function inspectionReportPayload(){
+  const selected=state.items.filter(item=>state.selectedIds.has(item.id)),outages=new Set(selected.map(item=>item.outage)),units=new Set(selected.map(item=>Number(item.unit_id)));
+  if(outages.size>1||units.size>1)throw new Error('结果报告只能包含同一次大修、同一机组的数据');
+  const selectedRow=selected[0],outage=selectedRow?.outage||$('#reportOutage').value,unit=Number(selectedRow?.unit_id||$('#reportUnit').value);
+  if(!outage||!unit)throw new Error('请选择或勾选同一次大修、同一机组的数据');
+  if(selectedRow){$('#reportUnit').value=String(unit);refreshReportFilters();$('#reportOutage').value=outage}
+  const metadata={plant:$('#reportPlant').value,report_no:$('#reportNo').value,inspection:$('#reportInspection').value,component:$('#reportComponent').value,safety:$('#reportSafety').value,direction:$('#reportDirection').value,material:$('#reportMaterial').value,size:$('#reportSize').value,title:$('#reportTitle').value};
+  return {outage,unit,metadata,finding_ids:selected.map(item=>item.id)};
+}
+
+function comparisonReportPayload(){const old=$('#oldOutage').value,newer=$('#newOutage').value,unit=Number($('#compareUnit').value);if(!old||!newer||!unit)throw new Error('请选择完整的对比条件');if(old===newer)throw new Error('请选择两个不同的大修批次');return{old,new:newer,unit}}
+async function showReportPreview(payload){const data=await api('/api/report-preview',{method:'POST',body:JSON.stringify(payload)});$('#reportPreviewTitle').textContent=`${data.title} · ${data.rows} 条`;$('#reportPreviewContent').innerHTML=data.html;$('#reportPreviewDialog').showModal()}
+
+installReportWorkflow();document.addEventListener('DOMContentLoaded',installReportWorkflow);
+$('#previewInspectionReport').onclick=()=>{try{showReportPreview({kind:'inspection',...inspectionReportPayload()}).catch(error=>toast(error.message))}catch(error){toast(error.message)}};
+$('#previewCompareReport').onclick=()=>{try{showReportPreview({kind:'comparison',...comparisonReportPayload()}).catch(error=>toast(error.message))}catch(error){toast(error.message)}};
+$('#reportForm').onsubmit=async event=>{event.preventDefault();const status=$('#reportExportStatus');try{const payload=inspectionReportPayload();status.textContent='正在生成 Word 报告...';const data=await api('/api/export-report',{method:'POST',body:JSON.stringify(payload)});status.innerHTML=`<a href="${data.download_url}">${data.filename}</a><small>${data.rows} 条记录</small>`;location.href=data.download_url;toast('结果报告 Word 已生成')}catch(error){status.textContent=error.message;toast(error.message)}};
+$('#exportCompareBtn').onclick=async()=>{try{const data=await api('/api/export-comparison',{method:'POST',body:JSON.stringify(comparisonReportPayload())});location.href=data.download_url;toast(`对比报告 Word 已生成：R ${data.R} / NI ${data.NI}`)}catch(error){toast(error.message)}};
+

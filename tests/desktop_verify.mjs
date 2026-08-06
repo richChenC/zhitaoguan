@@ -22,6 +22,10 @@ const app = await electron.launch({
 try {
   const page = await app.firstWindow();
   await page.waitForLoadState('networkidle');
+  await page.locator('[data-view="reports"]').click();
+  await page.locator('#previewInspectionReport').waitFor();
+  await page.locator('#previewCompareReport').waitFor();
+  if (!await page.locator('#reportPreviewDialog').count()) throw new Error('report preview dialog is missing');
   await page.locator('[data-view="threeD"]').click();
   const frame = page.locator('#threeModelFrame');
   await frame.waitFor();

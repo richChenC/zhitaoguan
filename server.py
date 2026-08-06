@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import html
 import io
 import json
 import logging
@@ -33,6 +34,7 @@ STATIC = ROOT / "static"
 DATA_DIR = Path(os.environ.get("THIMBLE_DATA_DIR", str(ROOT / "data"))).expanduser().resolve()
 DB_PATH = Path(os.environ.get("THIMBLE_DB_PATH", str(DATA_DIR / "thimble.db"))).expanduser().resolve()
 EXCEL_DIR = Path(os.environ.get("THIMBLE_OUTPUT_DIR", str(ROOT / "output" / "excel"))).expanduser().resolve()
+REPORT_DIR = Path(os.environ.get("THIMBLE_REPORT_DIR", str(ROOT / "output" / "reports"))).expanduser().resolve()
 LOG_PATH = Path(os.environ.get("THIMBLE_LOG_PATH", str(DATA_DIR / "thimble.log"))).expanduser().resolve()
 SERVICE_VERSION = "2026.08.06"
 try:
@@ -1079,7 +1081,9 @@ def normalize_location(location: str) -> tuple[str, float | None]:
 
 def is_real_defect(row) -> bool:
     indication = str(row["indication"] or "").strip().upper()
-    return bool(indication) and indication != "NDD" and bool(row["datapoint"] and row["datapoint"] > 0)
+    if indication in {"", "NDD", "NONE", "NO DEFECT"}:
+        return False
+    return bool(str(row.get("location") or "").strip() or row.get("datapoint") is not None or str(row.get("measurement_type") or "").strip())
 
 def defect_match_key(row, shift_mm: float = 0) -> tuple[str, float]:
     zone, offset = normalize_location(row.get("location", ""))
@@ -1251,6 +1255,118 @@ def export_inspection_report(outage: str, unit: int, metadata: dict) -> dict:
     return {**workbook_result(f"{outage}_指套管涡流检验报告单_{datetime.now():%Y%m%d_%H%M%S}.xlsx", book), "rows": len(rows)}
 
 
+def inspection_report_rows(outage: str, unit: int, finding_ids: list[int] | None = None) -> list[dict]:
+    outage = str(outage or "").strip().upper()
+    if not outage or not unit:
+        raise ValueError("请选择大修和机组")
+    ids = sorted({int(value) for value in (finding_ids or []) if str(value).isdigit() and int(value) > 0})
+    sql = "SELECT * FROM findings WHERE outage=? AND unit_id=?"
+    args: list = [outage, unit]
+    if ids:
+        sql += f" AND id IN ({','.join('?' for _ in ids)})"
+        args.extend(ids)
+    sql += " ORDER BY thimble_id,entry_no,datapoint,id"
+    with connect() as db:
+        rows = [dict(row) for row in db.execute(sql, args)]
+    if not rows:
+        raise ValueError("当前条件或勾选记录没有可生成报告的数据")
+    return rows
+
+
+def report_metadata(metadata: dict, outage: str, unit: int) -> list[tuple[str, str]]:
+    return [
+        ("电厂名称", str(metadata.get("plant") or "")), ("机组", str(unit)),
+        ("检查类型", str(metadata.get("inspection") or outage)),
+        ("设备/部件名称", str(metadata.get("component") or "指套管")),
+        ("安全等级", str(metadata.get("safety") or "")), ("方向号", str(metadata.get("direction") or "")),
+        ("材料", str(metadata.get("material") or "")), ("尺寸", str(metadata.get("size") or "")),
+        ("报告单编号", str(metadata.get("report_no") or "")),
+    ]
+
+
+def _w_text(value) -> str:
+    return html.escape("" if value is None else str(value), quote=False).replace("\n", "<w:br/>")
+
+
+def _w_paragraph(value="", align="center", bold=False, size=20) -> str:
+    alignment = f'<w:jc w:val="{align}"/>' if align else ""
+    weight = "<w:b/>" if bold else ""
+    return f'<w:p><w:pPr>{alignment}</w:pPr><w:r><w:rPr>{weight}<w:sz w:val="{size}"/><w:rFonts w:ascii="SimSun" w:hAnsi="SimSun" w:eastAsia="宋体"/></w:rPr><w:t xml:space="preserve">{_w_text(value)}</w:t></w:r></w:p>'
+
+
+def _w_table(headers: list[str], rows: list[list]) -> str:
+    count = len(headers); width = max(900, 10200 // max(1, count))
+    grid = "".join(f'<w:gridCol w:w="{width}"/>' for _ in headers)
+    def row_xml(values, header=False):
+        cells = "".join(f'<w:tc><w:tcPr><w:tcW w:w="{width}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>{_w_paragraph(value, "center", header, 16)}</w:tc>' for value in values)
+        return f'<w:tr>{cells}</w:tr>'
+    return f'<w:tbl><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="6"/><w:left w:val="single" w:sz="6"/><w:bottom w:val="single" w:sz="6"/><w:right w:val="single" w:sz="6"/><w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/></w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>{grid}</w:tblGrid>{row_xml(headers, True)}{''.join(row_xml(row) for row in rows)}</w:tbl>'
+
+
+def _write_docx(filename: str, blocks: list[str], landscape=True) -> dict:
+    from zipfile import ZIP_DEFLATED, ZipFile
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    target = REPORT_DIR / filename; temporary = target.with_name(f".{target.stem}.{os.getpid()}.tmp")
+    size = '<w:pgSz w:w="15840" w:h="12240"/>' if landscape else '<w:pgSz w:w="12240" w:h="15840"/>'
+    document_xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' + ''.join(blocks) + f'<w:sectPr>{size}<w:pgMar w:top="792" w:right="792" w:bottom="792" w:left="792"/></w:sectPr></w:body></w:document>'
+    content_types = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'
+    rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'
+    word_rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>'
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        with ZipFile(temporary, "w", ZIP_DEFLATED) as archive:
+            archive.writestr("[Content_Types].xml", content_types); archive.writestr("_rels/.rels", rels); archive.writestr("word/document.xml", document_xml); archive.writestr("word/_rels/document.xml.rels", word_rels)
+        os.replace(temporary, target)
+    except Exception:
+        temporary.unlink(missing_ok=True); LOGGER.exception("Word report export failed: %s", target); raise
+    return {"filename": filename, "file_path": str(target), "download_url": f"/api/download-report?name={quote(filename)}"}
+
+
+def build_inspection_preview(outage: str, unit: int, metadata: dict, finding_ids: list[int] | None = None) -> dict:
+    rows = inspection_report_rows(outage, unit, finding_ids)
+    title = metadata.get("title") or "反应堆中子通量测量指套管涡流检验报告单"
+    info = "".join(f"<div><span>{html.escape(label)}</span><b>{html.escape(value or '待填写')}</b></div>" for label, value in report_metadata(metadata, outage, unit))
+    body = "".join(
+        f"<tr><td>{index}</td><td>{row['thimble_id']}</td><td>{html.escape(row.get('position') or '')}</td>"
+        f"<td>{html.escape(row.get('indication') or 'NDD')}</td><td>{'' if row.get('volts') is None else row['volts']}</td>"
+        f"<td>{'' if row.get('percent') is None else row['percent']}</td><td>{html.escape(format_location(row.get('location') or ''))}</td>"
+        f"<td>{html.escape(row.get('channel') or '')}</td><td>{html.escape(row.get('analyst') or '')}</td></tr>"
+        for index, row in enumerate(rows, 1))
+    preview = f"<article class='report-sheet'><h1>{html.escape(title)}</h1><section class='report-info'>{info}</section><h2>检验结果</h2><div class='report-table-wrap'><table><thead><tr><th>序号</th><th>通道编号</th><th>堆芯位置</th><th>显示类型</th><th>幅值(V)</th><th>磨损深度(%)</th><th>磨损位置</th><th>测量通道</th><th>分析人员</th></tr></thead><tbody>{body}</tbody></table></div><footer>备注：无数据字段保留空白，签字和日期由工作人员补充。</footer></article>"
+    return {"title": title, "rows": len(rows), "html": preview}
+
+
+def export_inspection_docx(outage: str, unit: int, metadata: dict, finding_ids: list[int] | None = None) -> dict:
+    rows = inspection_report_rows(outage, unit, finding_ids)
+    info_values = report_metadata(metadata, outage, unit); info_rows = []
+    for index in range(0, len(info_values), 3):
+        row = []
+        for label, value in info_values[index:index + 3]: row.extend([label, value])
+        info_rows.append(row)
+    values = [[index, row["thimble_id"], row.get("position") or "", row.get("indication") or "NDD", row.get("volts"), row.get("percent"), format_location(row.get("location") or ""), row.get("channel") or "", row.get("analyst") or ""] for index, row in enumerate(rows, 1)]
+    blocks = [_w_paragraph(metadata.get("title") or "反应堆中子通量测量指套管涡流检验报告单", "center", True, 30), _w_table(["电厂", "", "机组", "", "检查类型", ""], info_rows), _w_paragraph("检验结果", "center", True, 20), _w_table(["序号", "通道编号", "堆芯位置", "显示类型", "幅值(V)", "磨损深度(壁厚%)", "磨损位置", "测量通道", "分析人员"], values), _w_paragraph("备注：\n\n分析人员/级别：__________    审核/级别：__________    批准：__________    业主：__________\n日期：__________", "left", False, 18)]
+    return {**_write_docx(f"{outage}_指套管涡流检验结果_{datetime.now():%Y%m%d_%H%M%S}.docx", blocks), "rows": len(rows)}
+
+
+def build_comparison_preview(old: str, new: str, unit: int) -> dict:
+    data = compare(old, new, unit)
+    body = "".join(
+        f"<tr><td>{index}</td><td>{row['thimble_id']}</td><td>{html.escape(row.get('position') or '')}</td>"
+        f"<td>{'' if row.get('volts') is None else row['volts']}</td><td>{'' if row.get('percent') is None else row['percent']}</td><td>{html.escape(format_location(row.get('location') or ''))}</td>"
+        f"<td>{'' if row.get('old_volts') is None else row['old_volts']}</td><td>{'' if row.get('old_percent') is None else row['old_percent']}</td><td>{html.escape(format_location(row.get('old_location') or ''))}</td><td><b class='{row['comparison'].lower()}'>{row['comparison']}</b></td></tr>"
+        for index, row in enumerate(data["items"], 1))
+    title = f"{unit}号机组反应堆中子通量测量指套管涡流检验结果对比表"
+    preview = f"<article class='report-sheet comparison-sheet'><h1>{html.escape(title)}</h1><p class='report-lead'>本次大修（{html.escape(new)}）与历史大修（{html.escape(old)}）结果对比。历史缺陷 R：{data['summary']['R']}，新增缺陷 NI：{data['summary']['NI']}。</p><div class='report-table-wrap'><table><thead><tr><th rowspan='2'>序号</th><th rowspan='2'>通道编号</th><th rowspan='2'>堆芯位置</th><th colspan='3'>{html.escape(new)}</th><th colspan='3'>{html.escape(old)}</th><th rowspan='2'>备注</th></tr><tr><th>幅值(V)</th><th>磨损深度(%)</th><th>磨损位置</th><th>幅值(V)</th><th>磨损深度(%)</th><th>磨损位置</th></tr></thead><tbody>{body}</tbody></table></div></article>"
+    return {"title": title, "rows": len(data["items"]), "html": preview, **data["summary"]}
+
+
+def export_comparison_docx(old: str, new: str, unit: int) -> dict:
+    data = compare(old, new, unit)
+    values = [[index, row["thimble_id"], row.get("position") or "", row.get("volts"), row.get("percent"), format_location(row.get("location") or ""), row.get("old_volts"), row.get("old_percent"), format_location(row.get("old_location") or ""), row["comparison"]] for index, row in enumerate(data["items"], 1)]
+    blocks = [_w_paragraph(f"{unit}号机组反应堆中子通量测量指套管涡流检验结果对比表", "center", True, 28), _w_paragraph(f"本次大修（{new}）与历史大修（{old}）结果对比。历史缺陷 R：{data['summary']['R']}，新增缺陷 NI：{data['summary']['NI']}。", "left", False, 18), _w_table(["序号", "通道编号", "堆芯位置", f"{new} 幅值(V)", f"{new} 磨损深度(%)", f"{new} 磨损位置", f"{old} 幅值(V)", f"{old} 磨损深度(%)", f"{old} 磨损位置", "备注"], values)]
+    return {**_write_docx(f"{new}_对比_{old}_指套管综合报告_{datetime.now():%Y%m%d_%H%M%S}.docx", blocks), "rows": len(data["items"]), **data["summary"]}
+
+
 def health_status() -> dict:
     return {
         "ok": True,
@@ -1322,6 +1438,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json_response(compare(q.get("old", [""])[0], q.get("new", [""])[0], int(q.get("unit", ["0"])[0])))
             if parsed.path == "/api/export": return self.export_csv(parse_qs(parsed.query))
             if parsed.path == "/api/download-excel": return self.download_excel(parse_qs(parsed.query))
+            if parsed.path == "/api/download-report": return self.download_report(parse_qs(parsed.query))
             return self.serve_static(parsed.path)
         except Exception as exc:
             LOGGER.exception("GET %s failed", self.path)
@@ -1337,10 +1454,14 @@ class Handler(SimpleHTTPRequestHandler):
             if self.path == "/api/export-comparison":
                 outages = data.get("outages") or []
                 if len(outages) >= 2:
-                    return self.json_response(export_comparison_excel_many(outages, int(data.get("unit", 0))))
-                return self.json_response(export_comparison_excel(data.get("old", ""), data.get("new", ""), int(data.get("unit", 0))))
+                    return self.json_response(export_comparison_docx(outages[-2], outages[-1], int(data.get("unit", 0))))
+                return self.json_response(export_comparison_docx(data.get("old", ""), data.get("new", ""), int(data.get("unit", 0))))
             if self.path == "/api/export-evolution": return self.json_response(export_evolution_excel(data.get("site", ""), int(data.get("unit", 0))))
-            if self.path == "/api/export-report": return self.json_response(export_inspection_report(data.get("outage", ""), int(data.get("unit", 0)), data.get("metadata") or {}))
+            if self.path == "/api/export-report": return self.json_response(export_inspection_docx(data.get("outage", ""), int(data.get("unit", 0)), data.get("metadata") or {}, data.get("finding_ids") or []))
+            if self.path == "/api/report-preview":
+                if data.get("kind") == "comparison":
+                    return self.json_response(build_comparison_preview(data.get("old", ""), data.get("new", ""), int(data.get("unit", 0))))
+                return self.json_response(build_inspection_preview(data.get("outage", ""), int(data.get("unit", 0)), data.get("metadata") or {}, data.get("finding_ids") or []))
             if self.path == "/api/clear":
                 if data.get("confirmed") is not True:
                     return self.json_response({"error": "清空操作必须明确确认"}, 400)
@@ -1383,6 +1504,19 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+
+    def download_report(self, params):
+        name = Path(params.get("name", [""])[0]).name
+        target = (REPORT_DIR / name).resolve()
+        if target.parent != REPORT_DIR.resolve() or not target.is_file():
+            return self.send_error(HTTPStatus.NOT_FOUND)
+        payload = target.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers(); self.wfile.write(payload)
 
     def serve_static(self, path):
         target = STATIC / ("index.html" if path == "/" else path.lstrip("/"))
