@@ -189,17 +189,16 @@ function applyParity(value){
   setSelected(selected);
 }
 
-function isDefect(row){const indication=String(row.indication||'').trim().toUpperCase();return Boolean(indication)&&indication!=='NDD'&&(Number(row.percent||0)>0||Number(row.datapoint||0)>0)}
+function isDefect(row){const indication=String(row.indication||'').trim().toUpperCase(),percent=Number(row.percent);return Boolean(indication)&&!['NDD','NONE','NO DEFECT'].includes(indication)&&Number.isFinite(percent)&&percent>0}
 function escapeHtml(value){return String(value??'').replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]))}
 function updateSelectedTubeDetails(){
   const host=document.querySelector('#selectedTubeDetails');if(!host)return;
   const records=workspaceRows.filter(row=>Number(row.thimble_id)===selected+1);
   if(!records.length){host.className='inspection-empty';host.textContent='当前筛选无检测记录';return}
-  const defects=records.filter(isDefect),primary=(defects.length?defects:records).reduce((best,row)=>Number(row.percent||0)>Number(best.percent||0)?row:best,(defects.length?defects:records)[0]);
-  const indication=defects.length?(primary.indication||'缺陷指示'):'未发现缺陷';
-  const percent=Number(primary.percent||0);const depth=defects.length?(percent?`${percent}%`:'已记录'):'--';
-  const fields=[['检测状态',defects.length?`发现 ${defects.length} 条缺陷`:'检测完成'],['缺陷类型',indication],['磨损深度',depth],['磨损位置',primary.location||'--'],['分析人员',primary.analyst||'--'],['数据组',primary.calgroup||primary.channel||'--'],['机组 / 大修',[primary.unit_id?`${primary.unit_id}号机组`:'',primary.outage||''].filter(Boolean).join(' · ')||'--']];
-  host.className='inspection-list';host.innerHTML=`<p class="inspection-count">${records.length} 条检测记录 · ${defects.length} 条缺陷记录</p><dl>${fields.map(([label,value],index)=>`<div><dt>${label}</dt><dd${index===1&&defects.length?' class="defect-value"':''}>${escapeHtml(value)}</dd></div>`).join('')}</dl>`;
+  const defects=records.filter(isDefect),maxPercent=Math.max(0,...defects.map(row=>Number(row.percent)||0));
+  const summary=defects.length?`发现 ${defects.length} 条缺陷 · 最大磨损 ${maxPercent}%`:'无有效缺陷';
+  const recordHtml=records.map((row,index)=>{const defect=isDefect(row),percent=defect?`${Number(row.percent)}%`:'--',title=[row.outage||'未标注大修',row.indication||'NDD',percent].join(' · '),note=[row.comment,row.analysis].filter(Boolean).join('；')||'--';const fields=[['磨损位置',row.location||'--'],['测量通道',row.channel||'--'],['幅值',row.volts==null?'--':`${row.volts} V`],['相位',row.degrees==null?'--':`${row.degrees}°`],['分析人员',row.analyst||'--'],['数据组',row.calgroup||'--'],['数据文件',row.filename||'--'],['备注',note]];return `<article class="inspection-record${defect?' has-defect':''}"><header><b>${escapeHtml(title)}</b><span>${index+1}/${records.length}</span></header><dl>${fields.map(([label,value])=>`<div><dt>${label}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl></article>`}).join('');
+  host.className='inspection-list';host.innerHTML=`<div class="inspection-summary"><b>${selected+1}号管 · ${escapeHtml(POSITIONS[selected])}</b><span>${escapeHtml(summary)}</span></div><div class="inspection-records">${recordHtml}</div>`;
 }
 function defectY(location){const match=String(location||'').match(/(P[1-6])(?:\s*\+\s*([-+]?\d+(?:\.\d+)?))?/i),zone=(match?.[1]||'P3').toUpperCase(),offset=Math.max(0,Math.min(400,Number(match?.[2]||0))),index=Math.max(0,pointDefinitions.findIndex(item=>item[0]===zone)),base=pointDefinitions[index][1],next=pointDefinitions[index+1]?.[1]??-6.35;return base-(offset/400)*(base-next)}
 function renderDataDefects(rows=[]){
@@ -207,11 +206,17 @@ function renderDataDefects(rows=[]){
   grouped.forEach(records=>{const row=records.reduce((best,item)=>Number(item.percent||0)>Number(best.percent||0)?item:best,records[0]),position=row.position||POSITIONS[Number(row.thimble_id)-1],{x,z}=coordinate(position),percent=Number(row.percent||0),color=percent>=40?0xe45b4e:percent>=20?0xd9a441:0xd7ef4a,point=new THREE.Mesh(new THREE.SphereGeometry(.13,18,12),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.85}));point.position.set(x,defectY(row.location),z);point.userData={records,id:Number(row.thimble_id),position};dataDefectsGroup.add(point)});
 }
 
+let scopeRequest=0;
+async function fetchScopeRows(scope,request){
+  const unit=Number(scope.unit||0);if(!unit)return[];
+  const rows=[];let page=1,pages=1;
+  do{const params=new URLSearchParams({page:String(page),size:'200',unit:String(unit)});if(scope.site)params.set('site',scope.site);if(scope.outage)params.set('outage',scope.outage);const response=await fetch(`/api/findings?${params}`);const data=await response.json();if(request!==scopeRequest)return null;rows.push(...(data.items||[]));pages=Number(data.pages||1);page++}while(page<=pages);
+  return rows;
+}
 async function applyWorkspaceScope(scope={}){
-  const unit=Number(scope.unit||0);if(unit){const parity=unit%2?'odd':'even';document.querySelector('#paritySelect').value=parity;applyParity(parity)}
-  let rows=Array.isArray(scope.selectedItems)&&scope.selectedItems.length?scope.selectedItems:null;
-  if(!rows&&unit&&scope.outage){const params=new URLSearchParams({page:'1',size:'200',unit:String(unit),outage:scope.outage});if(scope.site)params.set('site',scope.site);const response=await fetch(`/api/findings?${params}`);rows=(await response.json()).items||[]}
-  workspaceRows=rows||[];renderDataDefects(workspaceRows);updateSelectedTubeDetails();
+  const request=++scopeRequest,unit=Number(scope.unit||0);if(unit){const parity=unit%2?'odd':'even';document.querySelector('#paritySelect').value=parity;applyParity(parity)}
+  const rows=await fetchScopeRows(scope,request);if(rows===null||request!==scopeRequest)return;
+  workspaceRows=rows;renderDataDefects(workspaceRows);updateSelectedTubeDetails();
 }
 
 window.addEventListener('message',event=>{if(event.origin!==location.origin)return;const message=event.data||{};if(message.type==='thimble-scope')applyWorkspaceScope(message.scope);if(message.type==='thimble-focus'){setSelected(Number(message.thimble||1)-1)}});
@@ -230,7 +235,8 @@ document.querySelector('#enter').onclick=()=>{enter();setCamera('overview')};
 document.querySelectorAll('[data-camera]').forEach(b=>b.onclick=()=>{enter();setCamera(b.dataset.camera)});
 document.querySelectorAll('[data-embedded-view]').forEach(button=>button.onclick=()=>setCamera(button.dataset.embeddedView));
 document.querySelectorAll('[data-visibility]').forEach(button=>button.onclick=()=>{const target=button.dataset.visibility;if(target==='shell'){shellVisible=!shellVisible;shellGroup.visible=currentCamera!=='tube'&&shellVisible}if(target==='core'){coreVisible=!coreVisible;coreGroup.visible=currentCamera!=='tube'&&coreVisible}if(target==='structure'){structureVisible=!structureVisible;structureGroup.visible=currentCamera!=='tube'&&structureVisible}if(target==='external'){externalVisible=!externalVisible;externalGroup.visible=currentCamera!=='tube'&&externalVisible}if(target==='numbers'){numbersVisible=!numbersVisible;numberGroup.visible=currentCamera!=='tube'&&numbersVisible}if(target==='labels'){labelsVisible=!labelsVisible;labelsGroup.visible=currentCamera!=='tube'&&currentCamera!=='plate'&&labelsVisible;singleTubeLabelsGroup.visible=currentCamera==='tube'&&labelsVisible}if(target==='orientation'){orientationVisible=!orientationVisible;orientationGroup.visible=currentCamera!=='tube'&&orientationVisible}button.classList.toggle('active',({shell:shellVisible,core:coreVisible,structure:structureVisible,external:externalVisible,numbers:numbersVisible,labels:labelsVisible,orientation:orientationVisible})[target])});
-document.querySelector('#tubeSelect').oninput=e=>setSelected(+e.target.value-1);document.querySelector('#embeddedTubeSelect')?.addEventListener('input',e=>{setSelected(+e.target.value-1);if(currentCamera!=='tube')setCamera('tube')});document.querySelector('#detectorDepth').oninput=updateDepth;
+function notifyParentSelection(){window.parent!==window&&window.parent.postMessage({type:'thimble-selected',thimble:selected+1,position:POSITIONS[selected]},location.origin)}
+document.querySelector('#tubeSelect').oninput=e=>{setSelected(+e.target.value-1);notifyParentSelection()};document.querySelector('#embeddedTubeSelect')?.addEventListener('input',e=>{setSelected(+e.target.value-1);if(currentCamera!=='tube')setCamera('tube');notifyParentSelection()});document.querySelector('#detectorDepth').oninput=updateDepth;
 document.querySelector('#paritySelect').onchange=e=>applyParity(e.target.value);
 document.querySelector('#layerSelect').onchange=updateArtificialDefect;document.querySelector('#offsetInput').oninput=updateArtificialDefect;document.querySelector('#defectColor').oninput=updateArtificialDefect;document.querySelector('#defectSize').oninput=updateArtificialDefect;
 document.querySelector('#coreOpacity').oninput=e=>{fuelMaterial.opacity=Number(e.target.value)/100;document.querySelector('#coreOpacityOutput').textContent=`${e.target.value}%`};

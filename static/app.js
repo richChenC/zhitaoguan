@@ -86,6 +86,8 @@ window.workspaceSetPageSize=size=>{state.size=size;state.page=1;loadRows().catch
 document.addEventListener('workspace-selection-settled',notifyThreeView);
 const requestedView=new URLSearchParams(location.search).get('view');if(requestedView)requestAnimationFrame(()=>document.querySelector(`nav [data-view="${CSS.escape(requestedView)}"]`)?.click());
 window.api=api; window.toast=toast; window.__thimbleState=state; window.__thimbleLoadRows=loadRows;
+window.workspaceApplyScope=async scope=>{const site=$('#site'),unit=$('#unit'),outage=$('#outage');site.value=[...site.options].some(option=>option.value===String(scope.site||''))?String(scope.site||''):'';refreshMainFilters();unit.value=[...unit.options].some(option=>option.value===String(scope.unit||''))?String(scope.unit||''):'';refreshMainFilters();outage.value=[...outage.options].some(option=>option.value===String(scope.outage||''))?String(scope.outage||''):'';$('#thimble').value='';state.page=1;await loadRows()};
+window.workspaceSelectTube=async thimble=>{if(!Number.isInteger(Number(thimble))||Number(thimble)<1||Number(thimble)>50)return;$('#thimble').value=String(thimble);state.page=1;await loadRows()};
 
 const DISPLAY_PAGE_SIZES=[20,50,100,200];
 function normalizeWorkstationTable(){

@@ -86,8 +86,7 @@
     try {
       const response = await fetch('/api/findings?' + params); const data = await response.json();
       data.items.forEach(item => state.selectedIds.add(item.id));
-      window.loadRows?.();
-      document.querySelector('[data-view="workspace"]')?.click();
+      await window.workspaceSelectTube?.(thimble);
     } catch (error) { window.toast?.(error.message || '无法同步管子记录'); }
   });
 })();
