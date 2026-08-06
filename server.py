@@ -1300,6 +1300,30 @@ def report_metadata(metadata: dict, outage: str, unit: int) -> list[tuple[str, s
     ]
 
 
+def enrich_report_metadata(metadata: dict, rows: list[dict], outage: str, unit: int) -> dict:
+    """Fill only values that are present in imported SUM/RPT data; never guess identifiers."""
+    result = dict(metadata or {})
+    first = rows[0] if rows else {}
+    defaults = {
+        "plant": first.get("site_owner") or first.get("site_code") or "",
+        "inspection": outage,
+        "component": "指套管",
+        "instrument_model": first.get("tester") or "",
+        "probe_model": first.get("probe") or "",
+        "probe_type": "BOBBIN",
+        "probe_spec": "Φ4.8 mm",
+        "size": "Φ8.6 × 1.7 mm",
+        "speed": "250 mm/s",
+        "sample_rate": "2000 点/秒",
+        "frequency": "160、80、40、20 kHz",
+    }
+    for key, value in defaults.items():
+        if not str(result.get(key) or "").strip() and value:
+            result[key] = value
+    result["unit"] = unit
+    return result
+
+
 def _w_text(value) -> str:
     return html.escape("" if value is None else str(value), quote=False).replace("\n", "<w:br/>")
 
@@ -1365,6 +1389,7 @@ def _write_docx(filename: str, blocks: list[str], landscape=True) -> dict:
 
 def build_inspection_preview(outage: str, unit: int, metadata: dict, finding_ids: list[int] | None = None) -> dict:
     rows = inspection_report_rows(outage, unit, finding_ids)
+    metadata = enrich_report_metadata(metadata, rows, outage, unit)
     title = metadata.get("title") or "反应堆中子通量测量指套管涡流检验报告单"
     info = "".join(f"<div><span>{html.escape(label)}</span><b>{html.escape(value or '待填写')}</b></div>" for label, value in report_metadata(metadata, outage, unit))
     body = "".join(
@@ -1379,6 +1404,7 @@ def build_inspection_preview(outage: str, unit: int, metadata: dict, finding_ids
 
 def export_inspection_docx(outage: str, unit: int, metadata: dict, finding_ids: list[int] | None = None) -> dict:
     rows = inspection_report_rows(outage, unit, finding_ids)
+    metadata = enrich_report_metadata(metadata, rows, outage, unit)
     title = metadata.get("title") or "反应堆中子通量测量指套管涡流检验报告单"
     columns = ["序号", "通道编号", "堆芯位置", "显示类型", "幅值（V）", "磨损深度（壁厚%）", "磨损位置", "测量通道"]
     pages = [rows[index:index + 20] for index in range(0, len(rows), 20)] or [[]]
