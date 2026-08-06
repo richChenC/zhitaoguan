@@ -19,8 +19,8 @@
     const size = document.createElement('select');
     size.id = 'pageSize';
     size.setAttribute('aria-label', '每页显示条数');
-    [10, 20, 30, 40, 50].forEach(value => {
-      const option = document.createElement('option'); option.value = value; option.textContent = value; if (value === 50) option.selected = true; size.append(option);
+    [20, 50, 100, 200, 500].forEach(value => {
+      const option = document.createElement('option'); option.value = value; option.textContent = value; if (value === 100) option.selected = true; size.append(option);
     });
     const label = document.createElement('span'); label.className = 'page-size-label'; label.textContent = '每页';
     pager.insertBefore(label, pager.firstChild); pager.insertBefore(size, pager.children[1] || null);

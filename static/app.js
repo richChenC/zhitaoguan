@@ -1,6 +1,6 @@
 ﻿const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 // Expose shared helpers for late-loaded UI enhancement modules.
-const state={page:1,pages:1,size:50,items:[],coreItems:[],selected:null,selectedIds:new Set(),overview:null};
+const state={page:1,pages:1,size:100,items:[],coreItems:[],selected:null,selectedIds:new Set(),overview:null};
 const api=async(url,options={})=>{const r=await fetch(url,{headers:{'Content-Type':'application/json'},...options});const data=await r.json();if(!r.ok)throw new Error(data.error||'请求失败');return data};
 const toast=msg=>{const e=$('#toast');e.textContent=msg;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2200)};
 function params(){const p=new URLSearchParams({page:state.page,size:state.size});['site','outage','unit','analyst','thimble'].forEach(id=>{const v=$('#'+id).value.trim();if(v)p.set(id,v)});return p}
@@ -20,7 +20,7 @@ async function loadRows(){
   coreMode=document.querySelector('#unit').value?(Number(document.querySelector('#unit').value)%2?'odd':'even'):'combined';state.pages=d.pages;
   $('.split').classList.remove('empty-results');$('#resultInfo').textContent=`共 ${d.total} 条`;$(`#pageInfo`).textContent=`${d.page} / ${d.pages}`;
   $('#prevBtn').disabled=d.page<=1;$('#nextBtn').disabled=d.page>=d.pages;
-  $('#rows').innerHTML=d.items.length?d.items.map((r,i)=>{const effective=isEffectiveFinding(r);return `<tr data-i="${i}" class="${effective?'':'no-defect'}"><td><input type="checkbox" aria-label="选择第${i+1}条记录"></td><td>${r.outage}</td><td>${r.unit_id}</td><td>#${r.thimble_id}</td><td>${r.position}</td><td>${r.indication||'-'}</td><td>${r.percent??'-'}${r.percent!=null?'%':''}</td><td>${r.location||'-'}</td><td>${r.analyst||'-'}</td></tr>`}).join(''):'<tr><td colspan="9" class="empty">暂无数据，请导入文件夹或 Excel</td></tr>';
+  $('#rows').innerHTML=d.items.length?d.items.map((r,i)=>{const effective=isEffectiveFinding(r),number=(d.page-1)*d.size+i+1;return `<tr data-i="${i}" class="${effective?'':'no-defect'}"><td class="row-number">${number}</td><td><input type="checkbox" aria-label="选择第${number}条记录"></td><td>${r.outage}</td><td>${r.unit_id}</td><td>#${r.thimble_id}</td><td>${r.position}</td><td>${r.indication||'-'}</td><td>${r.percent??'-'}${r.percent!=null?'%':''}</td><td>${r.location||'-'}</td><td>${r.analyst||'-'}</td></tr>`}).join(''):'<tr><td colspan="10" class="empty">暂无数据，请导入文件夹或 Excel</td></tr>';
   drawCore($('#unit').value?state.coreItems:[]);$('#detail').className='detail empty';$('#detail').textContent=d.items.length?'勾选任意记录查看详情；只有有效缺陷参与管板着色':'暂无检测记录，可通过下方“导入数据”开始';notifyThreeView();
   $$('#rows tr[data-i]').forEach(tr=>tr.onclick=event=>{const input=tr.querySelector('input');if(event.target!==input)input.checked=!input.checked;selectRow(+tr.dataset.i,tr,input.checked)});
 }
@@ -145,14 +145,14 @@ window.drawCore=drawCore;
 window.workspaceApplyScope=async scope=>{const site=$('#site'),unit=$('#unit'),outage=$('#outage');site.value=[...site.options].some(option=>option.value===String(scope.site||''))?String(scope.site||''):'';refreshMainFilters();unit.value=[...unit.options].some(option=>option.value===String(scope.unit||''))?String(scope.unit||''):'';refreshMainFilters();outage.value=[...outage.options].some(option=>option.value===String(scope.outage||''))?String(scope.outage||''):'';$('#thimble').value='';state.page=1;await loadRows()};
 window.workspaceSelectTube=async thimble=>{if(!Number.isInteger(Number(thimble))||Number(thimble)<1||Number(thimble)>50)return;$('#thimble').value=String(thimble);state.page=1;await loadRows()};
 
-const DISPLAY_PAGE_SIZES=[20,50,100,200];
+const DISPLAY_PAGE_SIZES=[20,50,100,200,500];
 function normalizeWorkstationTable(){
   const table=$('#workspace table'); if(!table)return;
-  [...table.querySelectorAll('thead th')].forEach(th=>{if(/套管|濂楃/.test(th.textContent))th.textContent='通道编号';if(/数据点|鏁版嵁鐐/.test(th.textContent))th.remove()});
+  [...table.querySelectorAll('thead th')].forEach((th,index)=>{if(index===0)th.textContent='序号';if(/套管|濂楃/.test(th.textContent))th.textContent='通道编号';if(/数据点|鏁版嵁鐐/.test(th.textContent))th.remove()});
   const select=$('#pageSize'); if(select){select.innerHTML=DISPLAY_PAGE_SIZES.map(n=>`<option value="${n}">${n}</option>`).join('');select.value=String(state.size)}
 }
 normalizeWorkstationTable(); document.addEventListener('DOMContentLoaded',normalizeWorkstationTable);
-function installSelectionTools(){const title=$('#workspace .table-panel .panel-title');if(!title||$('#selectAllRows'))return;const button=document.createElement('button');button.id='selectAllRows';button.type='button';button.className='secondary';button.textContent='全选本页';button.onclick=()=>{$$('#rows input[type="checkbox"]:not(:disabled)').forEach((input)=>{if(!input.checked){input.checked=true;const row=input.closest('tr');selectRow(+row.dataset.i,row,true)}});toast('已选中当前页有效缺陷记录')};title.append(button)}
+function installSelectionTools(){const title=$('#workspace .table-panel .panel-title');if(!title||$('#selectAllRows'))return;const actions=document.createElement('div');actions.className='selection-tools';actions.innerHTML='<button id="selectAllRows" type="button" class="secondary">全选本页</button><button id="clearPageSelection" type="button">清除勾选</button>';title.append(actions);$('#selectAllRows').onclick=()=>{$$('#rows input[type="checkbox"]:not(:disabled)').forEach(input=>{if(!input.checked){input.checked=true;const row=input.closest('tr');selectRow(+row.dataset.i,row,true)}});toast('已选中当前页可用记录')};$('#clearPageSelection').onclick=()=>{state.selectedIds.clear();state.selected=null;$$('#rows input[type="checkbox"]').forEach(input=>{input.checked=false;input.closest('tr')?.classList.remove('selected')});drawCore(state.coreItems.length?state.coreItems:state.items);$('#detail').className='detail empty';$('#detail').textContent='已清除勾选，请选择检测记录查看详情';notifyThreeView();toast('已清除全部勾选记录')}}
 installSelectionTools(); document.addEventListener('DOMContentLoaded',installSelectionTools);
 function syncCoreAvailability(){const map=$('#coreMap'),unit=$('#unit');if(!map||!unit)return;map.style.pointerEvents=unit.value?'':'none';}
 syncCoreAvailability(); $('#unit')?.addEventListener('change',syncCoreAvailability); document.addEventListener('DOMContentLoaded',syncCoreAvailability);

@@ -24,6 +24,11 @@ const scene=new THREE.Scene();scene.background=new THREE.Color(0x0b1213);
 scene.fog=new THREE.FogExp2(0x0b1213,.0055);
 const camera=new THREE.PerspectiveCamera(34,1,.1,220);camera.position.set(32,18,37);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(Math.max(devicePixelRatio,1)*2,3));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;host.append(renderer.domElement);
+const defectTooltip=document.createElement('div');
+defectTooltip.className='defect-tooltip';
+defectTooltip.hidden=true;
+defectTooltip.setAttribute('role','status');
+document.querySelector('#experience')?.append(defectTooltip);
 function createStudioEnvironment(){
   const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=512;const context=canvas.getContext('2d');
   const vertical=context.createLinearGradient(0,0,0,512);vertical.addColorStop(0,'#dce8e2');vertical.addColorStop(.24,'#82918a');vertical.addColorStop(.5,'#303a36');vertical.addColorStop(.74,'#66736d');vertical.addColorStop(1,'#111816');context.fillStyle=vertical;context.fillRect(0,0,1024,512);
@@ -255,7 +260,7 @@ window.addEventListener('message',event=>{if(event.origin!==location.origin)retu
 setSelected(0);
 
 const presets={overview:{p:EMBEDDED?[34,13,42]:[43,22,49],t:EMBEDDED?[0,-.8,0]:[0,0,0]},section:{p:[27,4,31],t:[0,-2.1,0]},plate:{p:[0,44,3.2],t:[0,-.6,0]},tube:{p:[28,2,22],t:[9,-2.2,0]},evolution:{p:[25,19,27],t:[0,2,0]}};
-function setCamera(name){currentCamera=name;const single=name==='tube',plate=name==='plate';let preset=presets[name];if(single){const{x,z}=coordinate(POSITIONS[selected]);preset={p:[x+9,2,z+12],t:[x,-1.2,z]}}camera.up.set(0,1,0);tubeGroups.forEach((g,i)=>g.visible=!single||i===selected);coreGroup.visible=!single&&coreVisible;structureGroup.visible=!single&&structureVisible;shellGroup.visible=!single&&shellVisible;externalGroup.visible=!single&&externalVisible;labelsGroup.visible=!single&&!plate&&labelsVisible;singleTubeLabelsGroup.visible=single&&labelsVisible;numberGroup.visible=!single&&numbersVisible;tubeHitGroup.visible=!single;orientationGroup.visible=!single&&orientationVisible;dataDefectsGroup.children.forEach(point=>point.visible=!single||Number(point.userData.id)===selected+1);const picker=document.querySelector('#singleTubePicker');if(picker)picker.hidden=!single;cameraTween={start:performance.now(),fromP:camera.position.clone(),fromT:controls.target.clone(),toP:new THREE.Vector3(...preset.p),toT:new THREE.Vector3(...preset.t)};document.querySelectorAll('[data-camera],[data-embedded-view]').forEach(b=>b.classList.toggle('active',(b.dataset.camera||b.dataset.embeddedView)===name))}
+ function setCamera(name){currentCamera=name;const single=name==='tube',plate=name==='plate';let preset=presets[name];if(single){const{x,z}=coordinate(POSITIONS[selected]);preset={p:[x+9,2,z+12],t:[x,-1.2,z]}}camera.up.set(0,1,0);tubeGroups.forEach((g,i)=>g.visible=!single||i===selected);coreGroup.visible=!single&&coreVisible;structureGroup.visible=!single&&structureVisible;shellGroup.visible=!single&&shellVisible;externalGroup.visible=!single&&externalVisible;labelsGroup.visible=!single&&!plate&&labelsVisible;singleTubeLabelsGroup.visible=single&&labelsVisible;numberGroup.visible=!single&&numbersVisible;tubeHitGroup.visible=!single;orientationGroup.visible=!single&&orientationVisible;dataDefectsGroup.children.forEach(point=>point.visible=!single||Number(point.userData.id)===selected+1);const picker=document.querySelector('#singleTubePicker');if(picker)picker.hidden=false;cameraTween={start:performance.now(),fromP:camera.position.clone(),fromT:controls.target.clone(),toP:new THREE.Vector3(...preset.p),toT:new THREE.Vector3(...preset.t)};document.querySelectorAll('[data-camera],[data-embedded-view]').forEach(b=>b.classList.toggle('active',(b.dataset.camera||b.dataset.embeddedView)===name))}
 const physicalSetCamera=setCamera;
 setCamera=function(name){
   if(name==='evolution'){
@@ -269,7 +274,22 @@ setCamera=function(name){
 function enter(){document.querySelector('.intro').classList.add('dismissed');document.querySelector('.inspector').classList.add('visible')}
 function resize(){const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}new ResizeObserver(resize).observe(host);resize();
 
-const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();let clickStart=null;
+ const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();let clickStart=null;
+ function updateDefectTooltip(event){
+   const rect=renderer.domElement.getBoundingClientRect();
+   pointer.set((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1);
+   raycaster.setFromCamera(pointer,camera);
+   const hit=raycaster.intersectObjects([dataDefectsGroup],true)[0];
+   if(!hit||!hit.object.userData.records?.length){defectTooltip.hidden=true;return}
+   const records=hit.object.userData.records, row=records.reduce((best,item)=>Number(item.percent||0)>Number(best.percent||0)?item:best,records[0]);
+   const percent=Number(row.percent);
+   defectTooltip.innerHTML=`<b>Tube ${String(hit.object.userData.id).padStart(2,'0')} · ${escapeHtml(hit.object.userData.position||'--')}</b><br>Indication: ${escapeHtml(row.indication||'--')} · Max wear: ${Number.isFinite(percent)?percent+'%':'--'}<br>Location: ${escapeHtml(row.location||'--')} · Channel: ${escapeHtml(row.channel||'--')}<br>Records: ${records.length} · Analyst: ${escapeHtml(row.analyst||'--')}`;
+   defectTooltip.hidden=false;
+   defectTooltip.style.left=`${Math.min(event.clientX+14,window.innerWidth-430)}px`;
+   defectTooltip.style.top=`${Math.min(event.clientY+14,window.innerHeight-96)}px`;
+ }
+ renderer.domElement.addEventListener('pointermove',updateDefectTooltip);
+ renderer.domElement.addEventListener('pointerleave',()=>{defectTooltip.hidden=true});
 renderer.domElement.addEventListener('pointerdown',event=>{if(event.button===0)clickStart={x:event.clientX,y:event.clientY}});
 renderer.domElement.addEventListener('pointerup',event=>{if(event.button!==0||!clickStart)return;const distance=Math.hypot(event.clientX-clickStart.x,event.clientY-clickStart.y);clickStart=null;if(distance>5)return;const r=renderer.domElement.getBoundingClientRect();pointer.set((event.clientX-r.left)/r.width*2-1,-(event.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);const hit=raycaster.intersectObjects([dataDefectsGroup,tubeHitGroup,numberGroup,tubesGroup],true)[0];if(!hit)return;let object=hit.object;if(object.userData.id!==undefined){setSelected(Number(object.userData.id)-1);window.parent!==window&&window.parent.postMessage({type:'thimble-selected',thimble:selected+1,position:POSITIONS[selected]},location.origin);return}while(object.parent&&object.userData.index===undefined)object=object.parent;if(object.userData.index!==undefined){setSelected(object.userData.index);window.parent!==window&&window.parent.postMessage({type:'thimble-selected',thimble:selected+1,position:POSITIONS[selected]},location.origin)}});
 renderer.domElement.addEventListener('dblclick',event=>{

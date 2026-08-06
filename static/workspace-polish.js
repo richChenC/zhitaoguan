@@ -21,7 +21,7 @@
   dataPointHeader?.remove();
   const pager = document.querySelector('.table-panel .pager');
   if (pager && !document.querySelector('#pageSize')) {
-    pager.innerHTML = '<div class="pager-left"><label for="pageSize">每页显示</label><select id="pageSize"><option value="10">10</option><option value="20">20</option><option value="50" selected>50</option><option value="100">100</option></select><span>条</span></div><div class="pager-right"><button id="prevBtn">上一页</button><span id="pageInfo">1 / 1</span><button id="nextBtn">下一页</button></div>';
+    pager.innerHTML = '<div class="pager-left"><label for="pageSize">每页显示</label><select id="pageSize"><option value="20">20</option><option value="50">50</option><option value="100" selected>100</option><option value="200">200</option><option value="500">500</option></select><span>条</span></div><div class="pager-right"><button id="prevBtn">上一页</button><span id="pageInfo">1 / 1</span><button id="nextBtn">下一页</button></div>';
     $('#pageSize').addEventListener('change', event => window.workspaceSetPageSize?.(Number(event.target.value)));
     $('#prevBtn').addEventListener('click', () => window.workspaceMovePage?.(-1));
     $('#nextBtn').addEventListener('click', () => window.workspaceMovePage?.(1));

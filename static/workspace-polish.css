@@ -2,6 +2,8 @@
 .toolbar-spacer{flex:1;min-width:12px}.toolbar #openImportFlow,.toolbar #clearRecordsBtn{flex:0 0 auto;white-space:nowrap}
 @media(max-width:900px){.toolbar-spacer{display:none}.toolbar #openImportFlow,.toolbar #clearRecordsBtn{margin-top:4px}}
 .workspace-heading{display:none!important}
+.selection-tools{display:flex;align-items:center;gap:8px;margin-left:auto}.selection-tools button{height:30px;min-width:92px;padding:0 10px;white-space:nowrap}.selection-tools #clearPageSelection{border-color:#c7d5d8;color:#3d5960;background:#fff}.selection-tools #clearPageSelection:hover{border-color:#287f7c;color:#176c68;background:#eef8f6}
+.table-panel th:first-child,.table-panel td:first-child{width:52px;text-align:center}.table-panel th:nth-child(2),.table-panel td:nth-child(2){width:42px;text-align:center}.table-panel td.row-number{color:#6a7b82;font-variant-numeric:tabular-nums}
 .compare-outages{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%}
 .compare-outage-item{display:flex;align-items:center;gap:6px}
 .compare-outage-item select{min-width:130px}

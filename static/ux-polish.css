@@ -167,3 +167,4 @@ html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:
 #workspace .path-marker.selected,
 #workspace .path-marker.focused{outline:none!important;box-shadow:0 1px 3px #0003!important;transform:translate(-50%,-50%)!important}
 #workspace .path-marker:hover{z-index:5;transform:translate(-50%,-50%) scale(1.08)!important}
+.danger-outline{border-color:#cf858a!important;color:#9f2933!important;background:#fff3f3!important;font-weight:600}.danger-outline:hover{background:#b52d35!important;border-color:#b52d35!important;color:#fff!important}
