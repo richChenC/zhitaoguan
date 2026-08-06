@@ -20,7 +20,10 @@ function stateLabel(s){return({normal:'正常',plugged:'堵管',replaced:'更换
 let coreMode='combined';
 function drawCore(items){
   const columns='RPNMLKJHGFEDCBA'.split(''),rowWidths=[3,7,9,11,13,13,15,15,15,13,13,11,9,7,3],oddCounts={},evenCounts={};
-  items.forEach(r=>{const value=Number(r.percent);if(!Number.isFinite(value)||value<=0)return;const target=r.unit_id%2?oddCounts:evenCounts;target[r.position]=Math.max(target[r.position]||0,value)});
+  // Severity is an explicit selection state. A filter scopes the available
+  // rows, but must not paint the whole board until the operator selects data.
+  const colorRows=state.selectedIds.size?state.items.filter(row=>state.selectedIds.has(row.id)):[];
+  colorRows.forEach(r=>{const value=Number(r.percent);if(!Number.isFinite(value)||value<=0)return;const target=Number(r.unit_id)%2?oddCounts:evenCounts;target[r.position]=Math.max(target[r.position]||0,value)});
   const max=100,midThreshold=Math.max(0,Math.min(100,Number(localStorage.getItem('thimbleSeverityMidThreshold')||20))),highThreshold=Math.max(midThreshold,Math.min(100,Number(localStorage.getItem('thimbleSeverityHighThreshold')||40))),severityColor=value=>value>=highThreshold?'var(--severity-high)':value>=midThreshold?'var(--severity-mid)':value>0?'var(--severity-low)':'var(--severity-none)';
   const cells=rowWidths.map((width,row)=>{const start=Math.floor((15-width)/2);return Array.from({length:width},(_,offset)=>`<span class="grid-cell" style="--col:${start+offset};--row:${row}"></span>`).join('')}).join('');
   const labels='<div class="ref-axis ref-letters">'+columns.map((x,i)=>`<span style="--col:${i}">${x}</span>`).join('')+'</div><div class="ref-axis ref-numbers">'+Array.from({length:15},(_,i)=>`<span style="--row:${i}">${i+1}</span>`).join('')+'</div>';
