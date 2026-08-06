@@ -10,6 +10,9 @@ try {
   await page.goto('http://127.0.0.1:8765', {waitUntil: 'networkidle'});
   await page.locator('#rows tr[data-i]').first().waitFor({timeout: 15000});
   if (await page.locator('#rows input:disabled').count() < 1) throw new Error('无缺陷记录没有被禁用');
+  if (await page.locator('#rows input:disabled:checked').count() !== 0) throw new Error('无缺陷记录不应显示为已勾选');
+  await page.locator('#selectAllRows').click();
+  if (await page.locator('#rows input:disabled:checked').count() !== 0) throw new Error('全选不应勾选无缺陷记录');
   const outageOptions = await page.locator('#outage option').evaluateAll(options => options.map(option => option.value).filter(Boolean));
   if (!outageOptions.length) throw new Error('没有可用大修批次');
   await page.locator('#outage').selectOption(outageOptions[0]);

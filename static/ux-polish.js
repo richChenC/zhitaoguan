@@ -15,24 +15,24 @@
   selectionBar.innerHTML = '<div><span id="selectionText">未选择记录</span><small id="selectionScope">勾选记录后可同步到二维和三维</small></div><div class="selection-actions"><button id="selectPageBtn" type="button">全选本页</button><button id="clearSelectionBtn" type="button" disabled>取消选择</button><button id="openSelection3dBtn" type="button" class="primary" disabled>三维查看</button></div>';
   toolbar.after(selectionBar);
 
-  function selectedRows() { return $$('#rows tr[data-i]').filter(row => row.querySelector('input[type=checkbox]')?.checked); }
+  function selectedRows() { return $$('#rows tr[data-i]').filter(row => { const input = row.querySelector('input[type=checkbox]'); return input && !input.disabled && input.checked; }); }
   function updateSelection() {
-    const selected = selectedRows(), all = $$('#rows tr[data-i]');
+    const selected = selectedRows(), all = $$('#rows tr[data-i] input[type=checkbox]:not(:disabled)');
     $('#selectionText').textContent = selected.length ? `已选择 ${selected.length} 条记录` : '未选择记录';
     $('#selectionScope').textContent = selected.length === 1 ? '可直接定位对应指套管' : selected.length > 1 ? '缺陷将在二维和三维中同时显示' : '勾选记录后可同步到二维和三维';
     $('#clearSelectionBtn').disabled = !selected.length;
     $('#openSelection3dBtn').disabled = !selected.length;
     $('#selectPageBtn').disabled = !all.length;
-    $('#selectPageBtn').textContent = all.length && selected.length === all.length ? '取消本页' : '全选本页';
+    $('#selectPageBtn').textContent = all.length && selected.length === all.length ? '取消本页' : '全选有效缺陷';
   }
 
   function setAll(checked) {
-    $$('#rows tr[data-i] input[type=checkbox]').forEach(input => { if (input.checked !== checked) input.click(); });
+    $$('#rows tr[data-i] input[type=checkbox]:not(:disabled)').forEach(input => { if (input.checked !== checked) input.click(); });
     updateSelection();
   }
 
   $('#selectPageBtn').onclick = () => {
-    const all = $$('#rows tr[data-i] input[type=checkbox]');
+    const all = $$('#rows tr[data-i] input[type=checkbox]:not(:disabled)');
     setAll(!all.length || !all.every(input => input.checked));
   };
   $('#clearSelectionBtn').onclick = () => setAll(false);

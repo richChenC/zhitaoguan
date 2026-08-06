@@ -142,7 +142,7 @@ function normalizeWorkstationTable(){
   const select=$('#pageSize'); if(select){select.innerHTML=DISPLAY_PAGE_SIZES.map(n=>`<option value="${n}">${n}</option>`).join('');select.value=String(state.size)}
 }
 normalizeWorkstationTable(); document.addEventListener('DOMContentLoaded',normalizeWorkstationTable);
-function installSelectionTools(){const title=$('#workspace .table-panel .panel-title');if(!title||$('#selectAllRows'))return;const button=document.createElement('button');button.id='selectAllRows';button.type='button';button.className='secondary';button.textContent='全选本页';button.onclick=()=>{$$('#rows input[type="checkbox"]').forEach((input,i)=>{if(!input.checked){input.checked=true;const row=input.closest('tr');selectRow(i,row,true)}});toast('已选中当前页记录')};title.append(button)}
+function installSelectionTools(){const title=$('#workspace .table-panel .panel-title');if(!title||$('#selectAllRows'))return;const button=document.createElement('button');button.id='selectAllRows';button.type='button';button.className='secondary';button.textContent='全选本页';button.onclick=()=>{$$('#rows input[type="checkbox"]:not(:disabled)').forEach((input)=>{if(!input.checked){input.checked=true;const row=input.closest('tr');selectRow(+row.dataset.i,row,true)}});toast('已选中当前页有效缺陷记录')};title.append(button)}
 installSelectionTools(); document.addEventListener('DOMContentLoaded',installSelectionTools);
 function syncCoreAvailability(){const map=$('#coreMap'),unit=$('#unit');if(!map||!unit)return;map.style.pointerEvents=unit.value?'':'none';}
 syncCoreAvailability(); $('#unit')?.addEventListener('change',syncCoreAvailability); document.addEventListener('DOMContentLoaded',syncCoreAvailability);
