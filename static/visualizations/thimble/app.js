@@ -18,7 +18,10 @@ const CORE_ROWS=[
 ];
 
 const host=document.querySelector('#scene');
-const scene=new THREE.Scene();scene.background=new THREE.Color(0x0b1213);scene.fog=new THREE.FogExp2(0x0b1213,.010);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0b1213);
+// Keep the rear rows readable in the overview. The model already has transparent
+// support layers, so a dense scene fog only makes otherwise valid tubes disappear.
+scene.fog=new THREE.FogExp2(0x0b1213,.0055);
 const camera=new THREE.PerspectiveCamera(34,1,.1,220);camera.position.set(32,18,37);
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(Math.max(devicePixelRatio,1)*2,3));renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;host.append(renderer.domElement);
 function createStudioEnvironment(){
@@ -54,8 +57,8 @@ const metal=new THREE.MeshPhysicalMaterial({color:0x899791,metalness:.52,roughne
 const darkMetal=new THREE.MeshPhysicalMaterial({color:0x35413c,metalness:.42,roughness:.42,envMapIntensity:.8});
 const fuelMaterial=new THREE.MeshStandardMaterial({color:0x435a51,emissive:0x0b0f0d,emissiveIntensity:.06,metalness:.08,roughness:.76,transparent:true,opacity:.11,depthWrite:false});
 const shellMaterial=new THREE.MeshPhysicalMaterial({color:0x718b82,metalness:.04,roughness:.58,envMapIntensity:.35,transparent:true,opacity:.18,side:THREE.DoubleSide,depthWrite:false});
-const tubeMaterial=new THREE.MeshPhysicalMaterial({color:0xc0cbc5,map:brushedMetalTexture,metalness:.58,roughness:.28,envMapIntensity:1.12,clearcoat:.3,clearcoatRoughness:.32});
-const sleeveMaterial=new THREE.MeshPhysicalMaterial({color:0x687b73,map:brushedMetalTexture,metalness:.42,roughness:.38,envMapIntensity:.9,transparent:true,opacity:.4});
+const tubeMaterial=new THREE.MeshPhysicalMaterial({color:0xc9d5cf,map:brushedMetalTexture,metalness:.58,roughness:.29,envMapIntensity:1.08,clearcoat:.26,clearcoatRoughness:.34});
+const sleeveMaterial=new THREE.MeshPhysicalMaterial({color:0x789087,map:brushedMetalTexture,metalness:.38,roughness:.4,envMapIntensity:.82,transparent:true,opacity:.2,depthWrite:false});
 const signalMaterial=new THREE.MeshStandardMaterial({color:0xd7ef4a,emissive:0x829500,emissiveIntensity:1.5,metalness:.25,roughness:.28});
 const edgeMetal=new THREE.MeshPhysicalMaterial({color:0x596660,metalness:.72,roughness:.26,envMapIntensity:1.1,clearcoat:.2,clearcoatRoughness:.32});
 const fastenerMetal=new THREE.MeshPhysicalMaterial({color:0xb7c1bc,metalness:.8,roughness:.2,envMapIntensity:1.15});
@@ -76,8 +79,8 @@ function buildCore(){
 }
 
 function buildInternalStructures(){
-  const plateMetal=metal.clone(),plateDark=darkMetal.clone();plateMetal.color.set(0x879b92);plateDark.color.set(0x3f5149);[plateMetal,plateDark].forEach(material=>{material.transparent=true;material.opacity=.7;material.depthWrite=true});supportMaterials.push(plateMetal,plateDark);
-  const gridMaterial=plateDark.clone();gridMaterial.opacity=.42;gridMaterial.depthWrite=false;supportMaterials.push(gridMaterial);
+  const plateMetal=metal.clone(),plateDark=darkMetal.clone();plateMetal.color.set(0x879b92);plateDark.color.set(0x3f5149);[plateMetal,plateDark].forEach(material=>{material.transparent=true;material.opacity=.52;material.depthWrite=true});supportMaterials.push(plateMetal,plateDark);
+  const gridMaterial=plateDark.clone();gridMaterial.opacity=.3;gridMaterial.depthWrite=false;supportMaterials.push(gridMaterial);
   // P1: thin lower grid plate, visually distinct from the solid support plate.
   const lowerGrid=new THREE.Mesh(new THREE.CylinderGeometry(8.55,8.55,.14,96),gridMaterial);lowerGrid.position.y=1.35;structureGroup.add(lowerGrid);
   const gridBarMaterial=edgeMetal.clone();gridBarMaterial.transparent=true;gridBarMaterial.opacity=.5;gridBarMaterial.depthWrite=false;supportMaterials.push(gridBarMaterial);
@@ -90,7 +93,7 @@ function buildInternalStructures(){
   for(let i=0;i<12;i++){const a=i/12*Math.PI*2,col=cylinder(.24,3.05,plateDark,16);col.position.set(Math.cos(a)*6.4,-1.65,Math.sin(a)*6.4);structureGroup.add(col)}
   // P4: smaller, darker grid frame at the support-column connection.
   const gridPlate=new THREE.Mesh(new THREE.CylinderGeometry(7.35,7.35,.2,96),plateDark);gridPlate.position.y=-3.05;structureGroup.add(gridPlate);
-  const cellFillMaterial=new THREE.MeshBasicMaterial({color:0x70877d,transparent:true,opacity:.13,depthWrite:false,side:THREE.DoubleSide});
+  const cellFillMaterial=new THREE.MeshBasicMaterial({color:0x70877d,transparent:true,opacity:.08,depthWrite:false,side:THREE.DoubleSide});
   const cellEdgeMaterial=new THREE.LineBasicMaterial({color:0xb8cbc3,transparent:true,opacity:.58});supportMaterials.push(cellFillMaterial,cellEdgeMaterial);
   [1.44,.46,-.46,-3.04].forEach((y,layerIndex)=>POSITIONS.forEach((position,index)=>{const{x,z}=coordinate(position),cell=new THREE.Group();cell.position.set(x,y,z);cell.userData.index=index;cell.userData.layer=layerIndex;const fillMaterial=cellFillMaterial.clone();fillMaterial.opacity=layerIndex===0?.11:.025;fillMaterial.depthWrite=false;const edgeMaterial=cellEdgeMaterial.clone();edgeMaterial.color.set(layerIndex===0?0xd7e9df:layerIndex===1?0xa7c2b8:0x71877e);edgeMaterial.opacity=layerIndex===0?.72:.34;const fill=new THREE.Mesh(new THREE.BoxGeometry(.99,.028,.99),fillMaterial);const edge=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(.99,.03,.99)),edgeMaterial);cell.add(fill,edge);structureGroup.add(cell);tubeSquareCells.push(cell)}));
   const vesselWall=new THREE.Mesh(new THREE.CylinderGeometry(9.5,9.5,10.6,96,1,true),shellMaterial);vesselWall.position.y=-.3;shellGroup.add(vesselWall);
@@ -105,11 +108,15 @@ function buildInternalStructures(){
 
 function buildThimbles(){
   POSITIONS.forEach((position,index)=>{const{x,z}=coordinate(position),g=new THREE.Group();g.userData={index,position};
-    const straight=cylinder(.095,EMBEDDED?10.7:13.25,tubeMaterial,40);straight.position.set(x,EMBEDDED?-.7:2.575,z);g.add(straight);
-    const tip=new THREE.Mesh(new THREE.SphereGeometry(.095,36,18,0,Math.PI*2,0,Math.PI/2),tubeMaterial);tip.position.set(x,EMBEDDED?4.65:9.2,z);g.add(tip);
-    const guide=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,6.7,40,1,true),sleeveMaterial);guide.position.set(x,-2.15,z);g.add(guide);
-    const nozzle=cylinder(.32,1.25,darkMetal,32);nozzle.position.set(x,-5.5,z);g.add(nozzle);
-    [[1.35,.17],[-3.05,.22],[-5.85,.25]].forEach(([y,radius])=>{const collar=new THREE.Mesh(new THREE.TorusGeometry(radius,.035,8,24),edgeMetal);collar.rotation.x=Math.PI/2;collar.position.set(x,y,z);g.add(collar)});
+    // Keep the overview proportions close to the physical 8.6 mm tube: a slim tube,
+    // a visibly larger but translucent guide section, and a compact lower fitting.
+    const tubeRadius=.105,straightHeight=EMBEDDED?10.7:13.25,straightCenter=EMBEDDED?-.7:2.575,tipY=EMBEDDED?4.65:9.2;
+    const straight=cylinder(tubeRadius,straightHeight,tubeMaterial,48);straight.position.set(x,straightCenter,z);g.add(straight);
+    const tip=new THREE.Mesh(new THREE.SphereGeometry(tubeRadius,44,20,0,Math.PI*2,0,Math.PI/2),tubeMaterial);tip.position.set(x,tipY,z);g.add(tip);
+    const guide=new THREE.Mesh(new THREE.CylinderGeometry(.245,.245,6.7,48,1,true),sleeveMaterial);guide.position.set(x,-2.15,z);g.add(guide);
+    const nozzle=cylinder(.3,1.15,darkMetal,40);nozzle.position.set(x,-5.5,z);g.add(nozzle);
+    [[1.35,.16],[-3.05,.19],[-5.85,.22]].forEach(([y,radius])=>{const collar=new THREE.Mesh(new THREE.TorusGeometry(radius,.028,12,40),layerRingMaterial);collar.rotation.x=Math.PI/2;collar.position.set(x,y,z);g.add(collar)});
+    const baseFlange=new THREE.Mesh(new THREE.TorusGeometry(.245,.038,12,40),layerRingMaterial);baseFlange.rotation.x=Math.PI/2;baseFlange.position.set(x,-6.12,z);g.add(baseFlange);
     tubesGroup.add(g);tubeGroups.push(g);
   });
 }
