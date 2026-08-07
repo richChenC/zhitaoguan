@@ -42,6 +42,13 @@ if (await page.locator('#threeOutage option[value="F107"]').count()) {
   if (detailStyle.whiteSpace !== 'normal' || detailStyle.textOverflow === 'ellipsis') throw new Error(`inspection details are still truncated: ${JSON.stringify(detailStyle)}`);
   const cardStyles = await model.locator('.inspection-record').evaluateAll(nodes => nodes.map(node => ({borderLeft: getComputedStyle(node).borderLeft, layout: getComputedStyle(node.querySelector('dl')).display})));
   if (new Set(cardStyles.map(style => style.borderLeft)).size !== 1 || cardStyles.some(style => style.layout !== 'block')) throw new Error(`inspection cards are inconsistent: ${JSON.stringify(cardStyles)}`);
+  const recordCount = await model.locator('.inspection-record').count();
+  if (!recordCount || await model.locator('.inspection-record[open]').count() !== 1) throw new Error('inspection list did not initialize with one expanded record');
+  if ((await model.locator('.inspection-record[open]').first().boundingBox())?.height < 100) throw new Error('expanded inspection record was compressed');
+  await model.locator('[data-record-action="expand"]').click();
+  if (await model.locator('.inspection-record[open]').count() !== recordCount) throw new Error('expand all inspection records failed');
+  await model.locator('[data-record-action="collapse"]').click();
+  if (await model.locator('.inspection-record[open]').count() !== 0) throw new Error('collapse all inspection records failed');
 }
 await model.locator('[data-embedded-view="overview"]').click();
 await model.locator('#embeddedTubeSelect').evaluate(input => { input.value = '2'; input.dispatchEvent(new Event('input', { bubbles: true })); });
@@ -65,6 +72,8 @@ await page.locator('#pageSize').selectOption('500');
 await page.waitForFunction(() => window.__thimbleState?.size === 500 && !document.querySelector('#rows')?.hasAttribute('aria-busy'));
 const paging = await page.evaluate(() => ({total: Number(document.querySelector('#resultInfo')?.textContent.match(/\d+/)?.[0] || 0), rows: document.querySelectorAll('#rows tr[data-i]').length, size: document.querySelector('#pageSize')?.value, empty: document.querySelector('#rows .empty')?.textContent || ''}));
 if (paging.size !== '500' || paging.rows !== Math.min(500, paging.total) || (paging.total && paging.empty)) throw new Error(`500-row paging failed: ${JSON.stringify(paging)}`);
+const tableColumns = await page.evaluate(() => ({headers: document.querySelectorAll('#workspace thead th').length, cells: document.querySelectorAll('#rows tr[data-i]:first-child td').length, labels: [...document.querySelectorAll('#workspace thead th')].map(th => th.textContent.trim())}));
+if (tableColumns.headers !== 10 || tableColumns.cells !== 10 || tableColumns.labels[0] !== '序号' || tableColumns.labels[1] !== '选择') throw new Error(`workspace table columns are misaligned: ${JSON.stringify(tableColumns)}`);
 await page.screenshot({ path: 'tmp/browser/ui-workspace.png', fullPage: true });
 
 const widths = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));

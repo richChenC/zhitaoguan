@@ -11,8 +11,8 @@
 
   // Data rows no longer contain the deprecated data-point field.
   const table = document.querySelector('#workspace .table-panel table');
-  const headers = table?.querySelectorAll('thead th');
-  if (headers?.length >= 10) headers[8].remove();
+  const headers = [...(table?.querySelectorAll('thead th') || [])];
+  headers.find(header => header.textContent.trim() === '数据点')?.remove();
 
   const pager = document.querySelector('#workspace .pager');
   if (pager && !document.querySelector('#pageSize')) {
