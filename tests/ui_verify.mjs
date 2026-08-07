@@ -78,13 +78,14 @@ const orientation = await page.evaluate(() => ({
   left: document.querySelector('#coreMap .side-left')?.textContent.trim(),
   right: document.querySelector('#coreMap .side-right')?.textContent.trim(),
   inlet: document.querySelector('#coreMap .top-right')?.textContent.trim(),
+  oneEighty: document.querySelector('#coreMap .one-eighty')?.textContent.trim(),
   zero: document.querySelector('#coreMap .zero')?.textContent.trim(),
   corners: document.querySelectorAll('#coreMap .corner').length,
   rows: [...document.querySelectorAll('#coreMap .ref-numbers span')].map(node => node.textContent.trim()),
   leftArrow: getComputedStyle(document.querySelector('#coreMap .side-left i'), '::after').borderLeftWidth,
   rightArrow: getComputedStyle(document.querySelector('#coreMap .side-right i'), '::after').borderLeftWidth,
 }));
-if (orientation.left !== '90°' || orientation.right !== 'OUTLET270°' || orientation.inlet !== 'INLET' || orientation.zero !== '0°' || orientation.corners !== 4 || orientation.rows[0] !== '01' || orientation.rows[14] !== '15' || orientation.leftArrow !== '10px' || orientation.rightArrow !== '10px') throw new Error(`core orientation is incorrect: ${JSON.stringify(orientation)}`);
+if (orientation.left !== '90°' || orientation.right !== 'OUTLET270°' || orientation.inlet !== 'INLET' || orientation.oneEighty !== '180°' || orientation.zero !== '0°' || orientation.corners !== 4 || orientation.rows[0] !== '01' || orientation.rows[14] !== '15' || orientation.leftArrow !== '10px' || orientation.rightArrow !== '10px') throw new Error(`core orientation is incorrect: ${JSON.stringify(orientation)}`);
 const symmetry = await page.evaluate(() => {
   const center = selector => { const box = document.querySelector(selector).getBoundingClientRect(); return {x: box.left + box.width / 2, y: box.top + box.height / 2, width: box.width, height: box.height}; };
   const grid = center('#coreMap .reference-grid'), tl = center('#coreMap .top-left'), tr = center('#coreMap .top-right'), bl = center('#coreMap .bottom-left'), br = center('#coreMap .bottom-right');

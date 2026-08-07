@@ -81,6 +81,7 @@ html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:
 #coreMap .bottom-left i{transform:rotate(110deg)}
 #coreMap .bottom-right{right:13%;bottom:-10px}
 #coreMap .bottom-right i{transform:rotate(-117deg)}
+#coreMap .one-eighty{left:50%;top:-42px;transform:translateX(-50%);font-size:11px}
 #coreMap .zero{left:50%;bottom:-34px;transform:translateX(-50%);font-size:11px}
 
 /* Combined mode is a real split tube marker: odd on the left, even on the right.
