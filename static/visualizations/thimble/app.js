@@ -112,15 +112,8 @@ function buildInternalStructures(){
 }
 
 function buildThimbles(){
-  POSITIONS.forEach((position,index)=>{const{x,z}=coordinate(position),g=new THREE.Group();g.userData={index,position};
-    // Keep the overview proportions close to the physical 8.6 mm tube: a slim tube,
-    // a visibly larger but translucent guide section, and a compact lower fitting.
-    const tubeRadius=.105,straightHeight=EMBEDDED?7.0:13.25,straightCenter=EMBEDDED?-1.15:2.575,tipY=EMBEDDED?2.35:9.2;
-    const straight=cylinder(tubeRadius,straightHeight,tubeMaterial,48);straight.position.set(x,straightCenter,z);g.add(straight);
-    const tip=new THREE.Mesh(new THREE.SphereGeometry(tubeRadius,44,20,0,Math.PI*2,0,Math.PI/2),tubeMaterial);tip.position.set(x,tipY,z);g.add(tip);
-    const guide=new THREE.Mesh(new THREE.CylinderGeometry(.245,.245,6.7,48,1,true),sleeveMaterial);guide.position.set(x,-2.15,z);g.add(guide);
-    const nozzle=cylinder(.3,1.15,darkMetal,40);nozzle.position.set(x,-5.5,z);g.add(nozzle);
-    const baseFlange=new THREE.Mesh(new THREE.TorusGeometry(.245,.038,12,40),layerRingMaterial);baseFlange.rotation.x=Math.PI/2;baseFlange.position.set(x,-6.12,z);g.add(baseFlange);
+  POSITIONS.forEach((position,index)=>{const{x,z}=coordinate(position),g=new THREE.Group();g.userData={index,position};g.position.set(x,0,z);
+    addThimbleAssembly(g);
     tubesGroup.add(g);tubeGroups.push(g);
   });
 }
@@ -134,21 +127,30 @@ const pointDefinitions=[
   ['P1',1.35,'下栅格板'],['P2',.45,'支撑板上表面'],['P3',-.45,'支撑板下表面'],
   ['P4',-3.05,'支撑柱与格架板'],['P5',-4.55,'支撑柱与RPV管座'],['P6',-5.85,'RPV管座与导向管']
 ];
+const thimbleOuterRadius=.14,thimbleWall=thimbleOuterRadius*(1.7/4.3),thimbleInnerRadius=thimbleOuterRadius-thimbleWall;
+const thimbleGeometry={
+  body:new THREE.CylinderGeometry(thimbleOuterRadius,thimbleOuterRadius,8.8,48),
+  tip:new THREE.SphereGeometry(thimbleOuterRadius,40,18,0,Math.PI*2,0,Math.PI/2),
+  socket:new THREE.CylinderGeometry(.19,.19,.42,40),
+  bore:new THREE.CylinderGeometry(thimbleInnerRadius,thimbleInnerRadius,.012,32),
+  flange:new THREE.TorusGeometry(.205,.045,12,40),
+  ring:new THREE.TorusGeometry(.18,.032,10,40),
+  band:new THREE.CylinderGeometry(.155,.155,.065,40)
+};
+function addThimbleAssembly(group){
+  const body=new THREE.Mesh(thimbleGeometry.body,tubeMaterial);body.position.y=-2.15;group.add(body);
+  const bulletTip=new THREE.Mesh(thimbleGeometry.tip,tubeMaterial);bulletTip.position.y=2.25;group.add(bulletTip);
+  const lowerSocket=new THREE.Mesh(thimbleGeometry.socket,darkMetal);lowerSocket.position.y=-6.59;group.add(lowerSocket);
+  const socketBore=new THREE.Mesh(thimbleGeometry.bore,darkMetal);socketBore.position.y=-6.805;group.add(socketBore);
+  const lowerFlange=new THREE.Mesh(thimbleGeometry.flange,layerRingMaterial);lowerFlange.rotation.x=Math.PI/2;lowerFlange.position.y=-6.38;group.add(lowerFlange);
+  pointDefinitions.forEach(([zone,y])=>{
+    const ring=new THREE.Mesh(thimbleGeometry.ring,layerRingMaterial);ring.rotation.x=Math.PI/2;ring.position.y=y;ring.userData.zone=zone;group.add(ring);
+    const band=new THREE.Mesh(thimbleGeometry.band,layerRingMaterial);band.position.y=y;group.add(band);
+  });
+}
 function buildSingleTubeModel(){
   singleTubeModelGroup.clear();
-  // The radial proportions follow the brief: 8.6 mm OD and 1.7 mm wall.
-  // Axial length is intentionally compressed so P1-P6 remain inspectable.
-  const outerRadius=.14,wall=.14*(1.7/4.3),innerRadius=outerRadius-wall;
-  const body=new THREE.Mesh(new THREE.CylinderGeometry(outerRadius,outerRadius,8.8,64),tubeMaterial);body.position.y=-2.15;singleTubeModelGroup.add(body);
-  const bulletTip=new THREE.Mesh(new THREE.SphereGeometry(outerRadius,48,20,0,Math.PI*2,0,Math.PI/2),tubeMaterial);bulletTip.position.y=2.25;singleTubeModelGroup.add(bulletTip);
-  const lowerSocket=cylinder(.19,.42,darkMetal,48);lowerSocket.position.y=-6.59;singleTubeModelGroup.add(lowerSocket);
-  const socketBore=cylinder(innerRadius,.012,darkMetal,40);socketBore.position.y=-6.805;singleTubeModelGroup.add(socketBore);
-  const lowerFlange=new THREE.Mesh(new THREE.TorusGeometry(.205,.045,14,56),layerRingMaterial);lowerFlange.rotation.x=Math.PI/2;lowerFlange.position.y=-6.38;singleTubeModelGroup.add(lowerFlange);
-  pointDefinitions.forEach(([zone,y])=>{
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(.18,.032,12,56),layerRingMaterial);
-    ring.rotation.x=Math.PI/2;ring.position.y=y;ring.userData.zone=zone;singleTubeModelGroup.add(ring);
-    const band=new THREE.Mesh(new THREE.CylinderGeometry(.155,.155,.065,56),layerRingMaterial);band.position.y=y;singleTubeModelGroup.add(band);
-  });
+  addThimbleAssembly(singleTubeModelGroup);
   singleTubeModelGroup.visible=false;
 }
 function buildPointLabels(){
@@ -220,7 +222,7 @@ function updateArtificialDefect(){
 
 function applyParity(value){
   POSITIONS=value==='even'?EVEN_POSITIONS:ODD_POSITIONS;
-  tubeGroups.forEach((group,index)=>{const {x,z}=coordinate(POSITIONS[index]);group.userData.position=POSITIONS[index];group.children.forEach(mesh=>{mesh.position.x=x;mesh.position.z=z})});
+  tubeGroups.forEach((group,index)=>{const {x,z}=coordinate(POSITIONS[index]);group.userData.position=POSITIONS[index];group.position.set(x,0,z)});
   tubeSquareCells.forEach(cell=>{const {x,z}=coordinate(POSITIONS[cell.userData.index]);cell.position.x=x;cell.position.z=z});
   buildTubeNumbers();
   setSelected(selected);
