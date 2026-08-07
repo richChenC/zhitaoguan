@@ -74,15 +74,17 @@ const paging = await page.evaluate(() => ({total: Number(document.querySelector(
 if (paging.size !== '500' || paging.rows !== Math.min(500, paging.total) || (paging.total && paging.empty)) throw new Error(`500-row paging failed: ${JSON.stringify(paging)}`);
 const tableColumns = await page.evaluate(() => ({headers: document.querySelectorAll('#workspace thead th').length, cells: document.querySelectorAll('#rows tr[data-i]:first-child td').length, labels: [...document.querySelectorAll('#workspace thead th')].map(th => th.textContent.trim())}));
 if (tableColumns.headers !== 10 || tableColumns.cells !== 10 || tableColumns.labels[0] !== '选择' || tableColumns.labels[1] !== '序号') throw new Error(`workspace table columns are misaligned: ${JSON.stringify(tableColumns)}`);
-const orientation = await page.evaluate(() => {
-  const text = side => document.querySelector(`#coreMap .orientation.${side}`)?.textContent.trim();
-  const arrow = side => {
-    const style = getComputedStyle(document.querySelector(`#coreMap .orientation.${side}`), '::after');
-    return {left: style.borderLeftWidth, right: style.borderRightWidth};
-  };
-  return {top: text('top'), bottom: text('bottom'), left: text('left'), right: text('right'), leftArrow: arrow('left'), rightArrow: arrow('right')};
-});
-if (orientation.top !== '北 N180°' || orientation.bottom !== '南 S0°' || orientation.left !== 'INLET东 E · 90°' || orientation.right !== 'OUTLET西 W · 270°' || orientation.leftArrow.left !== '10px' || orientation.rightArrow.left !== '10px') throw new Error(`core orientation is incorrect: ${JSON.stringify(orientation)}`);
+const orientation = await page.evaluate(() => ({
+  left: document.querySelector('#coreMap .side-left')?.textContent.trim(),
+  right: document.querySelector('#coreMap .side-right')?.textContent.trim(),
+  inlet: document.querySelector('#coreMap .top-right')?.textContent.trim(),
+  zero: document.querySelector('#coreMap .zero')?.textContent.trim(),
+  corners: document.querySelectorAll('#coreMap .corner').length,
+  rows: [...document.querySelectorAll('#coreMap .ref-numbers span')].map(node => node.textContent.trim()),
+  leftArrow: getComputedStyle(document.querySelector('#coreMap .side-left i'), '::after').borderLeftWidth,
+  rightArrow: getComputedStyle(document.querySelector('#coreMap .side-right i'), '::after').borderLeftWidth,
+}));
+if (orientation.left !== '90°' || orientation.right !== 'OUTLET270°' || orientation.inlet !== 'INLET' || orientation.zero !== '0°' || orientation.corners !== 4 || orientation.rows[0] !== '01' || orientation.rows[14] !== '15' || orientation.leftArrow !== '10px' || orientation.rightArrow !== '10px') throw new Error(`core orientation is incorrect: ${JSON.stringify(orientation)}`);
 await page.screenshot({ path: 'tmp/browser/ui-workspace.png', fullPage: true });
 
 const widths = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
