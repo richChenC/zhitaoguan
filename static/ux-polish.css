@@ -70,16 +70,17 @@ html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:
 #coreMap .side-left span,#coreMap .side-right span{top:31px;left:0;width:64px}
 #coreMap .side-right b{top:-2px;left:0;width:64px;letter-spacing:.4px}
 #coreMap .corner{width:54px;height:54px}
-#coreMap .corner i{left:4px;top:26px}
-#coreMap .top-left{left:-38px;top:-48px}
-#coreMap .top-left i{transform:rotate(-132deg)}
-#coreMap .top-right{right:-46px;top:-48px}
-#coreMap .top-right i{transform:rotate(132deg)}
+#coreMap .corner i{left:8px;top:26px;width:38px}
+#coreMap .corner i::after{top:-4px;border-top-width:5px;border-bottom-width:5px;border-left-width:8px}
+#coreMap .top-left{left:13%;top:-8px}
+#coreMap .top-left i{transform:rotate(-126deg)}
+#coreMap .top-right{right:4%;top:-8px}
+#coreMap .top-right i{transform:rotate(124deg)}
 #coreMap .top-right b{left:34px;top:-2px;letter-spacing:.4px}
-#coreMap .bottom-left{left:-38px;bottom:-48px}
-#coreMap .bottom-left i{transform:rotate(132deg)}
-#coreMap .bottom-right{right:-38px;bottom:-48px}
-#coreMap .bottom-right i{transform:rotate(-132deg)}
+#coreMap .bottom-left{left:25%;bottom:-33px}
+#coreMap .bottom-left i{transform:rotate(110deg)}
+#coreMap .bottom-right{right:14%;bottom:-33px}
+#coreMap .bottom-right i{transform:rotate(-117deg)}
 #coreMap .zero{left:50%;bottom:-34px;transform:translateX(-50%);font-size:11px}
 
 /* Combined mode is a real split tube marker: odd on the left, even on the right.
