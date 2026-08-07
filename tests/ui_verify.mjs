@@ -43,8 +43,10 @@ if (await page.locator('#threeOutage option[value="F107"]').count()) {
   const cardStyles = await model.locator('.inspection-record').evaluateAll(nodes => nodes.map(node => ({borderLeft: getComputedStyle(node).borderLeft, layout: getComputedStyle(node.querySelector('dl')).display})));
   if (new Set(cardStyles.map(style => style.borderLeft)).size !== 1 || cardStyles.some(style => style.layout !== 'block')) throw new Error(`inspection cards are inconsistent: ${JSON.stringify(cardStyles)}`);
   const recordCount = await model.locator('.inspection-record').count();
-  if (!recordCount || await model.locator('.inspection-record[open]').count() !== 1) throw new Error('inspection list did not initialize with one expanded record');
-  if ((await model.locator('.inspection-record[open]').first().boundingBox())?.height < 100) throw new Error('expanded inspection record was compressed');
+  if (!recordCount || await model.locator('.inspection-record[open]').count() !== 0) throw new Error('inspection records must initialize collapsed');
+  await model.locator('.inspection-record').first().click();
+  if ((await model.locator('.inspection-record[open]').first().boundingBox())?.height < 100) throw new Error('manually expanded inspection record was compressed');
+  await model.locator('.inspection-record').first().click();
   await model.locator('[data-record-action="expand"]').click();
   if (await model.locator('.inspection-record[open]').count() !== recordCount) throw new Error('expand all inspection records failed');
   await model.locator('[data-record-action="collapse"]').click();

@@ -10,6 +10,14 @@ try {
   await page.locator('#scene canvas').waitFor({timeout: 15000});
   await page.locator('[data-embedded-view="tube"]').click();
   await page.waitForTimeout(600);
+  await page.evaluate(() => window.postMessage({type: 'thimble-scope', scope: {unit: '2', outage: 'H209', thimble: '15'}}, location.origin));
+  await page.locator('.inspection-record').first().waitFor({timeout: 15000});
+  if (await page.locator('.inspection-record[open]').count()) throw new Error('Inspection records must be collapsed by default');
+  await page.locator('.inspection-record').first().click();
+  if (!await page.locator('.inspection-record').first().evaluate(record => record.open)) throw new Error('Inspection record cannot be expanded manually');
+  await page.evaluate(() => window.postMessage({type: 'thimble-scope', scope: {unit: '2', outage: 'H209', thimble: '15'}}, location.origin));
+  await page.waitForTimeout(500);
+  if (await page.locator('.inspection-record[open]').count()) throw new Error('Refreshing inspection data expanded the first record');
   await page.screenshot({path: 'tmp/single-model-redesign.png', fullPage: true});
   const canvasSize = await page.locator('#scene canvas').evaluate(canvas => ({width: canvas.width, height: canvas.height}));
   if (canvasSize.width < 300 || canvasSize.height < 300) throw new Error(`单管模型画布尺寸异常: ${JSON.stringify(canvasSize)}`);
