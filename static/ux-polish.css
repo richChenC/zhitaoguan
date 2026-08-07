@@ -62,8 +62,8 @@ html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:
 #coreMap .orientation{
   position:absolute!important;
   display:block!important;
-  width:48px!important;
-  height:34px!important;
+  width:76px!important;
+  height:50px!important;
   padding:0!important;
   border:0!important;
   border-radius:0!important;
@@ -71,25 +71,37 @@ html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:
   color:#263a43!important;
   font-size:11px!important;
   font-weight:800!important;
-  line-height:30px!important;
+  line-height:1.15!important;
   text-align:center!important;
   white-space:nowrap!important;
   box-shadow:none!important;
 }
+#coreMap .orientation b,
+#coreMap .orientation span{display:block!important;white-space:nowrap!important}
+#coreMap .orientation b{font-size:10px!important;letter-spacing:.4px!important;color:#1f343d!important}
+#coreMap .orientation span{font-size:10px!important;color:#3d515a!important}
 #coreMap .orientation.left,
 #coreMap .orientation.right{
   top:50%!important;
   transform:translateY(-50%)!important;
 }
-#coreMap .orientation.left{left:-78px!important}
-#coreMap .orientation.right{right:-78px!important}
+#coreMap .orientation.left b,
+#coreMap .orientation.right b,
+#coreMap .orientation.left span,
+#coreMap .orientation.right span{position:absolute!important;left:0!important;width:100%!important;text-align:center!important}
+#coreMap .orientation.left b,
+#coreMap .orientation.right b{top:0!important}
+#coreMap .orientation.left span,
+#coreMap .orientation.right span{top:38px!important}
+#coreMap .orientation.left{left:-72px!important}
+#coreMap .orientation.right{right:-72px!important}
 #coreMap .orientation.left::before,
 #coreMap .orientation.right::before{
   content:''!important;
   position:absolute!important;
-  top:1px!important;
-  left:4px!important;
-  width:38px!important;
+  top:23px!important;
+  left:9px!important;
+  width:46px!important;
   height:2px!important;
   border:0!important;
   background:#263a43!important;
@@ -98,8 +110,8 @@ html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:
 #coreMap .orientation.right::after{
   content:''!important;
   position:absolute!important;
-  top:-4px!important;
-  left:33px!important;
+  top:18px!important;
+  left:53px!important;
   width:0!important;
   height:0!important;
   border-top:6px solid transparent!important;
@@ -112,9 +124,13 @@ html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:
 #coreMap .orientation.bottom{
   left:50%!important;
   transform:translateX(-50%)!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:center!important;
+  gap:2px!important;
 }
-#coreMap .orientation.top{top:-48px!important}
-#coreMap .orientation.bottom{bottom:-44px!important}
+#coreMap .orientation.top{top:-58px!important}
+#coreMap .orientation.bottom{bottom:-54px!important}
 #coreMap .orientation.top::before,
 #coreMap .orientation.top::after,
 #coreMap .orientation.bottom::before,
