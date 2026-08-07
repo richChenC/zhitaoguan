@@ -23,9 +23,14 @@ try {
   const page = await app.firstWindow();
   await page.waitForLoadState('networkidle');
   await page.locator('[data-view="reports"]').click();
-  await page.locator('#previewInspectionReport').waitFor();
-  await page.locator('#previewCompareReport').waitFor();
+  await page.locator('#reportModeTabs [data-report-mode="result"]').waitFor();
+  await page.locator('#reportModeTabs [data-report-mode="history"]').waitFor();
+  await page.locator('#reportInlinePreview').waitFor();
   if (!await page.locator('#reportPreviewDialog').count()) throw new Error('report preview dialog is missing');
+  await page.locator('#reportModeTabs [data-report-mode="history"]').click();
+  if (!await page.locator('#comparePanel').isVisible()) throw new Error('comparison report panel did not open');
+  await page.locator('#reportModeTabs [data-report-mode="result"]').click();
+  if (!await page.locator('#reportInlinePanel').isVisible()) throw new Error('inspection report preview did not return');
   await page.locator('[data-view="threeD"]').click();
   const frame = page.locator('#threeModelFrame');
   await frame.waitFor();
