@@ -530,6 +530,20 @@ def is_indication_record(finding: Finding) -> bool:
     return bool(finding.indication.strip() or finding.location.strip() or (measurement and measurement != "none"))
 
 
+def display_indication(row) -> str:
+    def get(name, default=None):
+        try:
+            return row[name]
+        except (KeyError, IndexError, TypeError):
+            return getattr(row, name, default)
+    indication = str(get("indication", "") or "").strip()
+    if indication.upper() in {"NDD", "NONE", "NO DEFECT"}:
+        return "NDD"
+    measurement = str(get("measurement_type", "") or "").strip().upper()
+    has_measurement = bool(indication or str(get("location", "") or "").strip() or (measurement and measurement != "NONE"))
+    return indication or ("未标注" if has_measurement else "NDD")
+
+
 def process_directory(directory: str, selected_reports: list[str] | None = None) -> dict:
     base = Path(directory).expanduser().resolve()
     groups = discover_data_groups(base)
@@ -1040,8 +1054,8 @@ def query_findings(params: dict[str, list[str]]) -> dict:
     for query_key, column in (("site", "f.site_code"), ("outage", "f.outage"), ("unit", "f.unit_id"), ("analyst", "f.analyst"), ("channel", "f.channel"), ("thimble", "f.thimble_id"), ("calgroup", "f.calgroup")):
         val = params.get(query_key, [""])[0].strip()
         if val:
-            where.append(f"CAST({column} AS TEXT) LIKE ?")
-            args.append(f"%{val}%")
+            where.append(f"{column} = ?" if query_key in {"unit", "thimble"} else f"CAST({column} AS TEXT) LIKE ?")
+            args.append(val if query_key in {"unit", "thimble"} else f"%{val}%")
     clause = " WHERE " + " AND ".join(where) if where else ""
     with connect() as db:
         total = db.execute("SELECT COUNT(*) FROM findings f" + clause, args).fetchone()[0]
@@ -1050,7 +1064,9 @@ def query_findings(params: dict[str, list[str]]) -> dict:
                  ON s.outage=f.outage AND s.unit_id=f.unit_id AND s.thimble_id=f.thimble_id"""
         rows = db.execute(sql + clause + " ORDER BY f.outage DESC,f.thimble_id,f.entry_no LIMIT ? OFFSET ?", args + [size, (page - 1) * size]).fetchall()
         severity_clause = clause + (" AND " if clause else " WHERE ") + """
-            UPPER(TRIM(COALESCE(f.indication,''))) NOT IN ('', 'NDD', 'NONE', 'NO DEFECT')
+            UPPER(TRIM(COALESCE(f.indication,''))) NOT IN ('NDD', 'NONE', 'NO DEFECT')
+            AND (TRIM(COALESCE(f.indication,''))<>'' OR TRIM(COALESCE(f.location,''))<>''
+                 OR UPPER(TRIM(COALESCE(f.measurement_type,''))) NOT IN ('', 'NONE'))
             AND f.percent IS NOT NULL AND f.percent > 0"""
         core_rows = db.execute("""SELECT f.unit_id, f.thimble_id, f.position,
                 MAX(f.percent) AS percent
@@ -1167,9 +1183,10 @@ def normalize_location(location: str) -> tuple[str, float | None]:
 
 def is_real_defect(row) -> bool:
     indication = str(row["indication"] or "").strip().upper()
-    if indication in {"", "NDD", "NONE", "NO DEFECT"}:
+    if indication in {"NDD", "NONE", "NO DEFECT"}:
         return False
-    return bool(str(row.get("location") or "").strip() or row.get("datapoint") is not None or str(row.get("measurement_type") or "").strip())
+    measurement = str(row.get("measurement_type") or "").strip().upper()
+    return bool(indication or str(row.get("location") or "").strip() or (measurement and measurement != "NONE"))
 
 def defect_match_key(row, shift_mm: float = 0) -> tuple[str, float]:
     zone, offset = normalize_location(row.get("location", ""))
@@ -1349,7 +1366,7 @@ def export_inspection_report(outage: str, unit: int, metadata: dict) -> dict:
     for col, label in enumerate(headers, 1):
         sheet.cell(header_row, col, label)
     for index, row in enumerate(rows, 1):
-        display = row["indication"] or "NDD"
+        display = display_indication(row)
         values = [index, row["thimble_id"], row["position"], display, row["volts"], row["percent"], row["location"], row["channel"]]
         for col, value_ in enumerate(values, 1):
             sheet.cell(header_row + index, col, value_)
@@ -1600,11 +1617,11 @@ def build_inspection_preview(outage: str, unit: int, metadata: dict, finding_ids
             span = f" rowspan='{rowspan}'" if rowspan > 1 else ""
             tube_cells = f"<td{span}>{row['thimble_id']}</td><td{span}>{html.escape(row.get('position') or '')}</td>"
         body_rows.append(
-            f"<tr><td>{index}</td>{tube_cells}<td>{html.escape(row.get('indication') or 'NDD')}</td>"
+            f"<tr><td>{index}</td>{tube_cells}<td>{html.escape(display_indication(row))}</td>"
             f"<td>{'/' if row.get('volts') is None else row['volts']}</td>"
             f"<td>{'/' if row.get('percent') is None else row['percent']}</td>"
-            f"<td>{html.escape('/' if str(row.get('indication') or 'NDD').upper() == 'NDD' else format_location(row.get('location') or ''))}</td>"
-            f"<td>{html.escape('/' if str(row.get('indication') or 'NDD').upper() == 'NDD' else row.get('channel') or '')}</td></tr>"
+            f"<td>{html.escape('/' if display_indication(row) == 'NDD' else format_location(row.get('location') or ''))}</td>"
+            f"<td>{html.escape('/' if display_indication(row) == 'NDD' else row.get('channel') or '')}</td></tr>"
         )
     body = "".join(body_rows)
     preview = f"<article class='report-sheet'><div class='report-page-mark'>II-1/1</div><h1>{html.escape(title)}</h1><section class='report-info'>{info}</section><h2>检验结果</h2><div class='report-table-wrap'><table><thead><tr><th>序号</th><th>通道编号</th><th>堆芯位置</th><th>显示类型</th><th>幅值（V）</th><th>磨损深度（壁厚%）</th><th>磨损位置</th><th>测量通道</th></tr></thead><tbody>{body}</tbody></table></div><footer>备注：无。<br><br>分析人员/级别：____________　审核/级别：____________　批准：____________　业主：____________</footer></article>"
@@ -1625,7 +1642,7 @@ def export_inspection_docx(outage: str, unit: int, metadata: dict, finding_ids: 
         blocks.append(_w_paragraph("检验结果", "center", True, 18))
         values = []
         for row_index, row in enumerate(page_rows, page_index * 20 - 19):
-            indication = row.get("indication") or "NDD"
+            indication = display_indication(row)
             is_ndd = str(indication).strip().upper() in {"NDD", "NONE", "NO DEFECT"}
             values.append([
                 row_index, row.get("thimble_id") or "", row.get("position") or "", indication,

@@ -89,19 +89,24 @@ class ParserTests(unittest.TestCase):
                 with server.connect() as connection:
                     connection.executemany(
                         """INSERT INTO findings(
-                            outage,unit_id,thimble_id,position,indication,percent,imported_at
-                        ) VALUES(?,?,?,?,?,?,?)""",
+                            outage,unit_id,thimble_id,position,indication,percent,location,measurement_type,imported_at
+                        ) VALUES(?,?,?,?,?,?,?,?,?)""",
                         [
-                            ("H209", 2, 42, "M5", "WAR", 22, "now"),
-                            ("H209", 2, 20, "D7", "NDD", None, "now"),
-                            ("H209", 2, 21, "G7", "WAR", None, "now"),
-                            ("H209", 2, 1, "B5", "WAR", 47, "now"),
+                            ("H209", 2, 42, "M5", "WAR", 22, "P1", "Vmax", "now"),
+                            ("H209", 2, 20, "D7", "NDD", 80, "P1+10", "Vmax", "now"),
+                            ("H209", 2, 21, "G7", "WAR", None, "P1", "Vmax", "now"),
+                            ("H209", 2, 1, "B5", "WAR", 47, "P1", "Vmax", "now"),
+                            ("H209", 2, 3, "E11", "", 35, "P4+20", "Vmax", "now"),
                         ],
                     )
                 result = server.query_findings({"unit": ["2"], "page": ["1"], "size": ["1"]})
+                tube_result = server.query_findings({"unit": ["2"], "thimble": ["1"], "page": ["1"], "size": ["100"]})
             severity = {item["thimble_id"]: item["percent"] for item in result["core_items"]}
-            self.assertEqual(severity, {1: 47, 42: 22})
+            self.assertEqual(severity, {1: 47, 3: 35, 42: 22})
             self.assertEqual(len(result["items"]), 1)
+            self.assertEqual(tube_result["total"], 1)
+            self.assertEqual(server.display_indication({"indication": "", "location": "P4+20", "measurement_type": "Vmax"}), "未标注")
+            self.assertEqual(server.display_indication({"indication": "", "location": "", "measurement_type": "None"}), "NDD")
 
     def test_site_filter_uses_explicit_site_code(self):
         with tempfile.TemporaryDirectory() as directory:

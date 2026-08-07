@@ -29,14 +29,16 @@ async function loadRows(){
     coreMode=document.querySelector('#unit').value?(Number(document.querySelector('#unit').value)%2?'odd':'even'):'combined';state.pages=d.pages;
     $('.split').classList.remove('empty-results');$('#resultInfo').textContent=`共 ${d.total} 条`;$(`#pageInfo`).textContent=`${d.page} / ${d.pages}`;
     $('#prevBtn').disabled=d.page<=1;$('#nextBtn').disabled=d.page>=d.pages;const pageSize=$('#pageSize');if(pageSize)pageSize.value=String(d.size);
-    host.innerHTML=d.items.length?d.items.map((r,i)=>{const effective=isEffectiveFinding(r),number=(d.page-1)*d.size+i+1,checked=state.selectedIds.has(r.id);return `<tr data-i="${i}" class="${effective?'':'no-defect'}${checked?' selected':''}"><td><input type="checkbox" aria-label="选择第${number}条记录" ${checked?'checked':''}></td><td class="row-number">${number}</td><td>${r.outage}</td><td>${r.unit_id}</td><td>#${r.thimble_id}</td><td>${r.position}</td><td>${effective?(r.indication||'WAR'):'NDD'}</td><td>${r.percent??'-'}${r.percent!=null?'%':''}</td><td>${r.location||'-'}</td><td>${r.analyst||'-'}</td></tr>`}).join(''):'<tr><td colspan="10" class="empty">暂无数据，请导入文件夹或 Excel</td></tr>';
+    host.innerHTML=d.items.length?d.items.map((r,i)=>{const effective=isEffectiveFinding(r),number=(d.page-1)*d.size+i+1,checked=state.selectedIds.has(r.id);return `<tr data-i="${i}" class="${effective?'':'no-defect'}${checked?' selected':''}"><td><input type="checkbox" aria-label="选择第${number}条记录" ${checked?'checked':''}></td><td class="row-number">${number}</td><td>${r.outage}</td><td>${r.unit_id}</td><td>#${r.thimble_id}</td><td>${r.position}</td><td>${displayFindingCode(r)}</td><td>${isNoDefect(r)?'-':`${r.percent??'-'}${r.percent!=null?'%':''}`}</td><td>${isNoDefect(r)?'-':(r.location||'-')}</td><td>${r.analyst||'-'}</td></tr>`}).join(''):'<tr><td colspan="10" class="empty">暂无数据，请导入文件夹或 Excel</td></tr>';
     drawCore($('#unit').value?state.coreItems:[]);$('#detail').className='detail empty';$('#detail').textContent=d.items.length?'勾选任意记录查看详情；只有有效缺陷参与管板着色':'暂无检测记录，可通过下方“导入数据”开始';notifyThreeView();
     $$('#rows tr[data-i]').forEach(tr=>tr.onclick=event=>{const input=tr.querySelector('input');if(event.target!==input)input.checked=!input.checked;selectRow(+tr.dataset.i,tr,input.checked)});
   }catch(error){if(request===rowsRequest)host.innerHTML='<tr><td colspan="10" class="empty">加载失败，请重试或检查本地服务</td></tr>';throw error}finally{if(request===rowsRequest)host.removeAttribute('aria-busy')}
 }
 function stateLabel(s){return({normal:'正常',plugged:'堵管',replaced:'更换',shifted:'位移'})[s]||s}
 let coreMode='combined';
-function isEffectiveFinding(row){const indication=String(row.indication||'').trim().toUpperCase(),percent=Number(row.percent);return !['','NDD','NONE','NO DEFECT'].includes(indication)&&Number.isFinite(percent)&&percent>0}
+function isNoDefect(row){const indication=String(row.indication||'').trim().toUpperCase(),measurement=String(row.measurement_type||'').trim().toUpperCase(),location=String(row.location_raw??row.location??'').trim();if(['NDD','NONE','NO DEFECT'].includes(indication))return true;return !indication&&!location&&(!measurement||measurement==='NONE')}
+function isEffectiveFinding(row){const percent=Number(row.percent);return !isNoDefect(row)&&Number.isFinite(percent)&&percent>0}
+function displayFindingCode(row){return isNoDefect(row)?'NDD':(String(row.indication||'').trim()||'未标注')}
 function severitySettings(){
   const color=(key,fallback)=>/^#[0-9a-f]{6}$/i.test(localStorage.getItem(key)||'')?localStorage.getItem(key):fallback;
   const mid=Math.max(0,Math.min(100,Number(localStorage.getItem('thimbleSeverityMidThreshold')||20)));

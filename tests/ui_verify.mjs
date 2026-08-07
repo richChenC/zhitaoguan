@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
 
 const nodeModules = process.env.CODEX_NODE_MODULES || path.join(process.env.USERPROFILE || '', '.cache', 'codex-runtimes', 'codex-primary-runtime', 'dependencies', 'node', 'node_modules');
 const { chromium } = await import(pathToFileURL(path.join(nodeModules, 'playwright', 'index.mjs')).href);
+const { PNG } = createRequire(import.meta.url)(path.join(nodeModules, 'pngjs'));
 
 fs.mkdirSync('tmp/browser', { recursive: true });
 const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' });
@@ -53,6 +55,15 @@ if (await page.locator('#threeOutage option[value="F107"]').count()) {
   await model.locator('[data-record-action="collapse"]').click();
   if (await model.locator('.inspection-record[open]').count() !== 0) throw new Error('collapse all inspection records failed');
 }
+if (await page.locator('#threeOutage option[value="H209"]').count()) {
+  await page.locator('#threeOutage').selectOption('H209');await page.waitForTimeout(700);
+  await model.locator('#embeddedTubeSelect').evaluate(input => { input.value = '15'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await model.locator('[data-embedded-view="tube"]').click();await page.waitForTimeout(700);
+  const shot=PNG.sync.read(await model.locator('#scene canvas').screenshot()),pixels=shot.data;let defectPixels=0;
+  for(let index=0;index<pixels.length;index+=4){const r=pixels[index],g=pixels[index+1],b=pixels[index+2];if(r>120&&r>g*1.2&&r>b*1.2)defectPixels++}
+  if(defectPixels<20)throw new Error(`single-tube defect markers are not visibly rendered: ${defectPixels} pixels`);
+  await page.screenshot({path:'tmp/browser/h209-tube15-defects.png',fullPage:true});
+}
 const workbenchScopeAfter = await page.evaluate(() => ({site: document.querySelector('#site')?.value, unit: document.querySelector('#unit')?.value, outage: document.querySelector('#outage')?.value}));
 if (JSON.stringify(workbenchScopeAfter) !== JSON.stringify(workbenchScopeBefore)) throw new Error(`3D filters changed workbench filters: ${JSON.stringify({workbenchScopeBefore, workbenchScopeAfter})}`);
 await model.locator('[data-embedded-view="overview"]').click();
@@ -73,6 +84,10 @@ await page.locator('#databaseDedup').waitFor();
 if (!await page.locator('#runDeduplicate').isVisible() || await page.locator('#dedupFindingCount').textContent() === '--') throw new Error('database deduplication panel did not load');
 await page.screenshot({ path: 'tmp/browser/ui-settings.png', fullPage: true });
 await page.locator('[data-view="workspace"]').click();
+await page.locator('#outage').selectOption('F107');await page.waitForFunction(() => {const rows=[...document.querySelectorAll('#rows tr[data-i]')];return rows.length&&rows.every(row=>row.cells[2]?.textContent.trim()==='F107')&&!document.querySelector('#rows')?.hasAttribute('aria-busy')});
+const f107Semantics=await page.locator('#rows tr[data-i]').evaluateAll(rows=>rows.map(row=>[...row.cells].map(cell=>cell.textContent.trim())));
+if(!f107Semantics.some(cells=>cells[6]==='未标注'&&cells[7]==='49%'))throw new Error('blank indication with valid Vmax data was mislabeled as NDD');
+if(!f107Semantics.some(cells=>cells[6]==='NDD'&&cells[7]==='-'&&cells[8]==='-'))throw new Error('true NDD row still exposes defect depth or location');
 if (await page.locator('#pageSize').inputValue() !== '100') throw new Error('default page size is not 100');
 if (await page.locator('#clearPageSelection').count() !== 1) throw new Error('clear selection action is missing');
 await page.locator('#pageSize').selectOption('500');
