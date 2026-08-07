@@ -32,6 +32,15 @@ if (!model) throw new Error('3D model iframe did not load');
 await model.locator('canvas').waitFor();
 if (!await model.locator('#singleTubePicker').isVisible()) throw new Error('tube selector is not visible in overview mode');
 if (await model.locator('.defect-tooltip').count() !== 1) throw new Error('defect tooltip layer is missing');
+if (await page.locator('#threeOutage option[value="F107"]').count()) {
+  await page.locator('#threeOutage').selectOption('F107');
+  await page.waitForFunction(() => document.querySelector('#threeOutage')?.value === 'F107');
+  await page.waitForTimeout(800);
+  const summary = await model.locator('.inspection-summary').textContent();
+  if (!summary || summary.includes('无有效缺陷')) throw new Error(`outage selection did not focus a defective tube: ${summary}`);
+  const detailStyle = await model.locator('.inspection-record dd').first().evaluate(node => ({whiteSpace: getComputedStyle(node).whiteSpace, textOverflow: getComputedStyle(node).textOverflow}));
+  if (detailStyle.whiteSpace !== 'normal' || detailStyle.textOverflow === 'ellipsis') throw new Error(`inspection details are still truncated: ${JSON.stringify(detailStyle)}`);
+}
 await model.locator('[data-embedded-view="tube"]').click();
 await model.locator('#embeddedTubeSelect').evaluate(input => { input.value = '2'; input.dispatchEvent(new Event('input', { bubbles: true })); });
 if (await model.locator('#embeddedTubeOutput').textContent() !== '02') throw new Error('single tube selection did not update');

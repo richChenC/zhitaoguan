@@ -6,6 +6,11 @@
 @media(min-width:761px){.embedded .inspector{top:168px;max-height:calc(100vh - 184px)}}
 /* Interaction refinements */
 .single-tube-picker[hidden]{display:flex!important}
-.embedded .inspection-record dd{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal}
+.embedded .inspection-record dl{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
+.embedded .inspection-record dd{min-width:0;overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:break-word;word-break:normal;line-height:1.45}
+.embedded .inspection-record dl div:nth-child(6),.embedded .inspection-record dl div:nth-child(7),.embedded .inspection-record dl div:nth-child(8){grid-column:1/-1;border-right:0}
+.embedded .inspection-record header b{white-space:normal;overflow-wrap:anywhere}
+@media(min-width:1181px){.embedded .inspector{width:420px}.embedded .fixed-orientation{right:452px}}
+@media(min-width:761px) and (max-width:1180px){.embedded .inspector{width:360px}.embedded .fixed-orientation{right:392px}}
 .defect-tooltip{position:fixed;z-index:30;pointer-events:none;max-width:420px;padding:8px 10px;border:1px solid #657a6f;border-radius:3px;background:rgba(13,23,20,.95);color:#eef2ed;font:11px/1.5 "Microsoft YaHei",sans-serif;white-space:nowrap;box-shadow:0 5px 18px rgba(0,0,0,.5)}
 .defect-tooltip[hidden]{display:none}
