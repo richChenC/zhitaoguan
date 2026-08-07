@@ -82,7 +82,11 @@ function makePlateLabel(text,width,height,accent='#75866b',{fontSize=58,backgrou
 
 function buildCore(){
   const height=coreTopY-coreBottomY,center=(coreTopY+coreBottomY)/2;
-  CORE_ROWS.forEach(row=>row.split(' ').forEach(cell=>{const{x,z}=coordinate(cell);const a=new THREE.Mesh(new THREE.BoxGeometry(.96,height,.96),fuelMaterial);a.position.set(x,center,z);a.userData.cell=cell;coreGroup.add(a)}));
+  const cellGeometry=new THREE.BoxGeometry(1.02,height,1.02),cellEdges=new THREE.EdgesGeometry(cellGeometry);
+  const edgeMaterial=new THREE.LineBasicMaterial({color:0x6f8d81,transparent:true,opacity:.24,depthWrite:false});
+  CORE_ROWS.forEach(row=>row.split(' ').forEach(cell=>{const{x,z}=coordinate(cell),assembly=new THREE.Group();assembly.position.set(x,center,z);assembly.userData.cell=cell;
+    const fill=new THREE.Mesh(cellGeometry,fuelMaterial),outline=new THREE.LineSegments(cellEdges,edgeMaterial);fill.renderOrder=2;outline.renderOrder=3;assembly.add(fill,outline);coreGroup.add(assembly)
+  }));
 }
 
 function buildInternalStructures(){
