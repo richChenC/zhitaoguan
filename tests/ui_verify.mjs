@@ -40,10 +40,17 @@ if (await page.locator('#threeOutage option[value="F107"]').count()) {
   if (!summary || summary.includes('无有效缺陷')) throw new Error(`outage selection did not focus a defective tube: ${summary}`);
   const detailStyle = await model.locator('.inspection-record dd').first().evaluate(node => ({whiteSpace: getComputedStyle(node).whiteSpace, textOverflow: getComputedStyle(node).textOverflow}));
   if (detailStyle.whiteSpace !== 'normal' || detailStyle.textOverflow === 'ellipsis') throw new Error(`inspection details are still truncated: ${JSON.stringify(detailStyle)}`);
+  const cardStyles = await model.locator('.inspection-record').evaluateAll(nodes => nodes.map(node => ({borderLeft: getComputedStyle(node).borderLeft, layout: getComputedStyle(node.querySelector('dl')).display})));
+  if (new Set(cardStyles.map(style => style.borderLeft)).size !== 1 || cardStyles.some(style => style.layout !== 'block')) throw new Error(`inspection cards are inconsistent: ${JSON.stringify(cardStyles)}`);
 }
-await model.locator('[data-embedded-view="tube"]').click();
+await model.locator('[data-embedded-view="overview"]').click();
 await model.locator('#embeddedTubeSelect').evaluate(input => { input.value = '2'; input.dispatchEvent(new Event('input', { bubbles: true })); });
-if (await model.locator('#embeddedTubeOutput').textContent() !== '02') throw new Error('single tube selection did not update');
+if (!await model.locator('[data-embedded-view="overview"]').evaluate(button => button.classList.contains('active'))) throw new Error('tube selector unexpectedly left overview mode');
+await page.waitForTimeout(250);
+if (await model.locator('#embeddedTubeOutput').textContent() !== '02') throw new Error('overview tube highlight was reset');
+await model.locator('[data-embedded-view="tube"]').click();
+await model.locator('#embeddedTubeSelect').evaluate(input => { input.value = '3'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+if (await model.locator('#embeddedTubeOutput').textContent() !== '03') throw new Error('single tube selection did not update');
 await page.screenshot({ path: 'tmp/browser/ui-three.png', fullPage: true });
 
 await page.locator('[data-view="reports"]').click();

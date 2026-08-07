@@ -2,7 +2,7 @@ const section = document.querySelector('#threeD');
 const frame = document.createElement('iframe');
 frame.id = 'threeModelFrame';
 frame.className = 'three-model-frame';
-frame.src = '/visualizations/thimble/index.html?embedded=1&v=20260807b';
+frame.src = '/visualizations/thimble/index.html?embedded=1&v=20260807c';
 frame.title = '指套管三维结构与缺陷模型';
 frame.setAttribute('allow', 'fullscreen');
 
@@ -125,7 +125,6 @@ window.addEventListener('message', async event => {
     applyingFromThree = false;
   }
   latestScope = {...latestScope, selectedItems: []};
-  sync(latestScope);
   send('thimble-focus', {thimble: Number(detail.thimble || 1)});
   window.dispatchEvent(new CustomEvent('three-tube-selected', {detail}));
 });
