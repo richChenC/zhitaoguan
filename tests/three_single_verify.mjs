@@ -48,6 +48,31 @@ try {
   if (await model.locator('#embeddedTubeOutput').textContent() !== '03') {
     throw new Error('Overview tube selection was not retained');
   }
+  await page.waitForTimeout(800);
+  if (await model.locator('#embeddedTubeOutput').textContent() !== '03') {
+    throw new Error('Async workspace synchronization reset the selected tube');
+  }
+  await page.locator('[data-view="workspace"]').click();
+  await page.locator('[data-view="settings"]').click();
+  await page.locator('[data-view="threeD"]').click();
+  await page.waitForTimeout(400);
+  if (await model.locator('#embeddedTubeOutput').textContent() !== '03') {
+    throw new Error('Navigation reset the selected tube');
+  }
+  await model.locator('#embeddedTubeSelect').evaluate(input => {
+    input.value = '4';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.waitForTimeout(800);
+  if (await model.locator('#embeddedTubeOutput').textContent() !== '04') {
+    throw new Error('Tube selector cannot retain a new value');
+  }
+  await page.locator('nav [data-view="workspace"]').click();
+  await page.locator('nav [data-view="threeD"]').click();
+  await page.waitForTimeout(400);
+  if (await model.locator('#embeddedTubeOutput').textContent() !== '04') {
+    throw new Error('Tube 04 was not retained after navigation');
+  }
 
   await model.locator('[data-embedded-view="tube"]').click();
   await page.waitForTimeout(400);
