@@ -2,7 +2,7 @@ const section = document.querySelector('#threeD');
 const frame = document.createElement('iframe');
 frame.id = 'threeModelFrame';
 frame.className = 'three-model-frame';
-frame.src = '/visualizations/thimble/index.html?embedded=1&v=20260807e';
+frame.src = '/visualizations/thimble/index.html?embedded=1&v=20260807g';
 frame.title = '指套管三维结构与缺陷模型';
 frame.setAttribute('allow', 'fullscreen');
 
@@ -69,7 +69,11 @@ function sync(scope) {
   // A row can be selected before the unit filter is chosen. Use that row's
   // unit for the embedded model without mutating the workbench filters.
   const modelScope = {...latestScope};
-  if (!modelScope.unit && selectedItems.length) modelScope.unit = String(selectedItems[0].unit_id || '');
+  if (selectedItems.length) {
+    modelScope.site = String(selectedItems[0].site_code || modelScope.site || '');
+    modelScope.unit = String(selectedItems[0].unit_id || modelScope.unit || '');
+    modelScope.outage = String(selectedItems[0].outage || modelScope.outage || '');
+  }
   if (!modelScope.unit && modelScope.outage) {
     const combinations = window.__thimbleState?.overview?.combinations || [];
     const matches = combinations.filter(item =>

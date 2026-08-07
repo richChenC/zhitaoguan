@@ -73,7 +73,7 @@ await page.waitForFunction(() => window.__thimbleState?.size === 500 && !documen
 const paging = await page.evaluate(() => ({total: Number(document.querySelector('#resultInfo')?.textContent.match(/\d+/)?.[0] || 0), rows: document.querySelectorAll('#rows tr[data-i]').length, size: document.querySelector('#pageSize')?.value, empty: document.querySelector('#rows .empty')?.textContent || ''}));
 if (paging.size !== '500' || paging.rows !== Math.min(500, paging.total) || (paging.total && paging.empty)) throw new Error(`500-row paging failed: ${JSON.stringify(paging)}`);
 const tableColumns = await page.evaluate(() => ({headers: document.querySelectorAll('#workspace thead th').length, cells: document.querySelectorAll('#rows tr[data-i]:first-child td').length, labels: [...document.querySelectorAll('#workspace thead th')].map(th => th.textContent.trim())}));
-if (tableColumns.headers !== 10 || tableColumns.cells !== 10 || tableColumns.labels[0] !== '序号' || tableColumns.labels[1] !== '选择') throw new Error(`workspace table columns are misaligned: ${JSON.stringify(tableColumns)}`);
+if (tableColumns.headers !== 10 || tableColumns.cells !== 10 || tableColumns.labels[0] !== '选择' || tableColumns.labels[1] !== '序号') throw new Error(`workspace table columns are misaligned: ${JSON.stringify(tableColumns)}`);
 await page.screenshot({ path: 'tmp/browser/ui-workspace.png', fullPage: true });
 
 const widths = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));

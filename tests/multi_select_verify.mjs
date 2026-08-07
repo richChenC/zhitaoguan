@@ -31,7 +31,12 @@ try {
   const pageRows = await page.locator('#rows tr[data-i]').count();
   await page.locator('#selectAllRows').click();
   const allSelected = await page.locator('#rows input:checked').count();
-  if (allSelected !== pageRows) throw new Error(`全选本页不完整: ${allSelected}/${pageRows}`);
+  const eligibleRows = await page.evaluate(() => {
+    const items = window.__thimbleState?.items || [];
+    const first = items[0];
+    return items.filter(item => String(item.site_code || '') === String(first?.site_code || '') && String(item.unit_id) === String(first?.unit_id) && String(item.outage) === String(first?.outage)).length;
+  });
+  if (allSelected !== eligibleRows) throw new Error(`全选本页未按单一大修限制: ${allSelected}/${eligibleRows}/${pageRows}`);
   console.log(JSON.stringify({afterFirst, afterSecond, restored, allSelected}));
 } finally {
   await browser.close();
