@@ -17,7 +17,18 @@ try {
   await page.locator('#detail .selected-record-list article').nth(1).waitFor();
   const afterSecond = await page.locator('#detail .selected-record-list article').count();
   if (afterFirst !== 1 || afterSecond !== 2) throw new Error(`多选详情数量错误: ${afterFirst}/${afterSecond}`);
-  console.log(JSON.stringify({afterFirst, afterSecond}));
+  await page.locator('#pageSize').selectOption('20');
+  await page.waitForTimeout(250);
+  if (!await page.locator('#nextBtn').isDisabled()) {
+    await page.locator('#nextBtn').click();
+    await page.locator('#prevBtn').click();
+    await page.waitForTimeout(250);
+  }
+  const restored = await page.locator('#rows input:checked').count();
+  if (restored !== 2) throw new Error(`翻页后勾选状态未恢复: ${restored}`);
+  await page.locator('#clearPageSelection').click();
+  if (await page.locator('#rows input:checked').count()) throw new Error('清除勾选未生效');
+  console.log(JSON.stringify({afterFirst, afterSecond, restored}));
 } finally {
   await browser.close();
 }

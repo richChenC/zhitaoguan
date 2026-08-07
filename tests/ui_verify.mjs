@@ -1,5 +1,9 @@
-import { chromium } from 'file:///C:/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/.pnpm/playwright@1.61.1/node_modules/playwright/index.mjs';
 import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const nodeModules = process.env.CODEX_NODE_MODULES || path.join(process.env.USERPROFILE || '', '.cache', 'codex-runtimes', 'codex-primary-runtime', 'dependencies', 'node', 'node_modules');
+const { chromium } = await import(pathToFileURL(path.join(nodeModules, 'playwright', 'index.mjs')).href);
 
 fs.mkdirSync('tmp/browser', { recursive: true });
 const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' });
@@ -9,43 +13,42 @@ page.on('pageerror', error => errors.push(error.message));
 page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
 page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
 await page.goto('http://127.0.0.1:8765', { waitUntil: 'networkidle' });
-const views = [
-  ['数据工作台', 'workspace'], ['三维缺陷模型', 'threeD'], ['历次大修对比', 'compare'],
-  ['报告与导出', 'reports'], ['数据源与管状态', 'states']
-];
+
+const viewIds = ['workspace', 'threeD', 'reports', 'states', 'settings'];
 const visibility = {};
-for (const [label, id] of views) {
-  await page.getByRole('button', { name: new RegExp(label) }).click();
+for (const id of viewIds) {
+  await page.locator(`[data-view="${id}"]`).click();
   const view = page.locator(`#${id}`);
-  visibility[id] = { visible: await view.isVisible(), height: Math.round((await view.boundingBox())?.height || 0) };
-  if (!visibility[id].visible || visibility[id].height < 40) throw new Error(`${id} content is blank`);
+  const box = await view.boundingBox();
+  visibility[id] = { visible: await view.isVisible(), width: Math.round(box?.width || 0), height: Math.round(box?.height || 0) };
+  if (!visibility[id].visible || visibility[id].width < 400 || visibility[id].height < 80) throw new Error(`${id} content is blank or collapsed`);
 }
-await page.getByRole('button', { name: /历次大修对比/ }).click();
-await page.screenshot({ path: 'tmp/browser/ui-compare.png', fullPage: true });
-await page.getByRole('button', { name: /三维缺陷模型/ }).click();
-await page.locator('#threeCanvas canvas').waitFor();
-await page.locator('#viewFrontBtn').click();
-await page.waitForTimeout(500);
-await page.screenshot({ path: 'tmp/browser/ui-three-horizontal.png', fullPage: true });
-await page.locator('#tubeFocusSelect').selectOption('2');
-await page.locator('#focusTubeBtn').click();
-await page.waitForTimeout(300);
-await page.screenshot({ path: 'tmp/browser/ui-single-tube-section.png', fullPage: true });
-await page.locator('#resetViewBtn').click();
-if (await page.locator('#threeViewTools button').count() !== 5) throw new Error('3D toolbar was not reduced to five controls');
-if (await page.locator('.three-scale').count()) throw new Error('left P scale should be removed');
-await page.locator('#viewBottomBtn').click();
-await page.waitForTimeout(400);
-if (!await page.locator('#bottomOrientation').isVisible()) throw new Error('bottom degree labels are missing');
-await page.locator('#shellBtn').click();
-await page.waitForTimeout(300);
-await page.screenshot({ path: 'tmp/browser/ui-bottom-shell-hidden.png', fullPage: true });
-await page.getByRole('button', { name: /数据源与管状态/ }).click();
+
+await page.locator('[data-view="threeD"]').click();
+const iframe = page.locator('#threeD iframe');
+await iframe.waitFor();
+const model = page.frames().find(frame => frame.url().includes('/visualizations/thimble'));
+if (!model) throw new Error('3D model iframe did not load');
+await model.locator('canvas').waitFor();
+if (!await model.locator('#singleTubePicker').isVisible()) throw new Error('tube selector is not visible in overview mode');
+if (await model.locator('.defect-tooltip').count() !== 1) throw new Error('defect tooltip layer is missing');
+await model.locator('[data-embedded-view="tube"]').click();
+await model.locator('#embeddedTubeSelect').evaluate(input => { input.value = '2'; input.dispatchEvent(new Event('input', { bubbles: true })); });
+if (await model.locator('#embeddedTubeOutput').textContent() !== '02') throw new Error('single tube selection did not update');
+await page.screenshot({ path: 'tmp/browser/ui-three.png', fullPage: true });
+
+await page.locator('[data-view="reports"]').click();
+await page.screenshot({ path: 'tmp/browser/ui-reports.png', fullPage: true });
+await page.locator('[data-view="settings"]').click();
 await page.locator('#reportPolicy').selectOption('latest');
-await page.screenshot({ path: 'tmp/browser/ui-software-settings.png', fullPage: true });
-await page.getByRole('button', { name: /数据工作台/ }).click();
+await page.screenshot({ path: 'tmp/browser/ui-settings.png', fullPage: true });
+await page.locator('[data-view="workspace"]').click();
+if (await page.locator('#pageSize').inputValue() !== '100') throw new Error('default page size is not 100');
+if (await page.locator('#clearPageSelection').count() !== 1) throw new Error('clear selection action is missing');
 await page.screenshot({ path: 'tmp/browser/ui-workspace.png', fullPage: true });
-const widths = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth, navHeight: Math.round(document.querySelector('.app-nav').getBoundingClientRect().height) }));
+
+const widths = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
+if (widths.page > widths.viewport + 2) errors.push(`horizontal overflow: ${widths.page}/${widths.viewport}`);
 console.log(JSON.stringify({ visibility, widths, errors }));
 await browser.close();
 if (errors.length) process.exitCode = 1;

@@ -1,4 +1,8 @@
-import { chromium } from 'file:///C:/Users/Administrator/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/.pnpm/playwright@1.61.1/node_modules/playwright/index.mjs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const nodeModules = process.env.CODEX_NODE_MODULES || path.join(process.env.USERPROFILE || '', '.cache', 'codex-runtimes', 'codex-primary-runtime', 'dependencies', 'node', 'node_modules');
+const { chromium } = await import(pathToFileURL(path.join(nodeModules, 'playwright', 'index.mjs')).href);
 
 const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -7,8 +11,8 @@ page.on('pageerror', error => errors.push(error.message));
 page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
 await page.goto('http://127.0.0.1:8765', { waitUntil: 'networkidle' });
 await page.locator('#reportPolicy').evaluate(select => { select.value = 'manual'; select.dispatchEvent(new Event('change', { bubbles: true })); });
-await page.locator('#importBtn').click();
-await page.locator('#importPath').evaluate((input, value) => { input.readOnly = false; input.value = value; }, 'D:\\指套管\\测试数据\\指套管数据1\\H209');
+await page.locator('#openImportFlow').click();
+await page.locator('#importPath').evaluate((input, value) => { input.readOnly = false; input.value = value; }, path.resolve('..', '测试数据', '指套管数据1', 'H209'));
 await page.locator('#scanReports').click();
 await page.locator('#reportChoiceDialog[open]').waitFor({ timeout: 30000 });
 const totalGroups = await page.locator('#reportWizardOverview button').count();
