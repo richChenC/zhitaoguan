@@ -99,6 +99,21 @@ class ParserTests(unittest.TestCase):
             self.assertEqual(result["total"], 1)
             self.assertEqual(result["items"][0]["site_code"], "LHNP")
 
+    def test_findings_page_size_supports_500_rows(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = Path(directory) / "page-size.db"
+            with patch.object(server, "DB_PATH", db):
+                server.init_db()
+                with server.connect() as connection:
+                    connection.executemany(
+                        "INSERT INTO findings(outage,unit_id,thimble_id,position,indication,percent,imported_at) VALUES(?,?,?,?,?,?,?)",
+                        [("H209", 2, index % 50 + 1, "B5", "WAR", 20, "now") for index in range(550)],
+                    )
+                result = server.query_findings({"page": ["1"], "size": ["500"]})
+            self.assertEqual(result["size"], 500)
+            self.assertEqual(len(result["items"]), 500)
+            self.assertEqual(result["pages"], 2)
+
     def test_word_reports_use_selected_rows_and_comparison_result(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

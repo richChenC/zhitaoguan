@@ -54,6 +54,10 @@ await page.screenshot({ path: 'tmp/browser/ui-settings.png', fullPage: true });
 await page.locator('[data-view="workspace"]').click();
 if (await page.locator('#pageSize').inputValue() !== '100') throw new Error('default page size is not 100');
 if (await page.locator('#clearPageSelection').count() !== 1) throw new Error('clear selection action is missing');
+await page.locator('#pageSize').selectOption('500');
+await page.waitForFunction(() => window.__thimbleState?.size === 500 && !document.querySelector('#rows')?.hasAttribute('aria-busy'));
+const paging = await page.evaluate(() => ({total: Number(document.querySelector('#resultInfo')?.textContent.match(/\d+/)?.[0] || 0), rows: document.querySelectorAll('#rows tr[data-i]').length, size: document.querySelector('#pageSize')?.value, empty: document.querySelector('#rows .empty')?.textContent || ''}));
+if (paging.size !== '500' || paging.rows !== Math.min(500, paging.total) || (paging.total && paging.empty)) throw new Error(`500-row paging failed: ${JSON.stringify(paging)}`);
 await page.screenshot({ path: 'tmp/browser/ui-workspace.png', fullPage: true });
 
 const widths = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
