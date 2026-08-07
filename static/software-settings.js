@@ -67,7 +67,7 @@
     const coverage=confirmedCoverage(group.outage),missing=[...Array(50)].map((_,index)=>index+1).filter(tube=>!coverage.has(tube));
     q('#reportWizardContext').innerHTML=`该数据组发现 ${group.reports.length} 份可用 Report。<b>${group.outage} 已确认覆盖 ${coverage.size}/50 根管</b>${coverage.size&&missing.length?`<small title="${missing.join('、')}">尚缺 ${missing.length} 根</small>`:''}`;
     const savedPath=wizardSelected[wizardIndex]?.path;
-    options.innerHTML=group.reports.map((report,index)=>`<label class="wizard-report-option"><input type="radio" name="wizardReport" value="${index}" ${(savedPath?report.path===savedPath:index===0)?'checked':''}><span><b>${report.name}</b><small>分析人员：${report.analysts?.join('、')||'未标明'} · <strong>${report.tube_count||0} 根管</strong> · ${report.records||0} 条结果 · ${report.indication_count||0} 条缺陷指示${report.duplicate_paths?.length?` · 已合并 ${report.duplicate_paths.length} 个相同副本`:''}</small><em title="${[report.path,...(report.duplicate_paths||[])].join('\n')}">${report.path}</em></span></label>`).join('');
+    options.innerHTML=group.reports.map((report,index)=>`<label class="wizard-report-option"><input type="radio" name="wizardReport" value="${index}" ${(savedPath?report.path===savedPath:index===0)?'checked':''}><span><b>${report.name}</b><small>分析人员：${report.analysts?.join('、')||'未标明'} · <strong>${report.tube_count||0} 根管</strong> · ${report.records||0} 条结果 · ${report.indication_count||0} 条缺陷指示${report.duplicate_paths?.length?` · 已合并 ${report.duplicate_paths.length} 个相同副本`:''}</small>${report.blank_indication?.count?`<em class="report-data-warning">三字符缺失 ${report.blank_indication.count} 条，涉及 ${report.blank_indication.tubes} 根管；入库前必须处理</em>`:''}<em title="${[report.path,...(report.duplicate_paths||[])].join('\n')}">${report.path}</em></span></label>`).join('');
     renderWizardOverview();
     q('#reportWizardSelection').textContent=`已确认 ${wizardConfirmed.size} / ${wizardGroups.length} 组`;
     q('#previousReportChoice').disabled=wizardIndex===0;
@@ -109,12 +109,13 @@
     event.preventDefault();const path=q('#importPath').value.trim(),status=q('#importStatus'),mode=policy.value;if(!path){status.textContent='请先选择检测文件夹';return}
     if(mode==='manual'&&!window.__reportSelectionComplete){status.textContent='请先逐组确认全部 Report';startReportWizard();return}
     const reports=mode==='manual'?window.__selectedReports:null;q('#parseProgress').classList.add('active');status.textContent=mode==='manual'?'正在解析已确认的 Report...':mode==='latest'?'正在自动选择每组最新 Report...':'正在解析目录中的全部 Report...';
-    try{const response=await fetch('/api/export-folder-excel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path,reports,report_policy:mode})}),data=await response.json();if(!response.ok)throw new Error(data.error||'文件夹处理失败');q('#excelImportPath').value=data.file_path;status.innerHTML=`已生成 ${data.rows} 条记录、${data.groups} 个数据组：<a href="${data.download_url}">${data.filename}</a><small>${data.file_path}</small>`}catch(error){status.textContent=error.message}finally{q('#parseProgress').classList.remove('active')}
+    try{const response=await fetch('/api/export-folder-excel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path,reports,report_policy:mode})}),data=await response.json();if(!response.ok)throw new Error(data.error||'文件夹处理失败');q('#excelImportPath').value=data.file_path;const warning=data.blank_indication?.count?`<b class="import-warning">三字符缺失 ${data.blank_indication.count} 条，详见“三字符缺失”检查表，入库前必须确认。</b>`:'';status.innerHTML=`已生成 ${data.rows} 条记录、${data.groups} 个数据组：<a href="${data.download_url}">${data.filename}</a><small>${warning}${data.file_path}</small>`}catch(error){status.textContent=error.message}finally{q('#parseProgress').classList.remove('active')}
   };
 
   q('#runImport').onclick=async event=>{
     event.preventDefault();
-    const path=q('#importPath').value.trim(),status=q('#importStatus'),mode=policy.value;
+    const excelPath=q('#excelImportPath')?.value.trim(),path=q('#importPath').value.trim(),status=q('#importStatus'),mode=policy.value;
+    if(excelPath){q('#parseProgress').classList.add('active');status.textContent='正在校验 Excel...';try{let response=await fetch('/api/import-excel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:excelPath})}),data=await response.json();if(!response.ok)throw new Error(data.error||'Excel校验失败');if(data.requires_indication_decision){q('#parseProgress').classList.remove('active');const decision=await window.resolveIndicationWarnings(data);if(decision!=='review'){status.textContent='已取消导入，请补全原始报告或 Excel 中的三字符';return}q('#parseProgress').classList.add('active');status.textContent='已确认保留原始值，正在写入数据库...';response=await fetch('/api/import-excel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:excelPath,blank_indication_policy:'review'})});data=await response.json();if(!response.ok)throw new Error(data.error||'Excel写入失败')}status.textContent=`Excel入库完成：新增 ${data.inserted} 条，跳过重复 ${data.skipped} 条${data.blank_indication?.count?`，三字符待确认 ${data.blank_indication.count} 条`:''}`;location.reload()}catch(error){status.textContent=error.message}finally{q('#parseProgress').classList.remove('active')}return}
     if(!path){status.textContent='请先选择检测文件夹';return}
     if(mode==='manual'&&!window.__reportSelectionComplete){status.textContent='请先逐组确认全部 Report';startReportWizard();return}
     const reports=mode==='manual'?window.__selectedReports:null;
@@ -122,8 +123,9 @@
     status.textContent=mode==='manual'?`正在导入已确认的 ${reports.length} 份 Report...`:'正在按当前策略导入 Report...';
     try{
       const response=await fetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path,reports})});
-      const data=await response.json();
+      let data=await response.json();
       if(!response.ok)throw new Error(data.error||'写入数据库失败');
+      if(data.requires_indication_decision){q('#parseProgress').classList.remove('active');const decision=await window.resolveIndicationWarnings(data);if(decision!=='review'){status.textContent='已取消导入，请先补全原始 Report 中的三字符';return}q('#parseProgress').classList.add('active');status.textContent='已确认保留原始空值，正在写入数据库...';const confirmed=await fetch('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path,reports,blank_indication_policy:'review'})});data=await confirmed.json();if(!confirmed.ok)throw new Error(data.error||'写入数据库失败')}
       status.textContent=`入库完成：${data.reports} 份报告，新增 ${data.inserted} 条，跳过 ${data.skipped} 条`;
       location.reload();
     }catch(error){status.textContent=error.message}

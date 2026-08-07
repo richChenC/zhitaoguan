@@ -297,7 +297,7 @@ class ParserTests(unittest.TestCase):
                 target = Path(result["file_path"])
                 self.assertTrue(target.is_file())
                 book = load_workbook(target, read_only=True)
-                required = ["缺陷明细表", "管子汇总表", "未进入RPT的真实ECT", "DIR999标定文件", "同名同哈希副本", "同名不同哈希文件", "RPT引用异常", "ECT编号校验异常", "SUM或机组号缺失", "堆芯映射失败"]
+                required = ["缺陷明细表", "管子汇总表", "未进入RPT的真实ECT", "DIR999标定文件", "同名同哈希副本", "同名不同哈希文件", "RPT引用异常", "ECT编号校验异常", "SUM或机组号缺失", "堆芯映射失败", "三字符缺失"]
                 self.assertEqual(book.sheetnames, required)
                 sheet = book["缺陷明细表"]
                 self.assertEqual(sheet.max_row - 1, result["rows"])
@@ -340,6 +340,38 @@ class ParserTests(unittest.TestCase):
                     row = connection.execute("SELECT outage,unit_id,thimble_id,position,percent,location,analyst,calgroup FROM findings").fetchone()
             self.assertEqual(result["inserted"], 1)
             self.assertEqual(tuple(row), ("H209", 2, 42, "M5", 22, "P1+10", "MQQ", "TH2I09CAL00001"))
+
+    def test_excel_import_requires_confirmation_for_blank_indication_measurement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, db = Path(directory) / "warning.xlsx", Path(directory) / "test.db"
+            book = Workbook(); sheet = book.active
+            sheet.append(["Outage", "Unit Number", "Thimble ID", "Core Position", "Amplitude", "Wear Percent", "Defect", "Measurement Channel", "Wear Location", "Analyst"])
+            sheet.append(["F107", 1, 12, "F13", 4.91, 51, "", "P1: 4-6", "P1+42", "ZWY"])
+            book.save(source); book.close()
+            with patch.object(server, "DB_PATH", db):
+                server.init_db(); warning = server.import_excel_file(str(source))
+                with server.connect() as connection:
+                    self.assertEqual(connection.execute("SELECT COUNT(*) FROM findings").fetchone()[0], 0)
+                confirmed = server.import_excel_file(str(source), "review")
+            self.assertTrue(warning["requires_indication_decision"])
+            self.assertEqual(warning["blank_indication"]["count"], 1)
+            self.assertEqual(confirmed["inserted"], 1)
+
+    def test_folder_import_requires_confirmation_for_blank_indication_measurement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); group = root / "TH1I07CAL00001"; group.mkdir()
+            write_sum(group, unit="1", outage="F107")
+            write_ect(group, "DIR012C012I006.ECT", 12, 12, 6)
+            write_report(group, [report_entry("DIR012C012I006.ECT", 12, 12, 6, "blank", indication="", location="P1+42", percent="51", calgroup="TH1I07CAL00001")])
+            db = root / "test.db"
+            with patch.object(server, "DB_PATH", db):
+                server.init_db(); warning = server.import_directory(str(root))
+                with server.connect() as connection:
+                    self.assertEqual(connection.execute("SELECT COUNT(*) FROM findings").fetchone()[0], 0)
+                confirmed = server.import_directory(str(root), blank_indication_policy="review")
+            self.assertTrue(warning["requires_indication_decision"])
+            self.assertEqual(warning["blank_indication"]["count"], 1)
+            self.assertEqual(confirmed["inserted"], 1)
 
     def test_discovers_server_thimble_directories_without_fixed_depth(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -386,6 +418,8 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(y108["records"], 41)
         self.assertEqual(y108["tube_count"], 24)
         self.assertEqual(y108["indication_count"], 32)
+        f107 = [item for item in options if item.get("outage") == "F107"]
+        self.assertEqual(sum(item["blank_indication"]["count"] for item in f107), 54)
 
     def test_strict_group_processing_and_layered_counts(self):
         with tempfile.TemporaryDirectory() as directory:

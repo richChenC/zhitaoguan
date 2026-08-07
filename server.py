@@ -530,6 +530,18 @@ def is_indication_record(finding: Finding) -> bool:
     return bool(finding.indication.strip() or finding.location.strip() or (measurement and measurement != "none"))
 
 
+def blank_indication_summary(findings: list[Finding], limit: int = 100) -> dict:
+    rows = [finding for finding in findings if not finding.indication.strip() and is_indication_record(finding)]
+    samples = [{
+        "outage": row.outage, "unit_id": row.unit_id, "thimble_id": row.thimble_id,
+        "position": row.position, "percent": row.percent, "location": row.location,
+        "channel": row.channel, "filename": row.filename, "calgroup": row.calgroup,
+        "analyst": row.analyst, "source": row.report_path,
+    } for row in rows[:limit]]
+    return {"count": len(rows), "tubes": len({(row.outage, row.unit_id, row.thimble_id) for row in rows}),
+            "sources": len({row.report_path for row in rows}), "items": samples}
+
+
 def display_indication(row) -> str:
     def get(name, default=None):
         try:
@@ -682,6 +694,7 @@ def report_options(directory: str) -> list[dict]:
                 "tubes": sorted({row.thimble_id for row in rows}),
                 "tube_count": len({row.thimble_id for row in rows}),
                 "indication_count": sum(is_indication_record(row) for row in rows),
+                "blank_indication": blank_indication_summary(rows),
                 "duplicate_paths": [],
             }
             digest = hashlib.sha256(report.read_bytes()).hexdigest()
@@ -709,11 +722,15 @@ def unique_report_paths(reports) -> list[Path]:
     return list(unique.values())
 
 
-def import_directory(directory: str, selected_reports: list[str] | None = None) -> dict:
+def import_directory(directory: str, selected_reports: list[str] | None = None, blank_indication_policy: str = "") -> dict:
     processed = process_directory(directory, selected_reports)
     reports = processed["reports"]
     parsed = inserted = skipped = 0
     errors = list(processed["parse_errors"]) + list(processed["report_reference_errors"])
+    blank_indication = blank_indication_summary(processed["findings"])
+    if blank_indication["count"] and blank_indication_policy != "review":
+        return {"requires_indication_decision": True, "blank_indication": blank_indication,
+                "reports": len(reports), "parsed": len(processed["findings"]), "inserted": 0, "skipped": 0, "errors": errors}
     with connect() as db:
         for finding in processed["findings"]:
             parsed += 1
@@ -728,11 +745,19 @@ def import_directory(directory: str, selected_reports: list[str] | None = None) 
             if not cur.rowcount:
                 audit_duplicate(db, columns)
     return {"reports": len(reports), "parsed": parsed, "inserted": inserted, "skipped": skipped, "errors": errors,
+            "blank_indication": blank_indication,
             "raw_report_rows": len(processed["report_rows"]), "tubes": len(processed["tube_summary"]),
             "calibration_ect": len(processed["calibration_ect"]), "unreported_ect": len(processed["unreported_ect"])}
 
 
-def import_excel_file(filename: str) -> dict:
+def import_excel_file(filename: str, blank_indication_policy: str = "") -> dict:
+    if not blank_indication_policy:
+        check = import_excel_file(filename, "check")
+        if check["blank_indication"]["count"]:
+            check["requires_indication_decision"] = True
+            return check
+        return import_excel_file(filename, "review")
+    dry_run = blank_indication_policy == "check"
     source = Path(filename).expanduser().resolve()
     if not source.is_file() or source.suffix.lower() not in {".xlsx", ".xlsm"}:
         raise ValueError("请选择 .xlsx 或 .xlsm 文件")
@@ -799,7 +824,7 @@ def import_excel_file(filename: str) -> dict:
         index = mapping.get(key)
         return values[index] if index is not None and index < len(values) else None
     inserted = skipped = parsed = 0
-    invalid = []
+    invalid, pending = [], []
     with connect() as db:
         for row_number, values in enumerate(rows, header_row + 1):
             row = {key: cell(values, key) for key in mapping}
@@ -822,6 +847,9 @@ def import_excel_file(filename: str) -> dict:
                 finding.channel, finding.datapoint, finding.analyst, finding.indication, finding.percent,
             ))
             finding.source_key = hashlib.sha256(excel_identity.encode("utf-8")).hexdigest()
+            pending.append(finding)
+            if dry_run:
+                continue
             columns = asdict(finding)
             columns["business_key"] = finding_business_key(columns)
             columns["imported_at"] = datetime.now().isoformat(timespec="seconds")
@@ -832,7 +860,9 @@ def import_excel_file(filename: str) -> dict:
             skipped += 1 - cur.rowcount
             if not cur.rowcount:
                 audit_duplicate(db, columns)
-    return {"file": str(source), "sheet": sheet.title, "header_row": header_row, "parsed": parsed, "inserted": inserted, "skipped": skipped, "invalid_rows": invalid[:100]}
+    return {"file": str(source), "sheet": sheet.title, "header_row": header_row, "parsed": parsed,
+            "inserted": inserted, "skipped": skipped, "invalid_rows": invalid[:100],
+            "blank_indication": blank_indication_summary(pending)}
 
 
 def analyze_directory(directory: str, selected_reports: list[str] | None = None) -> tuple[list[Finding], list[dict]]:
@@ -1010,6 +1040,13 @@ def export_directory_excel(directory: str, selected_reports: list[str] | None = 
     for row in processed["mapping_failures"]:
         mapping.append([row["group"], row["filename"], row["row"], row["message"]])
 
+    blank_indication = blank_indication_summary(findings, 10000)
+    indication_sheet = book.create_sheet("三字符缺失")
+    indication_sheet.append(["大修", "机组", "通道编号", "堆芯位置", "磨损深度", "磨损位置", "测量通道", "数据文件", "数据组", "分析人员", "来源"])
+    for row in blank_indication["items"]:
+        indication_sheet.append([row["outage"], row["unit_id"], row["thimble_id"], row["position"], row["percent"],
+                                 row["location"], row["channel"], row["filename"], row["calgroup"], row["analyst"], row["source"]])
+
     text_headers = {"在堆芯内的位置", "数据", "数据组", "堆芯位置", "ECT文件名", "文件名"}
     for current in book.worksheets:
         for cell in current[1]:
@@ -1026,6 +1063,7 @@ def export_directory_excel(directory: str, selected_reports: list[str] | None = 
             current.column_dimensions[get_column_letter(column)].width = min(56, max(10, len(label) + 3, max(map(len, values), default=0) + 2))
     outcome = workbook_result(filename, book)
     return {**outcome, "rows": len(findings), "raw_report_rows": len(processed["report_rows"]),
+            "blank_indication": blank_indication,
             "groups": len(processed["contexts"]), "tubes": len(processed["tube_summary"]),
             "errors": processed["parse_errors"] + processed["report_reference_errors"],
             "unreported_ect": len(processed["unreported_ect"]), "calibration_ect": len(processed["calibration_ect"])}
@@ -1795,8 +1833,8 @@ class Handler(SimpleHTTPRequestHandler):
             data = self.body()
             if self.path == "/api/report-options": return self.json_response({"reports": report_options(data.get("path", ""))})
             if self.path == "/api/discover-server": return self.json_response(discover_server_sources(data.get("path", "")))
-            if self.path == "/api/import": return self.json_response(import_directory(data.get("path", ""), data.get("reports")))
-            if self.path == "/api/import-excel": return self.json_response(import_excel_file(data.get("path", "")))
+            if self.path == "/api/import": return self.json_response(import_directory(data.get("path", ""), data.get("reports"), data.get("blank_indication_policy", "")))
+            if self.path == "/api/import-excel": return self.json_response(import_excel_file(data.get("path", ""), data.get("blank_indication_policy", "")))
             if self.path == "/api/deduplicate": return self.json_response(deduplicate_database())
             if self.path == "/api/export-comparison":
                 outages = data.get("outages") or []
