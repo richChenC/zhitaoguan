@@ -85,6 +85,12 @@ const orientation = await page.evaluate(() => ({
   rightArrow: getComputedStyle(document.querySelector('#coreMap .side-right i'), '::after').borderLeftWidth,
 }));
 if (orientation.left !== '90°' || orientation.right !== 'OUTLET270°' || orientation.inlet !== 'INLET' || orientation.zero !== '0°' || orientation.corners !== 4 || orientation.rows[0] !== '01' || orientation.rows[14] !== '15' || orientation.leftArrow !== '10px' || orientation.rightArrow !== '10px') throw new Error(`core orientation is incorrect: ${JSON.stringify(orientation)}`);
+const symmetry = await page.evaluate(() => {
+  const center = selector => { const box = document.querySelector(selector).getBoundingClientRect(); return {x: box.left + box.width / 2, y: box.top + box.height / 2, width: box.width, height: box.height}; };
+  const grid = center('#coreMap .reference-grid'), tl = center('#coreMap .top-left'), tr = center('#coreMap .top-right'), bl = center('#coreMap .bottom-left'), br = center('#coreMap .bottom-right');
+  return {grid, tl, tr, bl, br, error: Math.max(Math.abs((tl.x + br.x) / 2 - grid.x), Math.abs((tl.y + br.y) / 2 - grid.y), Math.abs((tr.x + bl.x) / 2 - grid.x), Math.abs((tr.y + bl.y) / 2 - grid.y))};
+});
+if (symmetry.error > 1 || new Set([symmetry.tl.width, symmetry.tr.width, symmetry.bl.width, symmetry.br.width]).size !== 1 || new Set([symmetry.tl.height, symmetry.tr.height, symmetry.bl.height, symmetry.br.height]).size !== 1) throw new Error(`corner arrows are not center-symmetric: ${JSON.stringify(symmetry)}`);
 await page.screenshot({ path: 'tmp/browser/ui-workspace.png', fullPage: true });
 
 const widths = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
