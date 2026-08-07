@@ -86,8 +86,8 @@ await page.screenshot({ path: 'tmp/browser/ui-settings.png', fullPage: true });
 await page.locator('[data-view="workspace"]').click();
 await page.locator('#outage').selectOption('F107');await page.waitForFunction(() => {const rows=[...document.querySelectorAll('#rows tr[data-i]')];return rows.length&&rows.every(row=>row.cells[2]?.textContent.trim()==='F107')&&!document.querySelector('#rows')?.hasAttribute('aria-busy')});
 const f107Semantics=await page.locator('#rows tr[data-i]').evaluateAll(rows=>rows.map(row=>[...row.cells].map(cell=>cell.textContent.trim())));
-if(!f107Semantics.some(cells=>cells[6]==='未标注'&&cells[7]==='49%'))throw new Error('blank indication with valid Vmax data was mislabeled as NDD');
-if(!f107Semantics.some(cells=>cells[6]==='NDD'&&cells[7]==='-'&&cells[8]==='-'))throw new Error('true NDD row still exposes defect depth or location');
+if(!f107Semantics.some(cells=>cells[6]==='未标注'&&cells[8]==='49%'&&cells[9]==='P1 + 41 mm'))throw new Error('blank indication with valid Vmax data was mislabeled as NDD');
+if(!f107Semantics.some(cells=>cells[6]==='NDD'&&cells.slice(7,11).every(value=>value==='-')))throw new Error('true NDD row still exposes defect measurement fields');
 if (await page.locator('#pageSize').inputValue() !== '100') throw new Error('default page size is not 100');
 if (await page.locator('#clearPageSelection').count() !== 1) throw new Error('clear selection action is missing');
 await page.locator('#pageSize').selectOption('500');
@@ -95,7 +95,7 @@ await page.waitForFunction(() => window.__thimbleState?.size === 500 && !documen
 const paging = await page.evaluate(() => ({total: Number(document.querySelector('#resultInfo')?.textContent.match(/\d+/)?.[0] || 0), rows: document.querySelectorAll('#rows tr[data-i]').length, size: document.querySelector('#pageSize')?.value, empty: document.querySelector('#rows .empty')?.textContent || ''}));
 if (paging.size !== '500' || paging.rows !== Math.min(500, paging.total) || (paging.total && paging.empty)) throw new Error(`500-row paging failed: ${JSON.stringify(paging)}`);
 const tableColumns = await page.evaluate(() => ({headers: document.querySelectorAll('#workspace thead th').length, cells: document.querySelectorAll('#rows tr[data-i]:first-child td').length, labels: [...document.querySelectorAll('#workspace thead th')].map(th => th.textContent.trim())}));
-if (tableColumns.headers !== 10 || tableColumns.cells !== 10 || tableColumns.labels[0] !== '选择' || tableColumns.labels[1] !== '序号') throw new Error(`workspace table columns are misaligned: ${JSON.stringify(tableColumns)}`);
+if (tableColumns.headers !== 12 || tableColumns.cells !== 12 || tableColumns.labels.join('|') !== '选择|序号|大修|机组|通道编号|堆芯位置|三字符|幅值（V）|磨损深度（壁厚%）|磨损位置|测量通道|分析人员') throw new Error(`workspace table columns are misaligned: ${JSON.stringify(tableColumns)}`);
 const orientation = await page.evaluate(() => ({
   left: document.querySelector('#coreMap .side-left')?.textContent.trim(),
   right: document.querySelector('#coreMap .side-right')?.textContent.trim(),
