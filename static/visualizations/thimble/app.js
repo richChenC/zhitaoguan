@@ -71,7 +71,7 @@ const layerRingMaterial=new THREE.MeshPhysicalMaterial({color:0x9ba9a2,metalness
 const layerAccent='#d7ef4a';
 const supportMaterials=[];
 const thimbleTopY=1.82,thimbleBottomY=-6.55,thimbleBodyHeight=thimbleTopY-thimbleBottomY,thimbleBodyCenter=(thimbleTopY+thimbleBottomY)/2;
-const coreTopY=1.95,coreBottomY=-5.05;
+const coreTopY=1.95,coreBottomY=-6.9;
 
 function coordinate(position){const m=position.match(/([A-Z])(\d+)/);return{x:(COLS.indexOf(m[1])-7)*1.08,z:(+m[2]-8)*1.08}}
 function cylinder(radius,height,material,segments=32){return new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,height,segments),material)}
