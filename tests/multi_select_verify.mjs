@@ -28,7 +28,11 @@ try {
   if (restored !== 2) throw new Error(`翻页后勾选状态未恢复: ${restored}`);
   await page.locator('#clearPageSelection').click();
   if (await page.locator('#rows input:checked').count()) throw new Error('清除勾选未生效');
-  console.log(JSON.stringify({afterFirst, afterSecond, restored}));
+  const pageRows = await page.locator('#rows tr[data-i]').count();
+  await page.locator('#selectAllRows').click();
+  const allSelected = await page.locator('#rows input:checked').count();
+  if (allSelected !== pageRows) throw new Error(`全选本页不完整: ${allSelected}/${pageRows}`);
+  console.log(JSON.stringify({afterFirst, afterSecond, restored, allSelected}));
 } finally {
   await browser.close();
 }

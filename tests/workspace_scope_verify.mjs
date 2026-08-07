@@ -9,19 +9,21 @@ page.on('console', message => { if (message.type() === 'error') console.error(`c
 try {
   await page.goto('http://127.0.0.1:8765', {waitUntil: 'networkidle'});
   await page.locator('#rows tr[data-i]').first().waitFor({timeout: 15000});
-  if (await page.locator('#rows input:disabled').count() < 1) throw new Error('无缺陷记录没有被禁用');
-  if (await page.locator('#rows input:disabled:checked').count() !== 0) throw new Error('无缺陷记录不应显示为已勾选');
+  if (await page.locator('#rows input:disabled').count() !== 0) throw new Error('检测记录不应被禁止勾选');
+  const pageRows = await page.locator('#rows tr[data-i]').count();
   await page.locator('#selectAllRows').click();
-  if (await page.locator('#rows input:disabled:checked').count() !== 0) throw new Error('全选不应勾选无缺陷记录');
+  const selectedRows = await page.locator('#rows input:checked').count();
+  if (selectedRows !== pageRows) throw new Error(`全选本页不完整: ${selectedRows}/${pageRows}`);
+  if (await page.locator('.selection-scope-warning').count() && await page.locator('#coreMap .path-marker.selected').count()) throw new Error('混合机组或大修不应在二维管板着色');
   const outageOptions = await page.locator('#outage option').evaluateAll(options => options.map(option => option.value).filter(Boolean));
   if (!outageOptions.length) throw new Error('没有可用大修批次');
   await page.locator('#outage').selectOption(outageOptions[0]);
   const unitOptions = await page.locator('#unit option').evaluateAll(options => options.map(option => option.value).filter(Boolean));
   if (unitOptions.length) await page.locator('#unit').selectOption(unitOptions[0]);
   await page.waitForTimeout(350);
-  const enabled = page.locator('#rows tr[data-i] input:not(:disabled)');
-  if (await enabled.count()) {
-    await enabled.first().check();
+  const available = page.locator('#rows tr[data-i] input');
+  if (await available.count()) {
+    await available.first().check();
     if (await page.locator('#detail .selected-record-list article').count() !== 1) throw new Error('单条缺陷详情没有同步');
   }
   await page.locator('[data-view="threeD"]').click();
@@ -39,5 +41,5 @@ try {
     const recordLayout = await model.locator('.inspection-records').evaluate(node => ({display: getComputedStyle(node).display, columns: getComputedStyle(node).gridTemplateColumns}));
     if (recordLayout.display !== 'grid' || recordLayout.columns.split(' ').length !== 1) throw new Error(`检测记录未按单列横向显示: ${JSON.stringify(recordLayout)}`);
   }
-  console.log(JSON.stringify({disabledNoDefect: true, outage: outageOptions[0], threeD: true}));
+  console.log(JSON.stringify({allSelectable: true, selectedRows, outage: outageOptions[0], threeD: true}));
 } finally { await browser.close(); }

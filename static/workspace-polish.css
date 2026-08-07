@@ -9,3 +9,4 @@
 .compare-outage-item select{min-width:130px}
 .compare-outage-item button{padding:0 8px;min-width:30px}
 #addCompareOutage{white-space:nowrap}
+.selection-scope-warning{margin:0;padding:9px 12px;border-bottom:1px solid #e4c77b;background:#fff8e5;color:#765716;font-size:12px;line-height:1.5}
