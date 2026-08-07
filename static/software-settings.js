@@ -146,6 +146,15 @@
   document.addEventListener('DOMContentLoaded',installSeveritySettings);setTimeout(installSeveritySettings,0);setTimeout(installSeveritySettings,120);
 })();
 
+(function installDatabaseDeduplication(){
+  function mount(){
+    const host=document.querySelector('#settings .settings-sections');if(!host||document.querySelector('#databaseDedup'))return;
+    const panel=document.createElement('section');panel.id='databaseDedup';panel.className='panel software-settings-panel';panel.innerHTML=`<div class="panel-title"><div><h2>数据库去重</h2><span>只处理完全相同的检测记录，不合并不同入口、UID 或数据组</span></div><button id="scanDuplicates" type="button">扫描重复记录</button></div><div class="dedup-summary"><div><span>有效检测记录</span><strong id="dedupFindingCount">--</strong></div><div><span>累计拦截重复</span><strong id="dedupDuplicateCount">--</strong></div><button id="runDeduplicate" class="primary" type="button">执行去重</button></div><div id="duplicateRecords" class="duplicate-records empty">正在读取去重信息...</div>`;host.append(panel);
+    const records=panel.querySelector('#duplicateRecords');async function load(run=false){records.className='duplicate-records empty';records.textContent=run?'正在扫描并清理完全重复记录...':'正在读取去重信息...';try{const response=await fetch(run?'/api/deduplicate':'/api/duplicates',run?{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}:undefined),data=await response.json();if(!response.ok)throw new Error(data.error||'去重操作失败');panel.querySelector('#dedupFindingCount').textContent=data.findings;panel.querySelector('#dedupDuplicateCount').textContent=data.duplicates;records.className='duplicate-records';records.innerHTML=data.items.length?data.items.map(item=>`<article><b>${item.action==='removed'?'已清理':'已跳过'}重复记录 #${item.id}</b><span>保留记录 #${item.kept_finding_id||'--'} · ${item.detected_at}</span><small title="${item.source_path||''}">${item.reason}${item.source_path?' · '+item.source_path:''}</small></article>`).join(''):'<div class="empty">未发现重复记录</div>';if(run)window.toast?.(`去重完成，累计处理 ${data.duplicates} 条重复记录`)}catch(error){records.textContent=error.message;window.toast?.(error.message)}}panel.querySelector('#scanDuplicates').onclick=()=>load(false);panel.querySelector('#runDeduplicate').onclick=()=>load(true);load(false);
+  }
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(mount,50));setTimeout(mount,160);
+})();
+
 (function(){
     function installSettingsPage(){
     const nav=document.querySelector('nav .nav-group');

@@ -28,7 +28,7 @@ page.on('console', message => {
 });
 
 try {
-  await page.goto('http://127.0.0.1:8765', { waitUntil: 'networkidle' });
+  await page.goto(process.env.THIMBLE_TEST_URL || 'http://127.0.0.1:8765', { waitUntil: 'networkidle' });
   await page.locator('[data-view="threeD"]').click();
 
   const frameElement = page.locator('#threeModelFrame');

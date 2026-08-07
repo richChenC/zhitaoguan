@@ -63,6 +63,24 @@ class ParserTests(unittest.TestCase):
                 with server.connect() as connection:
                     self.assertEqual(connection.execute("SELECT COUNT(*) FROM findings").fetchone()[0], 0)
 
+    def test_database_deduplication_is_audited_and_preserves_distinct_uid(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = Path(directory) / "dedup.db"
+            with patch.object(server, "DB_PATH", db):
+                server.init_db()
+                with server.connect() as connection:
+                    row = ("H209", 2, 1, "B5", 4, "NDD", None, "same.ect", "TH2I09CAL00001", "uid-a", "now")
+                    connection.executemany("""INSERT INTO findings(
+                        outage,unit_id,thimble_id,position,entry_no,indication,percent,filename,calgroup,uid,imported_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", [row, row, row[:-2] + ("uid-b", "now")])
+                server.init_db()
+                with server.connect() as connection:
+                    self.assertEqual(connection.execute("SELECT COUNT(*) FROM findings").fetchone()[0], 2)
+                    self.assertEqual(connection.execute("SELECT COUNT(*) FROM duplicate_records WHERE action='removed'").fetchone()[0], 1)
+                summary = server.duplicate_summary()
+                self.assertEqual(summary["findings"], 2)
+                self.assertEqual(summary["duplicates"], 1)
+
     def test_core_severity_uses_valid_percent_and_ignores_ndd(self):
         with tempfile.TemporaryDirectory() as directory:
             db = Path(directory) / "severity.db"

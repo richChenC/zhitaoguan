@@ -12,7 +12,7 @@ const errors = [];
 page.on('pageerror', error => errors.push(error.message));
 page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
 page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
-await page.goto('http://127.0.0.1:8765', { waitUntil: 'networkidle' });
+  await page.goto(process.env.THIMBLE_TEST_URL || 'http://127.0.0.1:8765', { waitUntil: 'networkidle' });
 
 const viewIds = ['workspace', 'threeD', 'reports', 'states', 'settings'];
 const visibility = {};
@@ -25,6 +25,7 @@ for (const id of viewIds) {
 }
 
 await page.locator('[data-view="threeD"]').click();
+const workbenchScopeBefore = await page.evaluate(() => ({site: document.querySelector('#site')?.value, unit: document.querySelector('#unit')?.value, outage: document.querySelector('#outage')?.value}));
 const iframe = page.locator('#threeD iframe');
 await iframe.waitFor();
 const model = page.frames().find(frame => frame.url().includes('/visualizations/thimble'));
@@ -52,6 +53,8 @@ if (await page.locator('#threeOutage option[value="F107"]').count()) {
   await model.locator('[data-record-action="collapse"]').click();
   if (await model.locator('.inspection-record[open]').count() !== 0) throw new Error('collapse all inspection records failed');
 }
+const workbenchScopeAfter = await page.evaluate(() => ({site: document.querySelector('#site')?.value, unit: document.querySelector('#unit')?.value, outage: document.querySelector('#outage')?.value}));
+if (JSON.stringify(workbenchScopeAfter) !== JSON.stringify(workbenchScopeBefore)) throw new Error(`3D filters changed workbench filters: ${JSON.stringify({workbenchScopeBefore, workbenchScopeAfter})}`);
 await model.locator('[data-embedded-view="overview"]').click();
 await model.locator('#embeddedTubeSelect').evaluate(input => { input.value = '2'; input.dispatchEvent(new Event('input', { bubbles: true })); });
 if (!await model.locator('[data-embedded-view="overview"]').evaluate(button => button.classList.contains('active'))) throw new Error('tube selector unexpectedly left overview mode');
@@ -66,6 +69,8 @@ await page.locator('[data-view="reports"]').click();
 await page.screenshot({ path: 'tmp/browser/ui-reports.png', fullPage: true });
 await page.locator('[data-view="settings"]').click();
 await page.locator('#reportPolicy').selectOption('latest');
+await page.locator('#databaseDedup').waitFor();
+if (!await page.locator('#runDeduplicate').isVisible() || await page.locator('#dedupFindingCount').textContent() === '--') throw new Error('database deduplication panel did not load');
 await page.screenshot({ path: 'tmp/browser/ui-settings.png', fullPage: true });
 await page.locator('[data-view="workspace"]').click();
 if (await page.locator('#pageSize').inputValue() !== '100') throw new Error('default page size is not 100');

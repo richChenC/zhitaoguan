@@ -2,7 +2,7 @@ const section = document.querySelector('#threeD');
 const frame = document.createElement('iframe');
 frame.id = 'threeModelFrame';
 frame.className = 'three-model-frame';
-frame.src = '/visualizations/thimble/index.html?embedded=1&v=20260808b';
+frame.src = '/visualizations/thimble/index.html?embedded=1&v=20260808c';
 frame.title = '指套管三维结构与缺陷模型';
 frame.setAttribute('allow', 'fullscreen');
 
@@ -28,7 +28,6 @@ style.textContent = `
 section.append(style);
 
 let latestScope = {};
-let applyingFromThree = false;
 
 function readScope() {
   return {
@@ -89,25 +88,17 @@ function sync(scope) {
 }
 
 async function applyThreeSelection() {
-  if (applyingFromThree) return;
-  applyingFromThree = true;
   const scope = {
     site: document.querySelector('#threeSite')?.value || '',
     unit: document.querySelector('#threeUnit')?.value || '',
     outage: document.querySelector('#threeOutage')?.value || ''
   };
-  try {
-    latestScope = scope;
-    await window.workspaceApplyScope?.(scope);
-    sync(scope);
-  } finally {
-    applyingFromThree = false;
-  }
+  latestScope = scope;
+  sync(scope);
 }
 
 frame.addEventListener('load', () => sync(Object.keys(latestScope).length ? latestScope : readScope()));
 window.addEventListener('workspace-filter-changed', event => {
-  if (applyingFromThree) return;
   latestScope = {...readScope(), ...(event.detail || {})};
   fillScopeControls(latestScope);
   // Keep row selection cheap while the workbench is visible. The 3D iframe
@@ -120,15 +111,9 @@ window.addEventListener('three-focus-tube', event => {
   sync(latestScope);
   send('thimble-focus', {thimble: Number(detail.thimble || 1)});
 });
-window.addEventListener('message', async event => {
+window.addEventListener('message', event => {
   if (event.origin !== location.origin || event.data?.type !== 'thimble-selected') return;
   const detail = event.data;
-  applyingFromThree = true;
-  try {
-    await window.workspaceSelectTube?.(Number(detail.thimble || 0));
-  } finally {
-    applyingFromThree = false;
-  }
   latestScope = {...latestScope, thimble: String(detail.thimble || ''), selectedItems: []};
   send('thimble-focus', {thimble: Number(detail.thimble || 1)});
   window.dispatchEvent(new CustomEvent('three-tube-selected', {detail}));

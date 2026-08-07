@@ -118,6 +118,52 @@ class Finding:
     width: str = ""
     comment: str = ""
     source_key: str = ""
+    business_key: str = ""
+
+
+BUSINESS_KEY_FIELDS = (
+    "outage", "unit_id", "thimble_id", "position", "entry_no", "volts", "degrees",
+    "indication", "percent", "channel", "location", "datapoint", "liss_region_size",
+    "analyst", "analysis", "filename", "calgroup", "site_code", "site_owner", "component",
+    "tester", "probe", "column_no", "channel_id", "measurement_type", "uid", "distance",
+    "extent", "length", "width", "comment",
+)
+
+
+def finding_business_key(values) -> str:
+    """Identity of one report record, excluding import time and machine paths."""
+    def read(name):
+        value_ = values.get(name) if isinstance(values, dict) else getattr(values, name, None)
+        return "" if value_ is None else str(value_).strip().casefold()
+    payload = "\x1f".join(read(name) for name in BUSINESS_KEY_FIELDS)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def audit_duplicate(db: sqlite3.Connection, values: dict, action: str = "skipped") -> None:
+    business_key = values.get("business_key") or finding_business_key(values)
+    kept = db.execute("SELECT id FROM findings WHERE business_key=? ORDER BY id LIMIT 1", (business_key,)).fetchone()
+    db.execute("""INSERT INTO duplicate_records(
+        detected_at,kept_finding_id,duplicate_source_key,business_key,reason,source_path,payload_json,action
+    ) VALUES(?,?,?,?,?,?,?,?)""", (
+        datetime.now().isoformat(timespec="seconds"), kept["id"] if kept else None,
+        values.get("source_key", ""), business_key, "完全相同的检测记录",
+        values.get("report_path") or values.get("filepath") or "",
+        json.dumps(values, ensure_ascii=False, default=str), action,
+    ))
+
+
+def duplicate_summary(limit: int = 100) -> dict:
+    with connect() as db:
+        total = db.execute("SELECT COUNT(*) FROM findings").fetchone()[0]
+        duplicate_count = db.execute("SELECT COUNT(*) FROM duplicate_records").fetchone()[0]
+        rows = db.execute("""SELECT id,detected_at,kept_finding_id,reason,source_path,action
+            FROM duplicate_records ORDER BY id DESC LIMIT ?""", (max(1, min(limit, 500)),)).fetchall()
+    return {"findings": total, "duplicates": duplicate_count, "items": [dict(row) for row in rows]}
+
+
+def deduplicate_database() -> dict:
+    init_db()
+    return duplicate_summary()
 
 
 @dataclass(frozen=True)
@@ -385,6 +431,10 @@ def init_db() -> None:
             backup = DB_PATH.with_suffix(DB_PATH.suffix + ".before-raw-fields.bak")
             if not backup.exists():
                 shutil.copy2(DB_PATH, backup)
+        if columns and "business_key" not in columns:
+            backup = DB_PATH.with_suffix(DB_PATH.suffix + ".before-dedup.bak")
+            if not backup.exists():
+                shutil.copy2(DB_PATH, backup)
     with connect() as db:
         # WAL keeps the desktop UI responsive while an import or export is running.
         db.execute("PRAGMA journal_mode=WAL")
@@ -399,12 +449,18 @@ def init_db() -> None:
           tester TEXT DEFAULT '', probe TEXT DEFAULT '', column_no INTEGER, channel_id TEXT DEFAULT '',
           measurement_type TEXT DEFAULT '', uid TEXT DEFAULT '', distance TEXT DEFAULT '', extent TEXT DEFAULT '',
           length TEXT DEFAULT '', width TEXT DEFAULT '', comment TEXT DEFAULT '', source_key TEXT,
+          business_key TEXT,
           imported_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS tube_states (
           outage TEXT NOT NULL, unit_id INTEGER NOT NULL, thimble_id INTEGER NOT NULL,
           state TEXT NOT NULL DEFAULT 'normal', offset_mm REAL NOT NULL DEFAULT 0,
           note TEXT NOT NULL DEFAULT '', PRIMARY KEY(outage, unit_id, thimble_id)
+        );
+        CREATE TABLE IF NOT EXISTS duplicate_records (
+          id INTEGER PRIMARY KEY, detected_at TEXT NOT NULL, kept_finding_id INTEGER,
+          duplicate_source_key TEXT, business_key TEXT NOT NULL, reason TEXT NOT NULL,
+          source_path TEXT DEFAULT '', payload_json TEXT NOT NULL, action TEXT NOT NULL
         );
         """)
         columns = {row[1] for row in db.execute("PRAGMA table_info(findings)")}
@@ -421,6 +477,7 @@ def init_db() -> None:
               tester TEXT DEFAULT '', probe TEXT DEFAULT '', column_no INTEGER, channel_id TEXT DEFAULT '',
               measurement_type TEXT DEFAULT '', uid TEXT DEFAULT '', distance TEXT DEFAULT '', extent TEXT DEFAULT '',
               length TEXT DEFAULT '', width TEXT DEFAULT '', comment TEXT DEFAULT '', source_key TEXT,
+              business_key TEXT,
               imported_at TEXT NOT NULL
             );
             INSERT INTO findings (
@@ -432,6 +489,26 @@ def init_db() -> None:
               calgroup,report_path,imported_at FROM findings_legacy;
             DROP TABLE findings_legacy;
             """)
+        columns = {row[1] for row in db.execute("PRAGMA table_info(findings)")}
+        if "business_key" not in columns:
+            db.execute("ALTER TABLE findings ADD COLUMN business_key TEXT")
+        db.execute("DROP INDEX IF EXISTS idx_findings_business_key")
+        rows = db.execute("SELECT * FROM findings WHERE business_key IS NULL OR business_key='' ORDER BY id").fetchall()
+        for row in rows:
+            db.execute("UPDATE findings SET business_key=? WHERE id=?", (finding_business_key(dict(row)), row["id"]))
+        duplicates = db.execute("""SELECT business_key, MIN(id) kept_id, GROUP_CONCAT(id) ids
+            FROM findings WHERE business_key IS NOT NULL AND business_key<>''
+            GROUP BY business_key HAVING COUNT(*)>1""").fetchall()
+        for duplicate in duplicates:
+            for duplicate_id in (int(value_) for value_ in duplicate["ids"].split(",")):
+                if duplicate_id == duplicate["kept_id"]: continue
+                row = db.execute("SELECT * FROM findings WHERE id=?", (duplicate_id,)).fetchone()
+                db.execute("""INSERT INTO duplicate_records(
+                    detected_at,kept_finding_id,duplicate_source_key,business_key,reason,source_path,payload_json,action
+                ) VALUES(?,?,?,?,?,?,?,?)""", (datetime.now().isoformat(timespec="seconds"), duplicate["kept_id"],
+                    row["source_key"], duplicate["business_key"], "完全相同的检测记录", row["report_path"] or row["filepath"] or "",
+                    json.dumps(dict(row), ensure_ascii=False, default=str), "removed"))
+                db.execute("DELETE FROM findings WHERE id=?", (duplicate_id,))
         db.execute("DELETE FROM findings WHERE thimble_id NOT BETWEEN 1 AND 50")
         # Query paths are consistently scoped by outage, unit and tube; keep these
         # indexes local to SQLite so imports remain portable and fast.
@@ -441,6 +518,8 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_findings_location ON findings(unit_id, thimble_id, location);
         DROP INDEX IF EXISTS idx_findings_source_key;
         CREATE UNIQUE INDEX idx_findings_source_key ON findings(source_key) WHERE source_key IS NOT NULL AND source_key<>'';
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_business_key ON findings(business_key) WHERE business_key IS NOT NULL AND business_key<>'';
+        CREATE INDEX IF NOT EXISTS idx_duplicate_records_detected ON duplicate_records(detected_at DESC);
         CREATE INDEX IF NOT EXISTS idx_findings_site_scope ON findings(site_code, unit_id, outage, thimble_id);
         CREATE INDEX IF NOT EXISTS idx_tube_states_scope ON tube_states(outage, unit_id, thimble_id);
         """)
@@ -625,12 +704,15 @@ def import_directory(directory: str, selected_reports: list[str] | None = None) 
         for finding in processed["findings"]:
             parsed += 1
             columns = asdict(finding)
+            columns["business_key"] = finding_business_key(columns)
             columns["imported_at"] = datetime.now().isoformat(timespec="seconds")
             keys = list(columns)
             sql = f"INSERT OR IGNORE INTO findings ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)})"
             cur = db.execute(sql, [columns[key] for key in keys])
             inserted += cur.rowcount
             skipped += 1 - cur.rowcount
+            if not cur.rowcount:
+                audit_duplicate(db, columns)
     return {"reports": len(reports), "parsed": parsed, "inserted": inserted, "skipped": skipped, "errors": errors,
             "raw_report_rows": len(processed["report_rows"]), "tubes": len(processed["tube_summary"]),
             "calibration_ect": len(processed["calibration_ect"]), "unreported_ect": len(processed["unreported_ect"])}
@@ -727,12 +809,15 @@ def import_excel_file(filename: str) -> dict:
             ))
             finding.source_key = hashlib.sha256(excel_identity.encode("utf-8")).hexdigest()
             columns = asdict(finding)
+            columns["business_key"] = finding_business_key(columns)
             columns["imported_at"] = datetime.now().isoformat(timespec="seconds")
             keys = list(columns)
             sql = f"INSERT OR IGNORE INTO findings ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)})"
             cur = db.execute(sql, [columns[key] for key in keys])
             inserted += cur.rowcount
             skipped += 1 - cur.rowcount
+            if not cur.rowcount:
+                audit_duplicate(db, columns)
     return {"file": str(source), "sheet": sheet.title, "header_row": header_row, "parsed": parsed, "inserted": inserted, "skipped": skipped, "invalid_rows": invalid[:100]}
 
 
@@ -1668,6 +1753,7 @@ class Handler(SimpleHTTPRequestHandler):
         try:
             if parsed.path == "/api/health": return self.json_response(health_status())
             if parsed.path == "/api/overview": return self.json_response(overview())
+            if parsed.path == "/api/duplicates": return self.json_response(duplicate_summary())
             if parsed.path == "/api/states": return self.json_response(query_states())
             if parsed.path == "/api/findings": return self.json_response(query_findings(parse_qs(parsed.query)))
             if parsed.path == "/api/tube-history":
@@ -1694,6 +1780,7 @@ class Handler(SimpleHTTPRequestHandler):
             if self.path == "/api/discover-server": return self.json_response(discover_server_sources(data.get("path", "")))
             if self.path == "/api/import": return self.json_response(import_directory(data.get("path", ""), data.get("reports")))
             if self.path == "/api/import-excel": return self.json_response(import_excel_file(data.get("path", "")))
+            if self.path == "/api/deduplicate": return self.json_response(deduplicate_database())
             if self.path == "/api/export-comparison":
                 outages = data.get("outages") or []
                 if len(outages) >= 2:
