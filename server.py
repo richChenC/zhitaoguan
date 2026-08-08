@@ -119,6 +119,8 @@ class Finding:
     comment: str = ""
     source_key: str = ""
     business_key: str = ""
+    source_indication: str = ""
+    indication_resolution: str = "source"
 
 
 BUSINESS_KEY_FIELDS = (
@@ -449,7 +451,7 @@ def init_db() -> None:
           tester TEXT DEFAULT '', probe TEXT DEFAULT '', column_no INTEGER, channel_id TEXT DEFAULT '',
           measurement_type TEXT DEFAULT '', uid TEXT DEFAULT '', distance TEXT DEFAULT '', extent TEXT DEFAULT '',
           length TEXT DEFAULT '', width TEXT DEFAULT '', comment TEXT DEFAULT '', source_key TEXT,
-          business_key TEXT,
+          business_key TEXT, source_indication TEXT DEFAULT '', indication_resolution TEXT DEFAULT 'source',
           imported_at TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS tube_states (
@@ -461,6 +463,11 @@ def init_db() -> None:
           id INTEGER PRIMARY KEY, detected_at TEXT NOT NULL, kept_finding_id INTEGER,
           duplicate_source_key TEXT, business_key TEXT NOT NULL, reason TEXT NOT NULL,
           source_path TEXT DEFAULT '', payload_json TEXT NOT NULL, action TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS indication_resolution_audit (
+          id INTEGER PRIMARY KEY, finding_id INTEGER NOT NULL, changed_at TEXT NOT NULL,
+          source_indication TEXT DEFAULT '', resolved_indication TEXT NOT NULL,
+          action TEXT NOT NULL, source_path TEXT DEFAULT ''
         );
         """)
         columns = {row[1] for row in db.execute("PRAGMA table_info(findings)")}
@@ -477,7 +484,7 @@ def init_db() -> None:
               tester TEXT DEFAULT '', probe TEXT DEFAULT '', column_no INTEGER, channel_id TEXT DEFAULT '',
               measurement_type TEXT DEFAULT '', uid TEXT DEFAULT '', distance TEXT DEFAULT '', extent TEXT DEFAULT '',
               length TEXT DEFAULT '', width TEXT DEFAULT '', comment TEXT DEFAULT '', source_key TEXT,
-              business_key TEXT,
+              business_key TEXT, source_indication TEXT DEFAULT '', indication_resolution TEXT DEFAULT 'source',
               imported_at TEXT NOT NULL
             );
             INSERT INTO findings (
@@ -492,6 +499,15 @@ def init_db() -> None:
         columns = {row[1] for row in db.execute("PRAGMA table_info(findings)")}
         if "business_key" not in columns:
             db.execute("ALTER TABLE findings ADD COLUMN business_key TEXT")
+        columns = {row[1] for row in db.execute("PRAGMA table_info(findings)")}
+        if "source_indication" not in columns:
+            db.execute("ALTER TABLE findings ADD COLUMN source_indication TEXT DEFAULT ''")
+            db.execute("UPDATE findings SET source_indication=COALESCE(indication,'')")
+        if "indication_resolution" not in columns:
+            db.execute("ALTER TABLE findings ADD COLUMN indication_resolution TEXT DEFAULT 'source'")
+            db.execute("""UPDATE findings SET indication_resolution='unreviewed'
+                WHERE TRIM(COALESCE(indication,''))='' AND
+                (TRIM(COALESCE(location,''))<>'' OR UPPER(TRIM(COALESCE(measurement_type,''))) NOT IN ('','NONE'))""")
         db.execute("DROP INDEX IF EXISTS idx_findings_business_key")
         rows = db.execute("SELECT * FROM findings WHERE business_key IS NULL OR business_key='' ORDER BY id").fetchall()
         for row in rows:
@@ -520,6 +536,7 @@ def init_db() -> None:
         CREATE UNIQUE INDEX idx_findings_source_key ON findings(source_key) WHERE source_key IS NOT NULL AND source_key<>'';
         CREATE UNIQUE INDEX IF NOT EXISTS idx_findings_business_key ON findings(business_key) WHERE business_key IS NOT NULL AND business_key<>'';
         CREATE INDEX IF NOT EXISTS idx_duplicate_records_detected ON duplicate_records(detected_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_indication_resolution_audit_finding ON indication_resolution_audit(finding_id,changed_at DESC);
         CREATE INDEX IF NOT EXISTS idx_findings_site_scope ON findings(site_code, unit_id, outage, thimble_id);
         CREATE INDEX IF NOT EXISTS idx_tube_states_scope ON tube_states(outage, unit_id, thimble_id);
         """)
@@ -540,6 +557,31 @@ def blank_indication_summary(findings: list[Finding], limit: int = 100) -> dict:
     } for row in rows[:limit]]
     return {"count": len(rows), "tubes": len({(row.outage, row.unit_id, row.thimble_id) for row in rows}),
             "sources": len({row.report_path for row in rows}), "items": samples}
+
+
+def indication_columns(finding: Finding, policy: str) -> dict:
+    columns = asdict(finding)
+    source = finding.indication.strip()
+    columns["source_indication"] = source
+    if not source and is_indication_record(finding):
+        columns["indication_resolution"] = "bulk_war" if policy == "fill_war" else "review"
+        if policy == "fill_war":
+            columns["indication"] = "WAR"
+    else:
+        columns["indication_resolution"] = "source"
+    return columns
+
+
+def audit_indication_resolution(db: sqlite3.Connection, finding_id: int, columns: dict) -> None:
+    if columns.get("indication_resolution") != "bulk_war":
+        return
+    exists = db.execute("SELECT 1 FROM indication_resolution_audit WHERE finding_id=? AND action='bulk_war'", (finding_id,)).fetchone()
+    if not exists:
+        db.execute("""INSERT INTO indication_resolution_audit(
+            finding_id,changed_at,source_indication,resolved_indication,action,source_path
+        ) VALUES(?,?,?,?,?,?)""", (finding_id, datetime.now().isoformat(timespec="seconds"),
+            columns.get("source_indication", ""), "WAR", "bulk_war",
+            columns.get("report_path") or columns.get("filepath") or ""))
 
 
 def display_indication(row) -> str:
@@ -728,14 +770,15 @@ def import_directory(directory: str, selected_reports: list[str] | None = None, 
     parsed = inserted = skipped = 0
     errors = list(processed["parse_errors"]) + list(processed["report_reference_errors"])
     blank_indication = blank_indication_summary(processed["findings"])
-    if blank_indication["count"] and blank_indication_policy != "review":
+    if blank_indication["count"] and blank_indication_policy not in {"review", "fill_war"}:
         return {"requires_indication_decision": True, "blank_indication": blank_indication,
                 "reports": len(reports), "parsed": len(processed["findings"]), "inserted": 0, "skipped": 0, "errors": errors}
     with connect() as db:
         for finding in processed["findings"]:
             parsed += 1
-            columns = asdict(finding)
-            columns["business_key"] = finding_business_key(columns)
+            raw_columns = asdict(finding)
+            columns = indication_columns(finding, blank_indication_policy)
+            columns["business_key"] = finding_business_key(raw_columns)
             columns["imported_at"] = datetime.now().isoformat(timespec="seconds")
             keys = list(columns)
             sql = f"INSERT OR IGNORE INTO findings ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)})"
@@ -744,6 +787,10 @@ def import_directory(directory: str, selected_reports: list[str] | None = None, 
             skipped += 1 - cur.rowcount
             if not cur.rowcount:
                 audit_duplicate(db, columns)
+            finding_row = db.execute("SELECT id,indication_resolution FROM findings WHERE source_key=? ORDER BY id LIMIT 1", (columns["source_key"],)).fetchone()
+            if finding_row and columns["indication_resolution"] == "bulk_war":
+                db.execute("UPDATE findings SET indication='WAR',source_indication='',indication_resolution='bulk_war' WHERE id=?", (finding_row["id"],))
+                audit_indication_resolution(db, finding_row["id"], columns)
     return {"reports": len(reports), "parsed": parsed, "inserted": inserted, "skipped": skipped, "errors": errors,
             "blank_indication": blank_indication,
             "raw_report_rows": len(processed["report_rows"]), "tubes": len(processed["tube_summary"]),
@@ -850,8 +897,9 @@ def import_excel_file(filename: str, blank_indication_policy: str = "") -> dict:
             pending.append(finding)
             if dry_run:
                 continue
-            columns = asdict(finding)
-            columns["business_key"] = finding_business_key(columns)
+            raw_columns = asdict(finding)
+            columns = indication_columns(finding, blank_indication_policy)
+            columns["business_key"] = finding_business_key(raw_columns)
             columns["imported_at"] = datetime.now().isoformat(timespec="seconds")
             keys = list(columns)
             sql = f"INSERT OR IGNORE INTO findings ({','.join(keys)}) VALUES ({','.join('?' for _ in keys)})"
@@ -860,6 +908,10 @@ def import_excel_file(filename: str, blank_indication_policy: str = "") -> dict:
             skipped += 1 - cur.rowcount
             if not cur.rowcount:
                 audit_duplicate(db, columns)
+            finding_row = db.execute("SELECT id,indication_resolution FROM findings WHERE source_key=? ORDER BY id LIMIT 1", (columns["source_key"],)).fetchone()
+            if finding_row and columns["indication_resolution"] == "bulk_war":
+                db.execute("UPDATE findings SET indication='WAR',source_indication='',indication_resolution='bulk_war' WHERE id=?", (finding_row["id"],))
+                audit_indication_resolution(db, finding_row["id"], columns)
     return {"file": str(source), "sheet": sheet.title, "header_row": header_row, "parsed": parsed,
             "inserted": inserted, "skipped": skipped, "invalid_rows": invalid[:100],
             "blank_indication": blank_indication_summary(pending)}

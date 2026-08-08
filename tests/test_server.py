@@ -353,9 +353,30 @@ class ParserTests(unittest.TestCase):
                 with server.connect() as connection:
                     self.assertEqual(connection.execute("SELECT COUNT(*) FROM findings").fetchone()[0], 0)
                 confirmed = server.import_excel_file(str(source), "review")
+                resolved = server.import_excel_file(str(source), "fill_war")
+                with server.connect() as connection:
+                    resolved_row = connection.execute("SELECT indication,source_indication,indication_resolution FROM findings").fetchone()
             self.assertTrue(warning["requires_indication_decision"])
             self.assertEqual(warning["blank_indication"]["count"], 1)
             self.assertEqual(confirmed["inserted"], 1)
+            self.assertEqual(resolved["inserted"], 0)
+            self.assertEqual(tuple(resolved_row), ("WAR", "", "bulk_war"))
+
+    def test_excel_import_can_bulk_resolve_blank_indications_to_war_with_audit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, db = Path(directory) / "bulk-war.xlsx", Path(directory) / "test.db"
+            book = Workbook(); sheet = book.active
+            sheet.append(["Outage", "Unit Number", "Thimble ID", "Core Position", "Amplitude", "Wear Percent", "Defect", "Measurement Channel", "Wear Location", "Analyst"])
+            sheet.append(["F107", 1, 12, "F13", 4.91, 51, "", "P1: 4-6", "P1+42", "ZWY"])
+            book.save(source); book.close()
+            with patch.object(server, "DB_PATH", db):
+                server.init_db(); result = server.import_excel_file(str(source), "fill_war")
+                with server.connect() as connection:
+                    row = connection.execute("SELECT indication,source_indication,indication_resolution FROM findings").fetchone()
+                    audit = connection.execute("SELECT source_indication,resolved_indication,action FROM indication_resolution_audit").fetchone()
+            self.assertEqual(result["inserted"], 1)
+            self.assertEqual(tuple(row), ("WAR", "", "bulk_war"))
+            self.assertEqual(tuple(audit), ("", "WAR", "bulk_war"))
 
     def test_folder_import_requires_confirmation_for_blank_indication_measurement(self):
         with tempfile.TemporaryDirectory() as directory:
