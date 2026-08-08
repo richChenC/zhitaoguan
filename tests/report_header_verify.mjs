@@ -34,6 +34,14 @@ try {
   if (state.speed.top !== state.sampleRate.top) throw new Error('speed and sample rate must share one row');
   if (state.frequency.top !== state.procedureBox.top || state.frequency.top <= state.speed.top) throw new Error('frequency and procedure must share the final row');
   if (state.speed.width <= state.componentNoBox.width || state.procedureBox.width <= state.componentNoBox.width) throw new Error('merged report value cells have invalid proportions');
+  const configRoundTrip = await page.evaluate(() => {
+    const original = document.querySelector('#reportRoom').value;
+    const config = reportHeaderConfig();
+    document.querySelector('#reportRoom').value = 'TEMP';
+    applyReportHeaderConfig(JSON.stringify(config));
+    return {schema: config.schema, version: config.version, restored: document.querySelector('#reportRoom').value === original};
+  });
+  if (configRoundTrip.schema !== 'thimble-report-header' || configRoundTrip.version !== 1 || !configRoundTrip.restored) throw new Error('report header config round-trip failed');
   if (await page.locator('#reportUnit').inputValue() && await page.locator('#reportOutage').inputValue()) {
     await page.locator('#reportInlinePreview .report-sheet').waitFor({timeout: 15000});
   }

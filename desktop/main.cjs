@@ -153,6 +153,21 @@ ipcMain.handle('save-core-image', async (_event, payload = {}) => {
   await fs.promises.writeFile(result.filePath, image, { flag: 'w' });
   return result.filePath;
 });
+ipcMain.handle('open-report-header', async () => {
+  const result = await dialog.showOpenDialog({ title: '导入报告表头设置', properties: ['openFile'], filters: [{ name: '报告表头设置', extensions: ['json'] }] });
+  if (result.canceled || !result.filePaths[0]) return null;
+  return fs.promises.readFile(result.filePaths[0], 'utf8');
+});
+ipcMain.handle('save-report-header', async (_event, payload = {}) => {
+  const content = String(payload.content || '');
+  if (!content || Buffer.byteLength(content, 'utf8') > 256 * 1024) throw new Error('报告表头设置内容无效');
+  JSON.parse(content);
+  const defaultName = String(payload.defaultName || '报告表头设置.json').replace(/[<>:"/\\|?*]/g, '_');
+  const result = await dialog.showSaveDialog({ title: '导出报告表头设置', defaultPath: path.join(app.getPath('documents'), defaultName), filters: [{ name: '报告表头设置', extensions: ['json'] }] });
+  if (result.canceled || !result.filePath) return null;
+  await fs.promises.writeFile(result.filePath, content, 'utf8');
+  return result.filePath;
+});
 app.on('window-all-closed', () => app.quit());
 app.on('before-quit', () => {
   if (serverProcess && !serverProcess.killed) serverProcess.kill();

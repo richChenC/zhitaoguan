@@ -2,7 +2,7 @@ const section = document.querySelector('#threeD');
 const frame = document.createElement('iframe');
 frame.id = 'threeModelFrame';
 frame.className = 'three-model-frame';
-frame.src = '/visualizations/thimble/index.html?embedded=1&v=20260808d';
+frame.src = '/visualizations/thimble/index.html?embedded=1&v=20260808e';
 frame.title = '指套管三维结构与缺陷模型';
 frame.setAttribute('allow', 'fullscreen');
 

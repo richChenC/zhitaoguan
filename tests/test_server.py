@@ -154,6 +154,8 @@ class ParserTests(unittest.TestCase):
                     selected_id = connection.execute("SELECT id FROM findings WHERE outage='H209' AND thimble_id=1").fetchone()[0]
                 preview = server.build_inspection_preview("H209", 2, {}, [selected_id])
                 self.assertEqual(preview["rows"], 1)
+                self.assertEqual(preview["html"].count("class='wide-value'"), 4)
+                self.assertNotIn("<section class='report-info'><div>", preview["html"])
                 result = server.export_inspection_docx("H209", 2, {}, [selected_id])
                 with zipfile.ZipFile(result["file_path"]) as archive:
                     document_xml = archive.read("word/document.xml").decode("utf-8")

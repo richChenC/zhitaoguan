@@ -1699,7 +1699,9 @@ def build_inspection_preview(outage: str, unit: int, metadata: dict, finding_ids
     rows = inspection_report_rows(outage, unit, finding_ids)
     metadata = enrich_report_metadata(metadata, rows, outage, unit)
     title = metadata.get("title") or "反应堆中子通量测量指套管涡流检验报告单"
-    info = "".join(f"<div><span>{html.escape(label)}</span><b>{html.escape(value or '待填写')}</b></div>" for label, value in report_metadata(metadata, outage, unit))
+    fields = report_metadata(metadata, outage, unit)
+    info = "".join(f"<span>{html.escape(label)}</span><b>{html.escape(value or '待填写')}</b>" for label, value in fields[:18])
+    info += "".join(f"<span>{html.escape(label)}</span><b class='wide-value'>{html.escape(value or '待填写')}</b>" for label, value in fields[18:])
     body_rows = []
     for index, (row, rowspan) in enumerate(zip(rows, report_tube_rowspans(rows)), 1):
         tube_cells = ""

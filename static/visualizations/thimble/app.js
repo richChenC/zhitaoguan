@@ -70,6 +70,7 @@ const fastenerMetal=new THREE.MeshPhysicalMaterial({color:0xb7c1bc,metalness:.8,
 const layerRingMaterial=new THREE.MeshPhysicalMaterial({color:0x9ba9a2,metalness:.86,roughness:.22,envMapIntensity:1.25,clearcoat:.28,clearcoatRoughness:.24});
 const layerAccent='#d7ef4a';
 const supportMaterials=[];
+function registerSupportMaterial(material,opacity=material.opacity){material.transparent=true;material.opacity=opacity;material.depthWrite=false;material.side=THREE.DoubleSide;material.userData.baseOpacity=opacity;supportMaterials.push(material);return material}
 const thimbleTopY=1.82,thimbleBottomY=-6.55,thimbleBodyHeight=thimbleTopY-thimbleBottomY,thimbleBodyCenter=(thimbleTopY+thimbleBottomY)/2;
 const coreTopY=1.95,coreBottomY=-6.9;
 
@@ -90,11 +91,11 @@ function buildCore(){
 }
 
 function buildInternalStructures(){
-  const plateMetal=metal.clone(),plateDark=darkMetal.clone();plateMetal.color.set(0x879b92);plateDark.color.set(0x3f5149);[plateMetal,plateDark].forEach(material=>{material.transparent=true;material.opacity=.52;material.depthWrite=true});supportMaterials.push(plateMetal,plateDark);
-  const gridMaterial=plateDark.clone();gridMaterial.opacity=.3;gridMaterial.depthWrite=false;supportMaterials.push(gridMaterial);
+  const plateMetal=registerSupportMaterial(metal.clone(),.52),plateDark=registerSupportMaterial(darkMetal.clone(),.52);plateMetal.color.set(0x879b92);plateDark.color.set(0x3f5149);
+  const gridMaterial=registerSupportMaterial(plateDark.clone(),.3);
   // P1: thin lower grid plate, visually distinct from the solid support plate.
   const lowerGrid=new THREE.Mesh(new THREE.CylinderGeometry(8.55,8.55,.14,96),gridMaterial);lowerGrid.position.y=1.35;structureGroup.add(lowerGrid);
-  const gridBarMaterial=edgeMetal.clone();gridBarMaterial.transparent=true;gridBarMaterial.opacity=.5;gridBarMaterial.depthWrite=false;supportMaterials.push(gridBarMaterial);
+  const gridBarMaterial=registerSupportMaterial(edgeMetal.clone(),.5);
   for(let i=-6;i<=6;i++){
     const xBar=new THREE.Mesh(new THREE.BoxGeometry(15.6,.055,.055),gridBarMaterial);xBar.position.set(0,1.45,i*1.08);structureGroup.add(xBar);
     const zBar=new THREE.Mesh(new THREE.BoxGeometry(.055,.055,15.6),gridBarMaterial);zBar.position.set(i*1.08,1.45,0);structureGroup.add(zBar);
@@ -104,9 +105,9 @@ function buildInternalStructures(){
   for(let i=0;i<12;i++){const a=i/12*Math.PI*2,col=cylinder(.24,3.05,plateDark,16);col.position.set(Math.cos(a)*6.4,-1.65,Math.sin(a)*6.4);structureGroup.add(col)}
   // P4: smaller, darker grid frame at the support-column connection.
   const gridPlate=new THREE.Mesh(new THREE.CylinderGeometry(7.35,7.35,.2,96),plateDark);gridPlate.position.y=-3.05;structureGroup.add(gridPlate);
-  const cellFillMaterial=new THREE.MeshBasicMaterial({color:0x70877d,transparent:true,opacity:.08,depthWrite:false,side:THREE.DoubleSide});
-  const cellEdgeMaterial=new THREE.LineBasicMaterial({color:0xb8cbc3,transparent:true,opacity:.58});supportMaterials.push(cellFillMaterial,cellEdgeMaterial);
-  [1.44,.46,-.46,-3.04].forEach((y,layerIndex)=>POSITIONS.forEach((position,index)=>{const{x,z}=coordinate(position),cell=new THREE.Group();cell.position.set(x,y,z);cell.userData.index=index;cell.userData.layer=layerIndex;const fillMaterial=cellFillMaterial.clone();fillMaterial.opacity=layerIndex===0?.11:.025;fillMaterial.depthWrite=false;const edgeMaterial=cellEdgeMaterial.clone();edgeMaterial.color.set(layerIndex===0?0xd7e9df:layerIndex===1?0xa7c2b8:0x71877e);edgeMaterial.opacity=layerIndex===0?.72:.34;const fill=new THREE.Mesh(new THREE.BoxGeometry(.99,.028,.99),fillMaterial);const edge=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(.99,.03,.99)),edgeMaterial);cell.add(fill,edge);structureGroup.add(cell);tubeSquareCells.push(cell)}));
+  const cellFillMaterial=new THREE.MeshBasicMaterial({color:0x70877d,side:THREE.DoubleSide});
+  const cellEdgeMaterial=new THREE.LineBasicMaterial({color:0xb8cbc3});
+  [1.44,.46,-.46,-3.04].forEach((y,layerIndex)=>POSITIONS.forEach((position,index)=>{const{x,z}=coordinate(position),cell=new THREE.Group();cell.position.set(x,y,z);cell.userData.index=index;cell.userData.layer=layerIndex;const fillMaterial=registerSupportMaterial(cellFillMaterial.clone(),.07);const edgeMaterial=registerSupportMaterial(cellEdgeMaterial.clone(),.48);const fill=new THREE.Mesh(new THREE.BoxGeometry(.99,.028,.99),fillMaterial);const edge=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(.99,.03,.99)),edgeMaterial);cell.add(fill,edge);structureGroup.add(cell);tubeSquareCells.push(cell)}));
   const vesselWall=new THREE.Mesh(new THREE.CylinderGeometry(9.5,9.5,10.6,96,1,true),shellMaterial);vesselWall.position.y=-.3;shellGroup.add(vesselWall);
   const upperHead=new THREE.Mesh(new THREE.SphereGeometry(9.5,96,36,0,Math.PI*2,0,Math.PI/2),shellMaterial);upperHead.scale.y=.38;upperHead.position.y=5;shellGroup.add(upperHead);
   const lowerHead=new THREE.Mesh(new THREE.SphereGeometry(9.5,96,36,0,Math.PI*2,Math.PI/2,Math.PI/2),shellMaterial);lowerHead.scale.y=.38;lowerHead.position.y=-5.6;shellGroup.add(lowerHead);
@@ -344,7 +345,7 @@ document.querySelector('#tubeSelect').oninput=e=>{setSelected(+e.target.value-1)
 document.querySelector('#paritySelect').onchange=e=>applyParity(e.target.value);
 document.querySelector('#layerSelect').onchange=updateArtificialDefect;document.querySelector('#offsetInput').oninput=updateArtificialDefect;document.querySelector('#defectColor').oninput=updateArtificialDefect;document.querySelector('#defectSize').oninput=updateArtificialDefect;
 document.querySelector('#coreOpacity').oninput=e=>{fuelMaterial.opacity=Number(e.target.value)/100;document.querySelector('#coreOpacityOutput').textContent=`${e.target.value}%`};
-document.querySelector('#plateOpacity').oninput=e=>{const opacity=Number(e.target.value)/100;supportMaterials.forEach(material=>{material.transparent=opacity<1;material.opacity=opacity;material.depthWrite=opacity>=1;material.needsUpdate=true});document.querySelector('#plateOpacityOutput').textContent=`${e.target.value}%`};
+document.querySelector('#plateOpacity').oninput=e=>{const factor=Number(e.target.value)/100;supportMaterials.forEach(material=>{material.opacity=material.userData.baseOpacity*factor;material.needsUpdate=true});document.querySelector('#plateOpacityOutput').textContent=`${e.target.value}%`};
 document.querySelector('#toggleCore').onclick=e=>{coreVisible=!coreVisible;coreGroup.visible=currentCamera!=='tube'&&coreVisible;e.currentTarget.classList.toggle('active',coreVisible)};
 document.querySelector('#toggleLabels').onclick=e=>{labelsVisible=!labelsVisible;labelsGroup.visible=false;singleTubeLabelsGroup.visible=currentCamera==='tube'&&labelsVisible;e.currentTarget.classList.toggle('active',labelsVisible)};
 document.querySelector('#toggleOrientation').onclick=e=>{orientationVisible=!orientationVisible;orientationGroup.visible=orientationVisible;e.currentTarget.classList.toggle('active',orientationVisible)};
