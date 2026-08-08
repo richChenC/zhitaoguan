@@ -158,7 +158,7 @@ def duplicate_summary(limit: int = 100) -> dict:
     with connect() as db:
         total = db.execute("SELECT COUNT(*) FROM findings").fetchone()[0]
         duplicate_count = db.execute("SELECT COUNT(*) FROM duplicate_records").fetchone()[0]
-        rows = db.execute("""SELECT id,detected_at,kept_finding_id,reason,source_path,action
+        rows = db.execute("""SELECT id,detected_at,kept_finding_id,reason,source_path,payload_json,action
             FROM duplicate_records ORDER BY id DESC LIMIT ?""", (max(1, min(limit, 500)),)).fetchall()
     return {"findings": total, "duplicates": duplicate_count, "items": [dict(row) for row in rows]}
 
