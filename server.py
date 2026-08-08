@@ -1700,7 +1700,8 @@ def build_inspection_preview(outage: str, unit: int, metadata: dict, finding_ids
     metadata = enrich_report_metadata(metadata, rows, outage, unit)
     title = metadata.get("title") or "反应堆中子通量测量指套管涡流检验报告单"
     fields = report_metadata(metadata, outage, unit)
-    info = "".join(f"<span>{html.escape(label)}</span><b>{html.escape(value or '待填写')}</b>" for label, value in fields[:18])
+    info = f"<span>{html.escape(fields[0][0])}</span><b>{html.escape(fields[0][1] or '待填写')}</b><b class='static-title'>涡流检验报告单（TH）</b><span>{html.escape(fields[2][0])}</span><b>{html.escape(fields[2][1] or '待填写')}</b>"
+    info += "".join(f"<span>{html.escape(label)}</span><b>{html.escape(value or '待填写')}</b>" for label, value in fields[3:18])
     info += "".join(f"<span>{html.escape(label)}</span><b class='wide-value'>{html.escape(value or '待填写')}</b>" for label, value in fields[18:])
     body_rows = []
     for index, (row, rowspan) in enumerate(zip(rows, report_tube_rowspans(rows)), 1):

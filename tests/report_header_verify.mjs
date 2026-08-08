@@ -16,10 +16,10 @@ try {
     };
     return {
       fields: document.querySelectorAll('#reportHeaderTable .report-header-cell').length,
-      title: document.querySelector('#reportTitle')?.value,
+      title: document.querySelector('.report-header-static-title')?.textContent,
       componentNo: document.querySelector('#reportComponentNo')?.value,
       procedure: document.querySelector('#reportProcedure')?.value,
-      titleLabelHidden: getComputedStyle(document.querySelector('.report-header-title > span')).display === 'none',
+      titleIsReadOnly: !document.querySelector('#reportTitle'),
       componentNoBox: rect('#reportComponentNo'),
       speed: rect('#reportSpeed'),
       sampleRate: rect('#reportSampleRate'),
@@ -27,10 +27,10 @@ try {
       procedureBox: rect('#reportProcedure'),
     };
   });
-  if (state.fields !== 22) throw new Error(`expected 22 report fields, got ${state.fields}`);
+  if (state.fields !== 21) throw new Error(`expected 21 editable report fields, got ${state.fields}`);
   if (state.title !== '涡流检验报告单（TH）') throw new Error(`unexpected title: ${state.title}`);
   if (!state.componentNo || !state.procedure) throw new Error('formal report defaults are incomplete');
-  if (!state.titleLabelHidden) throw new Error('report title must occupy one merged cell without a duplicate label');
+  if (!state.titleIsReadOnly) throw new Error('report form title must be a fixed merged cell');
   if (state.speed.top !== state.sampleRate.top) throw new Error('speed and sample rate must share one row');
   if (state.frequency.top !== state.procedureBox.top || state.frequency.top <= state.speed.top) throw new Error('frequency and procedure must share the final row');
   if (state.speed.width <= state.componentNoBox.width || state.procedureBox.width <= state.componentNoBox.width) throw new Error('merged report value cells have invalid proportions');
@@ -42,6 +42,10 @@ try {
     return {schema: config.schema, version: config.version, restored: document.querySelector('#reportRoom').value === original};
   });
   if (configRoundTrip.schema !== 'thimble-report-header' || configRoundTrip.version !== 1 || !configRoundTrip.restored) throw new Error('report header config round-trip failed');
+  await page.locator('#toggleReportHeader').click();
+  if (await page.locator('#reportHeaderTable').isVisible()) throw new Error('report header collapse button did not hide the table');
+  await page.locator('#toggleReportHeader').click();
+  if (!await page.locator('#reportHeaderTable').isVisible()) throw new Error('report header expand button did not restore the table');
   if (await page.locator('#reportUnit').inputValue() && await page.locator('#reportOutage').inputValue()) {
     await page.locator('#reportInlinePreview .report-sheet').waitFor({timeout: 15000});
   }
@@ -55,6 +59,14 @@ try {
   if (comparison.firstRowHeaders !== 6 || comparison.secondRowHeaders !== 6) throw new Error('comparison report must use the formal two-level 10-column header');
   if (comparison.text.includes('数据点')) throw new Error('comparison report still contains the removed datapoint columns');
   if (!comparison.footer.includes('R') || !comparison.footer.includes('NI')) throw new Error('comparison result meanings are missing');
+  await page.locator('[data-view="states"]').click();
+  await page.locator('#stateFilterOutage').waitFor();
+  if (await page.locator('#stateFilterOutage').evaluate(element => element.tagName) !== 'SELECT' || await page.locator('#stateFilterUnit').evaluate(element => element.tagName) !== 'SELECT') throw new Error('state filters must use dropdown selectors');
+  await page.locator('[data-view="settings"]').click();
+  await page.locator('#databaseDedup').waitFor();
+  const settingsWidth = await page.locator('.settings-sections').evaluate(element => Math.round(element.getBoundingClientRect().width));
+  if (settingsWidth < 1400) throw new Error(`settings workspace is too narrow: ${settingsWidth}px`);
+  if (!await page.locator('#dedupStatus').count()) throw new Error('deduplication status feedback is missing');
   await page.screenshot({path: 'tmp/report-header-layout.png', fullPage: true});
   console.log(JSON.stringify(state));
 } finally {
