@@ -144,3 +144,61 @@ html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:
 #workspace .flow-mark.side-right span{left:-20px;width:54px}
 @media(max-width:1280px){#workspace .split{grid-template-columns:1fr}#workspace .core-panel{min-width:0;order:-1}}
 @media(max-width:560px){#workspace .core-map{padding:28px!important}.path-marker{width:19px;height:19px}.path-half{font-size:8px}}
+
+/* Reference-board arrow layout: keep the grid centered and reserve equal
+   gutters for the four direction marks instead of letting them collide with
+   the edge cells or coordinate labels. */
+#workspace .core-map{
+  --board-gutter-x:68px;
+  padding:36px var(--board-gutter-x)!important;
+}
+#workspace #coreMap .side-left,
+#workspace #coreMap .side-right{
+  top:calc(7 * var(--cell));
+  width:64px;
+  height:46px;
+  transform:translateY(-18px);
+}
+#workspace #coreMap .side-left{left:-64px}
+#workspace #coreMap .side-right{right:-64px}
+#workspace #coreMap .side-left i{
+  left:0;
+  top:18px;
+  width:46px;
+}
+#workspace #coreMap .side-right i{
+  left:17px;
+  top:18px;
+  width:46px;
+}
+#workspace #coreMap .side-left span{
+  top:31px;
+  left:0;
+  width:46px;
+}
+#workspace #coreMap .side-right b{
+  top:-2px;
+  left:0;
+  width:64px;
+}
+#workspace #coreMap .side-right span{
+  top:31px;
+  left:17px;
+  width:46px;
+}
+#workspace #coreMap .corner{width:54px;height:54px}
+#workspace #coreMap .top-left,
+#workspace #coreMap .top-right{top:-10px}
+#workspace #coreMap .bottom-left,
+#workspace #coreMap .bottom-right{bottom:-10px}
+#workspace #coreMap .one-eighty{top:-42px}
+#workspace #coreMap .zero{bottom:-34px}
+@media(max-width:560px){
+  #workspace .core-map{padding:28px!important}
+  #workspace #coreMap .side-left{left:-52px}
+  #workspace #coreMap .side-right{right:-52px}
+  #workspace #coreMap .side-left i,
+  #workspace #coreMap .side-right i{width:34px}
+  #workspace #coreMap .side-right i,
+  #workspace #coreMap .side-right span{left:18px}
+}
