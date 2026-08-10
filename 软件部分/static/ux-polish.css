@@ -130,12 +130,14 @@ html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:
 .danger-outline{border-color:#cf858a!important;color:#9f2933!important;background:#fff3f3!important;font-weight:600}.danger-outline:hover{background:#b52d35!important;border-color:#b52d35!important;color:#fff!important}
 
 /* Single-number tube board: keep each marker inside its reference cell. */
-#workspace .split{grid-template-columns:minmax(560px,1fr) minmax(620px,1fr);gap:16px}
-#workspace .core-panel{min-width:620px}
+#workspace .split{grid-template-columns:minmax(620px,2.05fr) minmax(560px,.95fr);gap:16px}
+#workspace .core-panel{min-width:560px}
 #workspace .core-map{padding:36px 40px!important}
 #workspace .path-marker{width:26px;height:26px}
 #workspace .path-half{font-size:8px}
 #workspace .flow-mark.side-left{left:-50px}
-#workspace .flow-mark.side-right{right:-50px}
+#workspace .flow-mark.side-right{right:-64px}
+#workspace .flow-mark.side-right i{width:32px}
+#workspace .flow-mark.side-right b{left:-8px}
 @media(max-width:1280px){#workspace .split{grid-template-columns:1fr}#workspace .core-panel{min-width:0;order:-1}}
 @media(max-width:560px){#workspace .core-map{padding:28px!important}.path-marker{width:19px;height:19px}.path-half{font-size:8px}}
