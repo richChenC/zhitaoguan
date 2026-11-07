@@ -13,7 +13,11 @@
   -> .venv-qt/Scripts/pythonw.exe -m qt_shell.main
 ```
 
-`启动Qt版-调试.cmd` 使用同一 Qt 环境并显示退出信息，供本机排查启动问题。Qt 版使用本地 PySide6/Qt WebEngine 桌面壳承载现有界面，并启动配套本地数据服务。
+日常启动默认使用原生 PySide6 Qt Widgets 界面（`THIMBLE_NATIVE_QT=1`），通过
+`QNetworkAccessManager` 连接本地数据服务。数据工作台、状态处理、可视化摘要、
+报告中心和设置均使用原生控件；三维和尚未迁移的专用页面仍保留 WebEngine 回退路径。
+排查或回退时可在启动前设置 `THIMBLE_NATIVE_QT=0`。`启动Qt版-调试.cmd` 使用同一
+Qt 环境并显示退出信息，供本机排查启动问题。
 
 ## 数据与隔离
 

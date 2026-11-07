@@ -41,6 +41,55 @@ from .web_profile import ShellProfile  # noqa: E402
 from .windows import Shell  # noqa: E402
 
 
+def _run_native_qt(app, backend, wake_server=None) -> int:
+    """Run the Widgets implementation behind an explicit migration switch."""
+    from .native_client import NativeClient
+    from .native_login import NativeLoginWindow
+    from .native_windows import NativeMainWindow
+
+    client = NativeClient(RUNTIME.base_url, app)
+    login = NativeLoginWindow(client)
+    state = {"main": None, "closing": False}
+
+    def show_login() -> None:
+        if state["closing"]:
+            return
+        if state["main"] is not None:
+            state["main"].deleteLater()
+            state["main"] = None
+        login.show()
+        login.raise_()
+        login.activateWindow()
+
+    def show_main(user: dict) -> None:
+        if state["closing"]:
+            return
+        window = NativeMainWindow(client, user)
+        state["main"] = window
+        window.logoutRequested.connect(show_login)
+        window.closed.connect(lambda: app.quit())
+        login.hide()
+        window.showMaximized()
+
+    def restore() -> None:
+        window = state["main"] or login
+        if window.isMinimized():
+            window.showNormal()
+        else:
+            window.show()
+        window.raise_()
+        window.activateWindow()
+
+    login.authenticated.connect(show_main)
+    if wake_server is not None:
+        wake_server.wake_requested.connect(restore)
+    app.aboutToQuit.connect(lambda: state.__setitem__("closing", True))
+    login.show()
+    code = app.exec()
+    backend.stop()
+    return code
+
+
 def _make_hard_exit(shell, backend, lock):
     """QtWebEngine 的 app.quit() 在本机不返回、也不发 aboutToQuit。
 
@@ -268,6 +317,13 @@ def main() -> int:
         _release_single_instance(lock)
         return 1
     atexit.register(backend.stop)
+
+    if os.environ.get("THIMBLE_NATIVE_QT") == "1":
+        try:
+            code = _run_native_qt(app, backend, wake_server)
+        finally:
+            _release_single_instance(lock)
+        return code
 
     profile_holder: list[ShellProfile | None] = [None]
     api = DesktopAPI(lambda: profile_holder[0])

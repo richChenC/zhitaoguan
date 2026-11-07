@@ -4,6 +4,7 @@ setlocal
 cd /d "%~dp0" || exit /b 1
 set "THIMBLE_USER_DATA_DIR=%~dp0user-data"
 set "THIMBLE_PORT=18767"
+set "THIMBLE_NATIVE_QT=1"
 set "QT_PYTHONW=%~dp0.venv-qt\Scripts\pythonw.exe"
 if not exist "%QT_PYTHONW%" (
   echo Qt Python runtime was not found:
