@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script>if(new URLSearchParams(location.search).get('window')==='settings')document.documentElement.dataset.settingsWindow='true';else document.documentElement.dataset.startupPending='true';</script><script src="/local-auth.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>在役检查系统-指套管数据管理工具</title><link rel="icon" type="image/png" href="/assets/app-icon.png?v=20261106"><style>html[data-startup-pending="true"] body{visibility:hidden}</style><script src="/appearance.js?v=20261029-full-dark"></script><script type="importmap">{"imports":{"three":"/vendor/three.module.min.js"}}</script><link rel="stylesheet" href="/tokens.css?v=20261023-ui-audit"><link rel="stylesheet" href="/app.css?v=20260831b"><link rel="stylesheet" href="/shell.css?v=20261102-import-source-flow"><link rel="stylesheet" href="/polish.css?v=20261019a"><link rel="stylesheet" href="/visualization-enhancements.css?v=20260831b"></head>
+<script src="/state-colors.js?v=20261031-composite-colors"></script>
+<body>
+<nav class="app-nav" aria-label="主工作区"><strong><span><img src="/assets/app-icon.png?v=20261106" alt="" width="30" height="30"></span><b>在役检查系统-指套管数据管理工具</b><small>本地工程数据中心</small></strong><div class="nav-group"><button class="active" data-view="workspace">数据工作台</button><button data-view="threeD">三维缺陷模型</button><button data-view="analytics">数据可视化</button><button data-view="reports">报告中心</button><button data-view="states">状态处理</button></div><footer><div class="nav-utilities"><button type="button" data-open-settings="settingsDataPane" class="nav-icon nav-settings" aria-label="软件设置" title="软件设置"><span class="app-icon icon-settings" aria-hidden="true"></span></button></div><div class="nav-status">本地模式 · 数据不上传</div></footer></nav>
+<main>
+ <section id="workspace" class="view active">
+  <div class="workspace-heading"><div><span class="eyebrow">INSPECTION DATA</span><h1>检测记录与管板定位</h1><p>通过基地、机组和大修批次定位指套管缺陷，点击记录查看二维位置；双击单元格可直接编辑。</p></div><div class="workspace-actions"><button id="openImportFlow" class="primary">导入数据</button><button id="exportLedgerBtn" type="button">导出综合台账</button><button id="clearRecordsBtn" class="danger-outline" type="button">清空记录</button></div></div><div class="toolbar"><select id="site"><option value="">全部基地</option></select><select id="unit"><option value="">全部机组</option></select><select id="outage"><option value="">全部大修</option></select><input id="analyst" placeholder="分析人员"><input id="thimble" type="number" min="1" max="50" placeholder="通道编号"><button id="searchBtn" class="primary">应用筛选</button><button id="resetBtn">清除条件</button></div>
+  <div class="split"><div class="panel table-panel"><div class="panel-title"><div><h2>检测记录</h2><span id="resultInfo">共 0 条</span></div></div><div class="table-wrap"><table><thead><tr><th>选择</th><th>序号</th><th>大修</th><th>机组</th><th>通道编号</th><th>堆芯位置</th><th>三字符</th><th>幅值（V）</th><th>相位</th><th>磨损深度<br>（壁厚%）</th><th>磨损位置</th><th>测量通道</th><th>探头类型</th><th>分析人员</th><th>数据</th><th>数据组</th><th>备注</th><th>堵管移位信息</th></tr></thead><tbody id="rows"></tbody></table></div><div class="pager"><button id="prevBtn">上一页</button><span id="pageInfo">1 / 1</span><button id="nextBtn">下一页</button></div></div>
+  <aside class="panel core-panel"><div class="panel-title core-panel-title"><div><h2>堆芯分布</h2><span>左半圆奇数机组 · 右半圆偶数机组</span></div><button id="exportCorePng" type="button" title="将当前勾选结果保存为 PNG 图片">导出图片</button></div><div id="coreMap" class="core-map"></div><div id="coreStats" class="core-stats empty">勾选检测记录后统计缺陷分布</div><div class="legend"><span><i class="odd"></i>勾选的奇数记录</span><span><i class="even"></i>勾选的偶数记录</span><span><i class="selected"></i>当前点击管位</span></div><div id="detail" class="detail empty">勾选记录高亮，或直接点击管位查看详情</div></aside></div>
+ </section>
+ <section id="threeD" class="view" aria-label="三维模型与检测缺陷"></section>
+
+ <section id="states" class="view"><div class="state-maintenance-layout"><section class="panel state-panel"><div class="panel-title"><div><h2>状态处理</h2><span>按大修、机组和通道编号录入正常、堵管、移位、换管；历史记录可直接编辑</span></div></div><form id="stateForm"><label>大修批次<select id="stateOutage" required></select></label><label>机组<select id="stateUnit" required></select></label><label>通道编号<input id="stateThimble" type="number" min="1" max="50" required></label><label>管状态<select id="stateType"><option value="normal">正常</option><option value="plugged">堵管</option><option value="replaced">换管</option><option value="shifted">移位</option></select></label><label>位移量 (mm)<input id="stateOffset" type="number" step="0.1" value="0"></label><label class="wide">备注<textarea id="stateNote" rows="3"></textarea></label><button class="primary" type="submit">保存状态</button></form></section><section class="panel state-table-panel"><div class="panel-title"><div><h2>已维护状态</h2><span>点击一行载入表单，可继续修改</span></div></div><div class="table-wrap"><table><thead><tr><th>大修</th><th>机组</th><th>通道编号</th><th>状态</th><th>位移量 (mm)</th><th>备注</th><th>更新时间</th></tr></thead><tbody id="stateRows"><tr><td colspan="7" class="empty">暂无管状态记录</td></tr></tbody></table></div></section>
+ </div>
+ </section> <section id="analytics" class="view">
+  <div class="an-wrap">
+   <div class="an-head">
+    <h2>数据可视化工作台</h2>
+    <div class="sub">群厂磨损趋势 · P位分层分析 · 管板分布 · 真实台账数据驱动</div>
+   </div>
+   <section class="alertbar" id="analysisAlerts">
+    <div class="alert info"><div class="ic"></div><div class="txt"><div class="t">当前分析范围</div><div class="v">等待选择基地、机组和大修</div><div class="s">只展示本机 SQLite 实时数据；参考资料单独标识</div></div></div>
+    <div class="alert warn"><div class="ic"></div><div class="txt"><div class="t">统计口径</div><div class="v">增量仅对可匹配的 R 记录计算</div><div class="s">不从磨损值推断换管或维修</div></div></div>
+    <div class="alert info"><div class="ic"></div><div class="txt"><div class="t">数据完整性</div><div class="v">缺失记录不等于 NDD</div><div class="s">校验提醒可在报告中心追溯</div></div></div>
+   </section>
+   <section class="panel live-analysis-panel">
+    <div class="panel-title"><div><h2>本机实时分析</h2><span id="anLiveNote">未选择完整范围</span></div></div>
+    <div id="anLiveSummary" class="kpis"></div>
+   </section>
+   <section class="kpis" id="anKpis"></section>
+   <section class="filter" id="anFilter"></section>
+   <!-- ====== 群厂报告深度合计趋势 ====== -->
+   <section class="panel an-primary-trend">
+     <div class="panel-title"><div><h2>群厂 WAR 报告深度合计趋势</h2><span>各机组历次大修报告深度合计</span></div></div>
+    <div class="panel-bd tight">
+     <div class="chart-toolbar" id="c31Toolbar"></div>
+     <div id="c31Loading" class="cft-load-progress" role="status" hidden></div>
+     <div id="chart31" class="viz-chart"></div>
+      <div class="legendbar" id="c31Legend"></div><div class="chart-legend-note"><b>读图</b><span>横轴：大修轮次</span><span>纵轴：壁厚百分点合计</span><span>缺失轮次断线，不补零</span></div>
+     <div class="note" id="c31Note" style="padding:8px 10px;background:#f8fbff;border-radius:3px;margin-top:6px;font-size:13px;line-height:1.6"></div>
+    </div>
+   </section>
+
+   <!-- ====== P1-P5 分层磨损趋势 ====== -->
+   <section class="row r2 an-primary-detail">
+    <div class="panel">
+      <div class="panel-title"><div><h2>P 位报告深度趋势</h2><span id="c32Tag">P1–P5 分层 · 报告深度合计</span></div></div>
+     <div class="panel-bd tight">
+      <div class="chart-toolbar" id="c32Toolbar"></div>
+      <div id="chart32" class="viz-chart"></div>
+      <div class="legendbar" id="c32Legend">
+       <span class="lb"><span class="sw" style="background:#0066cc"></span>P1</span>
+       <span class="lb"><span class="sw" style="background:#e84545"></span>P2</span>
+       <span class="lb"><span class="sw" style="background:#22a06b"></span>P3</span>
+       <span class="lb"><span class="sw" style="background:#7b5bd6"></span>P4</span>
+       <span class="lb"><span class="sw" style="background:#1e88e5"></span>P5</span>
+       <span class="lb"><span class="sw" style="background:#ff6b1a;opacity:.95;box-shadow:inset 0 0 0 2px #c44a13"></span>报告深度合计（非增量）</span>
+      </div>
+      <div class="chart-legend-note"><b>颜色说明</b><span><i class="sw" style="background:#0066cc"></i>P1</span><span><i class="sw" style="background:#e84545"></i>P2</span><span><i class="sw" style="background:#22a06b"></i>P3</span><span><i class="sw" style="background:#7b5bd6"></i>P4</span><span><i class="sw" style="background:#1e88e5"></i>P5</span><span><i class="sw" style="background:#ff6b1a"></i>总量</span></div>
+      <div class="note" id="c32Note" style="padding:8px 10px;background:#f8fbff;border-radius:3px;margin-top:6px;font-size:13px;line-height:1.6"></div>
+     </div>
+    </div>
+    <div class="panel">
+     <div class="panel-title"><div><h2>管板换管位置分布</h2><span id="c34Tag">点击通道查看详细记录</span></div></div>
+     <div class="panel-bd tight">
+      <div class="chart-toolbar" id="c34Toolbar"></div>
+      <div class="vw-plate-layout"><div id="chart34" class="viz-chart" style="overflow:auto"></div><aside id="vwTubeDetail" class="vw-tube-detail" aria-live="polite"><span>选择一个通道</span><strong>单管状态</strong><p>点击管号查看该管检测覆盖、最大磨损、维护状态与来源。</p></aside></div>
+      <div class="legendbar" id="c34Legend">
+       <span class="lb"><span class="sw" style="background:#cbd5df"></span>待维护 / 待确认</span>
+       <span class="lb"><span class="sw" style="background:#22a06b;box-shadow:inset 0 0 0 3px #f5a623"></span>更换一次</span>
+       <span class="lb"><span class="sw" style="background:#22a06b;box-shadow:inset 0 0 0 3px #e84545"></span>更换两次</span>
+       <span class="lb" style="margin-left:auto">列=RPNMLKJHGFEDCBA · 行=01-15 · 数字=通道号</span>
+      </div>
+      <div class="note" id="c34Note" style="padding:8px 10px;background:#f8fbff;border-radius:3px;margin-top:6px;font-size:13px;line-height:1.6"></div>
+     </div>
+    </div>
+   </section>
+
+   <!-- ====== 单管纵向磨损对比（跨大修） ====== -->
+   <section class="panel an-extension" id="panelTubeTrend">
+    <div class="panel-title"><div><h2>单管纵向磨损对比（跨大修）</h2><span id="ttTag">同一根指套管逐次大修的最大报告深度 · 叠加关注/极限</span></div></div>
+    <div class="panel-bd tight">
+     <div class="chart-toolbar" id="ttToolbar"></div>
+     <div id="chartTubeTrend" class="viz-chart"></div>
+     <div class="legendbar" id="ttLegend"></div>
+     <div class="note" id="ttNote" style="padding:8px 10px;background:#f8fbff;border-radius:3px;margin-top:6px;font-size:13px;line-height:1.6"></div>
+     <div id="ttAnomalies"></div>
+    </div>
+   </section>
+
+   <!-- ====== 单次检查深度分布（直方图+散点） ====== -->
+   <section class="panel an-extension" id="panelDistCheck">
+    <div class="panel-title"><div><h2>单次检查深度分布</h2><span id="dcsTag">壁厚直方图与按通道散点 · 叠加关注/极限</span></div></div>
+    <div class="panel-bd tight">
+     <div class="chart-toolbar" id="dcsToolbar"></div>
+     <div class="dcs-summary" id="dcsSummary"></div>
+     <div class="dcs-charts">
+      <div class="dcs-chart-box"><h3>单次检查深度分布 <small>每柱=一个深度区间，柱高=管数</small></h3><div id="chartDistHistogram" class="viz-chart"></div></div>
+      <div class="dcs-chart-box"><h3>按通道查看 <small>横轴=通道号，纵轴=最大报告深度</small></h3><div id="chartDistScatter" class="viz-chart"></div></div>
+     </div>
+     <div class="note" id="dcsNote" style="padding:8px 10px;background:#f8fbff;border-radius:3px;margin-top:6px;font-size:13px;line-height:1.6"></div>
+    </div>
+   </section>
+
+  </div>
+ </section>
+ <section id="reports" class="view" aria-label="报告中心"></section>
+ <section id="settings" class="view" aria-label="软件设置">
+  <div class="settings-workspace">
+   <aside class="settings-sidebar" aria-label="设置分类">
+    <div class="settings-sidebar-label">偏好与维护</div>
+    <div class="settings-nav" role="tablist" aria-label="设置分类" aria-orientation="vertical">
+     <button type="button" id="settingsDataTab" class="active" data-settings-pane="settingsDataPane" role="tab" aria-selected="true" aria-controls="settingsDataPane"><b>数据存储</b><span>本地数据库</span></button>
+     <button type="button" id="settingsPreferencesTab" data-settings-pane="settingsPreferencesPane" role="tab" aria-selected="false" aria-controls="settingsPreferencesPane" tabindex="-1"><b>界面与工作流</b><span>偏好设置</span></button>
+     <button type="button" id="settingsImportTab" data-settings-pane="settingsImportPane" role="tab" aria-selected="false" aria-controls="settingsImportPane" tabindex="-1"><b>导入与显示</b><span>来源与可视化</span></button>
+     <button type="button" id="settingsRulesTab" data-settings-pane="settingsRulesPane" role="tab" aria-selected="false" aria-controls="settingsRulesPane" tabindex="-1"><b>对比规则</b><span>历次结果匹配</span></button>
+     <button type="button" id="settingsAccountsTab" data-settings-pane="settingsAccountsPane" role="tab" aria-selected="false" aria-controls="settingsAccountsPane" tabindex="-1"><b>账户与权限</b><span>个人账户、角色与密码</span></button>
+     <button type="button" id="settingsMaintenanceTab" data-settings-pane="settingsMaintenancePane" role="tab" aria-selected="false" aria-controls="settingsMaintenancePane" tabindex="-1"><b>备份与维护</b><span>安全与审计</span></button>
+    </div>
+    <div class="settings-local-indicator"><i aria-hidden="true"></i>本地 SQLite</div>
+   </aside>
+   <div class="settings-sections">
+    <div id="settingsDataPane" class="settings-pane" role="tabpanel" aria-labelledby="settingsDataTab">
+     <section class="panel software-settings-panel data-storage-panel">
+      <div class="panel-title"><h2>当前数据库</h2><span id="dataSourceMode" class="settings-status-badge" data-state="loading">读取中</span></div>
+      <div class="software-settings-body">
+       <dl class="storage-details">
+        <div><dt>存储引擎</dt><dd>SQLite · 本地文件</dd></div>
+        <div><dt>数据库大小</dt><dd id="dataSourceSize">读取中…</dd></div>
+        <div class="storage-path"><dt>文件位置</dt><dd><div class="storage-path-value"><code id="dataSourcePath">正在读取实际路径…</code><button id="copyDataSourcePath" type="button" disabled aria-label="复制数据库文件路径">复制路径</button></div></dd></div>
+       </dl>
+       <div class="settings-action-row"><span id="dataSourceStatus" class="settings-status" role="status" aria-live="polite">正在读取本地数据库</span><button id="refreshDataSource" type="button">刷新状态</button><button id="validateDataSource" type="button">校验数据库</button></div>
+      </div>
+      <input id="runtimeMode" type="hidden" value="offline">
+     </section>
+     <section class="settings-quick-actions" aria-label="常用设置操作">
+      <div class="settings-quick-heading"><b>常用操作</b><span>按业务流程快速进入对应设置</span></div>
+      <div class="settings-quick-grid">
+       <button type="button" data-settings-jump="settingsImportPane"><b>导入与显示</b><span>维护检测来源、Report 策略和颜色阈值</span><i aria-hidden="true">→</i></button>
+       <button type="button" data-settings-jump="settingsRulesPane"><b>对比规则</b><span>查看或建立历次大修匹配规则</span><i aria-hidden="true">→</i></button>
+       <button type="button" data-settings-jump="settingsMaintenancePane"><b>备份与维护</b><span>备份数据库、去重并查看审计</span><i aria-hidden="true">→</i></button>
+      </div>
+     </section>
+    </div>
+    <div id="settingsPreferencesPane" class="settings-pane" role="tabpanel" aria-labelledby="settingsPreferencesTab" hidden>
+     <section class="panel software-settings-panel preferences-panel">
+      <div class="panel-title"><div><h2>界面与工作流</h2><span>界面偏好存本机；移位默认方向存数据库并随备份保存</span></div><span id="preferencesSaved" class="settings-saved" role="status" aria-live="polite">自动保存</span></div>
+      <div class="software-settings-body">
+       <fieldset class="settings-preference-group"><legend>界面显示</legend>
+       <div class="setting-row"><div><b>外观模式</b><small>切换软件界面外观；报告和管板的原始颜色不变</small></div><div class="theme-switch" role="group" aria-label="外观模式"><button type="button" data-theme-choice="light" aria-pressed="true" title="日间模式"><span class="app-icon theme-sun" aria-hidden="true"></span>日间</button><button type="button" data-theme-choice="dark" aria-pressed="false" title="夜间模式"><span class="app-icon theme-moon" aria-hidden="true"></span>夜间</button></div></div>
+       <div class="setting-row"><label for="settingsDensity"><b>工作区密度</b><small>紧凑模式减少行距</small></label><select id="settingsDensity"><option value="standard">标准</option><option value="compact">紧凑</option></select></div>
+       <div class="setting-row"><label for="settingsMotion"><b>交互动画</b><small>减少界面过渡和弹出动画</small></label><select id="settingsMotion"><option value="full">完整反馈</option><option value="reduced">减少动画</option></select></div>
+       </fieldset>
+       <fieldset class="settings-preference-group"><legend>操作通知</legend>
+       <div class="setting-row"><label for="settingsNotificationDuration"><b>通知自动隐藏</b><small>通知默认显示 3 秒；鼠标悬停或键盘聚焦时会暂停隐藏</small></label><select id="settingsNotificationDuration"><option value="3000">3 秒</option><option value="5000">5 秒</option><option value="0">不自动隐藏</option></select></div>
+       <div class="setting-row"><label for="settingsNotificationSound"><b>通知提示音</b><small>操作完成、提醒或失败时播放</small></label><label class="setting-switch"><input id="settingsNotificationSound" type="checkbox"><span>启用</span></label></div>
+       </fieldset>
+       <fieldset class="settings-preference-group"><legend>启动与导航</legend>
+       <div class="setting-row"><label for="settingsStartupView"><b>启动工作区</b><small id="settingsStartupHint">下次启动时生效</small></label><select id="settingsStartupView"><option value="last">恢复上次工作区</option><option value="workspace">数据工作台</option><option value="threeD">三维缺陷模型</option><option value="analytics">数据可视化</option><option value="reports">报告中心</option><option value="states">状态处理</option></select></div>
+       <div class="setting-row"><label for="settingsRememberView"><b>记住上次工作区</b><small>启用后，启动页面同步为“恢复上次工作区”</small></label><label class="setting-switch"><input id="settingsRememberView" type="checkbox"><span>启用</span></label></div>
+       </fieldset>
+       <fieldset class="settings-preference-group"><legend>状态与导入默认值</legend>
+       <div class="setting-row"><label for="settingsShiftDirection"><b>无符号移位默认方向</b><small>识别到“移位 42 mm”但原文没有正负号时使用；“留待核对”不会自动确认方向</small></label><select id="settingsShiftDirection"><option value="1">正向（+）</option><option value="-1">负向（−）</option><option value="pending">留待核对</option></select></div>
+       <div class="setting-row"><label for="settingsImportPolicy"><b>RPT 选择策略</b><small>手动逐组选择，或预选修改时间最新版本后逐组确认</small></label><select id="settingsImportPolicy"><option value="manual">手动选择 RPT</option><option value="auto_latest">预选最新并逐组确认</option></select></div>
+       </fieldset>
+       <div class="settings-action-row preferences-actions"><span id="preferencesStatus" class="settings-status" role="status" aria-live="polite">修改后自动保存</span><button id="resetPreferences" type="button">恢复本页默认</button></div>
+      </div>
+     </section>
+    </div>
+    <div id="settingsImportPane" class="settings-pane" role="tabpanel" aria-labelledby="settingsImportTab" hidden>
+     <section class="panel software-settings-panel server-panel">
+      <div class="panel-title"><h2>检测文件来源</h2><span class="settings-status-badge" data-state="neutral">导入目录</span></div>
+      <div class="server-settings software-settings-body">
+       <label for="serverRoot">本地或共享文件夹<div class="folder-picker"><input id="serverRoot" placeholder="选择检测数据所在文件夹，可使用共享目录" autocomplete="off"><button id="selectServerRoot" type="button">浏览…</button></div></label>
+       <div class="settings-action-row"><span id="sourceDirectorySaveStatus" class="settings-status" role="status" aria-live="polite">文件来源与数据库存储相互独立</span><button id="saveSourceDirectory" type="button" disabled>保存来源</button><button id="scanServerBtn" class="primary" type="button">扫描指套管目录</button></div>
+       <div id="serverStatus" class="settings-status" role="status" aria-live="polite">尚未扫描</div>
+       <div id="serverSources" class="server-sources empty">选择文件夹后扫描可用大修目录</div>
+      </div>
+     </section>
+    </div>
+    <div id="settingsRulesPane" class="settings-pane" role="tabpanel" aria-labelledby="settingsRulesTab" hidden></div>
+    <div id="settingsAccountsPane" class="settings-pane" role="tabpanel" aria-labelledby="settingsAccountsTab" hidden></div>
+    <div id="settingsMaintenancePane" class="settings-pane" role="tabpanel" aria-labelledby="settingsMaintenanceTab" hidden></div>
+   </div>
+  </div>
+ </section>
+</main>
+<dialog id="importDialog"><form method="dialog">
+ <div class="import-dialog-heading"><div><span>数据导入</span><h2>导入检测数据</h2><p>选择来源，检查数据，完成入库。</p></div></div>
+ <div class="import-source-tabs" role="tablist" aria-label="选择导入来源">
+  <button id="excelImportTab" type="button" role="tab" aria-selected="true" aria-controls="excelImportPanel" tabindex="0"><b>标准 Excel</b><small>导入已有 .xls / .xlsx / .xlsm</small></button>
+  <button id="rptImportTab" type="button" role="tab" aria-selected="false" aria-controls="rptImportPanel" tabindex="-1"><b>RPT 文件夹</b><small>逐组确认最终报告</small></button>
+ </div>
+ <div class="import-workspace-body">
+  <section id="excelImportPanel" class="import-source-panel" role="tabpanel" aria-labelledby="excelImportTab">
+   <div class="import-route-heading"><span class="import-step-number">1</span><div><b>选择已有 Excel 文件</b><small>支持多文件和文件夹；未识别的表格可手动设置字段映射。</small></div></div>
+   <div id="excelImportMount"></div>
+  </section>
+  <section id="rptImportPanel" class="import-source-panel" role="tabpanel" aria-labelledby="rptImportTab" hidden>
+   <div class="import-route-heading"><span class="import-step-number">1</span><div><b>原始 RPT → 标准 Excel → 数据库</b><small>手动选择或自动选取最新报告，检查后生成 Excel 并入库。</small></div></div>
+   <div id="folderImportDetails" class="folder-import-details">
+    <div class="folder-import-content">
+     <p>RPT 没有管状态时，状态栏保持空白，不会自动推断或修改管状态。</p>
+     <section class="import-step-card import-source-card"><div class="folder-picker"><input id="importPath" placeholder="请选择原始检测数据根目录" readonly><button id="selectFolderBtn" type="button">选择检测文件夹</button></div>
+      <div id="rptPolicyMount"></div>
+      <div id="reportOptionsMount"></div>
+      <div id="rptConversionResult" class="rpt-conversion-result" role="status" aria-live="polite" hidden></div>
+      <button id="exportFolderExcel" type="button">仅生成并保存标准 Excel</button>
+     </section>
+    </div>
+   </div>
+  </section>
+  <section id="importQueuePanel" class="import-queue-panel" aria-label="待导入文件">
+   <div class="excel-queue-heading"><b>待导入队列</b><span id="excelQueueSummary">尚未添加文件</span></div>
+   <div id="excelFileList" class="excel-file-list empty">尚未选择文件</div>
+  </section>
+  <div id="importProgressPanel" class="import-progress-panel" hidden aria-live="polite">
+   <span class="import-progress-spinner" aria-hidden="true"></span><div class="import-progress-content"><div class="import-progress-copy"><b id="importProgressLabel">正在处理</b><span class="import-progress-numbers"><span id="importProgressMeta"></span><strong id="importProgressPercent" hidden></strong><em id="importProgressEta" hidden></em></span></div>
+    <div id="importProgressTrack" class="import-progress-track indeterminate" role="progressbar" aria-label="导入进度" aria-valuemin="0" aria-valuemax="100" aria-busy="true"><i id="parseProgress"></i></div>
+   </div>
+  </div>
+  <div id="importStatus" role="status" aria-live="polite" hidden></div>
+ </div>
+ <div class="dialog-actions"><span id="importActionHint">添加 Excel 文件后即可开始导入。</span><button value="cancel">关闭</button><button id="runImport" value="default" class="primary" disabled>开始导入</button></div>
+ </form></dialog>
+<div id="toast" role="status" aria-live="polite"></div><script src="/artifact-naming.js?v=20261029-stable"></script><script src="/plate-geometry.js?v=20261029"></script><script src="/interaction-system.js?v=20261102-settings-utility"></script><script src="/task-progress.js?v=live-row-progress"></script><script src="/settings-sync.js?v=20261103-all-settings"></script><script src="/state-preferences.js?v=20261103-settings-link"></script><script src="/date-format.js?v=20261104-readable-time"></script><script src="/app.js?v=20261104-live-visualization-refresh"></script><script src="/tube-state-workspace.js?v=20261031-action-dock"></script><script src="/state-maintenance-layout.js?v=20261031-action-dock"></script><script src="/tube-lifecycle-workspace.js?v=20261031-action-dock"></script><script src="/software-settings.js?v=20261104-backup-labels"></script><script src="/lazy-modules.js?v=20261106-lazy"></script><script type="module" src="/modules/three-d/main-view.js?v=20261106-lazy"></script>
+<link rel="stylesheet" href="/data-delete-manager.css?v=20261016a">
+<link rel="stylesheet" href="/tube-state-workspace.css?v=20261031-action-dock">
+<link rel="stylesheet" href="/state-maintenance-layout.css?v=20261031-action-dock">
+<script src="/data-delete-manager.js?v=20261019b"></script>
+<script src="/recycle-bin-manager.js?v=20260901"></script>
+<script src="/data-delete-entry.js?v=20261104-refresh-event"></script>
+<script src="/operation-log-viewer.js?v=20261020-state-recognition"></script>
+<script src="/workspace-actions.js?v=20261105-record-header"></script>
+<link rel="stylesheet" href="/workbench.css?v=20261102-import-source-flow">
+<link rel="stylesheet" href="/desktop-theme.css?v=20261103-single-close-icon">
+<link rel="stylesheet" href="/settings-workspace.css?v=20261030-settings-window-fix">
+<link rel="stylesheet" href="/workbench-toolbar.css?v=20261022-centered-records">
+<link rel="stylesheet" href="/interface-polish.css?v=20261030-state-feedback">
+<link rel="stylesheet" href="/appearance.css?v=20261031-composite-colors">
+<link rel="stylesheet" href="/detail-polish.css?v=20261030-detail-pass">
+<link rel="stylesheet" href="/pro-grade.css?v=20261030-pro-grade"><link rel="stylesheet" href="/enterprise-ui.css?v=20261031-state-action-dock">
+<link rel="stylesheet" href="/notification-system.css?v=20261103-close-toolbar-layout">
+<link rel="stylesheet" href="/button-system.css?v=20261102">
+<link rel="stylesheet" href="/navigation-account.css?v=20261102-report-nav-account">
+<link rel="stylesheet" href="/import-workspace.css?v=20261102-import-ui-v2">
+<link rel="stylesheet" href="/filter-controls.css?v=20261103">
+<script src="/source-records.js?v=20261103-record-details"></script>
+<link rel="stylesheet" href="/settings-runtime.css?v=20261103">
+<link rel="stylesheet" href="/information-hierarchy.css?v=20261105-record-header">
+<link rel="stylesheet" href="/settings-overhaul.css?v=20261104-settings-redesign"></body></html>

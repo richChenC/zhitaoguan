@@ -1,0 +1,1064 @@
+/* Settings workspace visual system.
+   Loaded last so every settings pane shares one predictable visual language
+   while existing controls and event hooks remain unchanged. */
+:root {
+  --settings-bg: #f4f7f8;
+  --settings-surface: #ffffff;
+  --settings-surface-muted: #f8fafb;
+  --settings-line: #d9e3e8;
+  --settings-line-soft: #e8eef1;
+  --settings-ink: #263d49;
+  --settings-muted: #71818b;
+  --settings-accent: #176f76;
+  --settings-accent-soft: #e7f3f2;
+  --settings-focus: #4d9a9f;
+  --settings-shadow: 0 8px 24px rgba(38, 61, 73, .06);
+}
+
+html[data-settings-window="true"],
+body[data-window="settings"] {
+  background: var(--settings-bg) !important;
+}
+
+body[data-window="settings"] main {
+  overflow: auto !important;
+  padding: 22px 26px 28px !important;
+}
+
+#settings {
+  color: var(--settings-ink);
+}
+
+#settings .settings-window-heading {
+  position: relative;
+  width: min(1320px, 100%);
+  min-height: 66px;
+  margin: 0 auto 18px;
+  padding: 0 2px 14px;
+  border-bottom: 1px solid var(--settings-line);
+}
+
+#settings .settings-window-heading::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 76px;
+  height: 3px;
+  background: var(--settings-accent);
+}
+
+#settings .settings-window-heading h1 {
+  color: var(--settings-ink);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+#settings .settings-window-heading p {
+  margin-top: 6px;
+  color: var(--settings-muted);
+  font-size: 12px;
+}
+
+#settings .settings-window-state {
+  align-self: flex-start;
+  margin-top: 3px;
+  color: var(--settings-muted);
+  font-size: 12px;
+}
+
+#settings .settings-window-state i,
+#settings .settings-local-indicator i {
+  width: 8px;
+  height: 8px;
+  background: #2f8a6d;
+  box-shadow: 0 0 0 3px #e3f2eb;
+}
+
+#settings .settings-workspace {
+  grid-template-columns: 236px minmax(0, 1fr);
+  gap: 22px;
+  width: min(1320px, 100%);
+  max-width: none;
+  margin: 0 auto;
+  align-items: start;
+}
+
+#settings .settings-sidebar {
+  position: sticky;
+  top: 0;
+  padding: 16px 12px 14px;
+  border: 1px solid var(--settings-line);
+  border-radius: 10px;
+  background: var(--settings-surface);
+  box-shadow: var(--settings-shadow);
+}
+
+#settings .settings-sidebar-label {
+  padding: 0 10px 12px;
+  color: var(--settings-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+#settings .settings-nav {
+  gap: 4px;
+}
+
+#settings .settings-nav button {
+  position: relative;
+  min-height: 64px;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #435761;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+}
+
+#settings .settings-nav button::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+#settings .settings-nav button:hover {
+  border-color: var(--settings-line);
+  background: #f5f9fa;
+  transform: translateX(1px);
+}
+
+#settings .settings-nav button.active {
+  border-color: #bcdedc;
+  background: var(--settings-accent-soft);
+  color: #155d63;
+  box-shadow: none;
+}
+
+#settings .settings-nav button.active::before {
+  background: var(--settings-accent);
+}
+
+#settings .settings-nav button b {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#settings .settings-nav button span {
+  margin-top: 2px;
+  color: var(--settings-muted);
+  font-size: 11px;
+}
+
+#settings .settings-nav button.active span {
+  color: #4a7c7e;
+}
+
+#settings .settings-local-indicator {
+  margin: 18px 10px 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--settings-line-soft);
+  color: var(--settings-muted);
+  font-size: 11px;
+}
+
+#settings .settings-sections {
+  min-width: 0;
+}
+
+#settings .settings-pane {
+  gap: 16px;
+}
+
+#settings .software-settings-panel,
+#settings .settings-quick-actions {
+  border: 1px solid var(--settings-line);
+  border-radius: 10px;
+  background: var(--settings-surface);
+  box-shadow: var(--settings-shadow);
+}
+
+#settings .software-settings-panel {
+  overflow: hidden;
+}
+
+#settings .software-settings-panel .panel-title {
+  min-height: 62px;
+  padding: 15px 20px;
+  border-left: 4px solid var(--settings-accent);
+  border-bottom: 1px solid var(--settings-line-soft);
+  background: var(--settings-surface-muted);
+}
+
+#settings .software-settings-panel .panel-title h2 {
+  color: var(--settings-ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+#settings .software-settings-panel .panel-title > div > span,
+#settings .software-settings-panel .panel-title > span {
+  color: var(--settings-muted);
+  font-size: 11px;
+}
+
+#settings .software-settings-body {
+  padding: 4px 20px 20px;
+}
+
+#settings .settings-preference-group {
+  margin: 0;
+  padding: 12px 0 0;
+  border: 0;
+}
+
+#settings .settings-preference-group > legend,
+#settings .settings-subheading b,
+#settings .settings-quick-heading b {
+  color: var(--settings-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#settings .settings-preference-group > legend {
+  width: 100%;
+  padding: 0 0 7px;
+  border-bottom: 1px solid var(--settings-line-soft);
+}
+
+#settings .setting-row {
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 340px);
+  min-height: 70px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--settings-line-soft);
+}
+
+#settings .setting-row:last-child {
+  border-bottom: 0;
+}
+
+#settings .setting-row b {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--settings-ink);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+#settings .setting-row small {
+  display: block;
+  max-width: 620px;
+  color: var(--settings-muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+#settings input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+#settings select,
+#settings textarea {
+  min-height: 38px;
+  border: 1px solid #cbd9de;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--settings-ink);
+  font-size: 12px;
+}
+
+#settings input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):hover,
+#settings select:hover,
+#settings textarea:hover {
+  border-color: #9dbec2;
+}
+
+#settings input:focus-visible,
+#settings select:focus-visible,
+#settings textarea:focus-visible,
+#settings button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--settings-focus) 55%, transparent);
+  outline-offset: 2px;
+}
+
+#settings button {
+  min-height: 36px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+#settings button.primary {
+  border-color: var(--settings-accent);
+  background: var(--settings-accent);
+  color: #fff;
+}
+
+#settings button.primary:hover {
+  background: #115d63;
+}
+
+#settings .setting-switch {
+  justify-self: end;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--settings-line);
+  border-radius: 6px;
+  background: var(--settings-surface-muted);
+}
+
+#settings .setting-switch span {
+  color: #55716e;
+  font-size: 12px;
+}
+
+#settings .settings-action-row {
+  gap: 9px;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--settings-line-soft);
+}
+
+#settings .settings-action-row .settings-status {
+  color: var(--settings-muted);
+}
+
+#settings .settings-status-badge,
+#settings .settings-saved {
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+#settings .settings-status-badge {
+  padding: 5px 10px;
+  border-color: #cbdfe0;
+  background: #eef7f6;
+  color: #3c7473;
+}
+
+#settings .settings-quick-actions {
+  padding: 18px 20px 20px;
+}
+
+#settings .settings-quick-heading {
+  margin-bottom: 12px;
+}
+
+#settings .settings-quick-heading span {
+  color: var(--settings-muted);
+  font-size: 11px;
+}
+
+#settings .settings-quick-grid {
+  gap: 10px;
+}
+
+#settings .settings-quick-grid button {
+  min-height: 82px;
+  padding: 12px 38px 12px 14px;
+  border: 1px solid var(--settings-line);
+  border-radius: 7px;
+  background: var(--settings-surface-muted);
+}
+
+#settings .settings-quick-grid button:hover {
+  border-color: #9bc3c2;
+  background: var(--settings-accent-soft);
+}
+
+#settings .settings-quick-grid button b {
+  color: var(--settings-ink);
+  font-size: 12px;
+}
+
+#settings .settings-quick-grid button span {
+  color: var(--settings-muted);
+  font-size: 11px;
+}
+
+#settings .settings-quick-grid button i {
+  color: var(--settings-accent);
+  font-size: 19px;
+}
+
+/* Dynamic settings panels use the same spacing even though they are mounted
+   after the initial HTML has loaded. */
+#settings :is(#analysisRulesPanel, #localAccountsPanel, #backupPanel, #databaseDedup, .audit-settings, #severitySettings, #importSettingsPanel) {
+  width: 100%;
+}
+
+#settings :is(.backup-summary, .dedup-summary, .account-summary) {
+  border-bottom: 1px solid var(--settings-line-soft);
+}
+
+#settings :is(.backup-actions, .backup-list-head, .docs-toolbar, .ar-new-heading) {
+  padding-top: 15px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--settings-line-soft);
+}
+
+#settings :is(.backup-list, .duplicate-records, .ar-list, .server-sources) {
+  scrollbar-width: thin;
+}
+
+#settings .severity-control {
+  align-items: center;
+  min-height: 56px;
+  border-bottom: 1px solid var(--settings-line-soft);
+}
+
+#settings .severity-control > span {
+  color: var(--settings-ink);
+  font-size: 12px;
+}
+
+#settings .severity-control input[type="number"] {
+  height: 36px;
+  border-radius: 6px;
+}
+
+#settings .setting-note,
+#settings .ar-compact-note {
+  border: 1px solid #d7e8e7;
+  border-left: 3px solid var(--settings-accent);
+  border-radius: 6px;
+  background: #f2f9f8;
+  color: #5f7779;
+}
+
+/* Accounts, audit and logs: keep security information dense, scannable and
+   visually consistent with the rest of the redesigned settings workspace. */
+#settings #currentAccountPanel,
+#settings #localAccountsPanel,
+#settings #localSecurityAudit,
+#settings #localBackupPolicy,
+#settings .audit-settings {
+  padding: 0;
+  border: 1px solid var(--settings-line);
+  border-radius: 10px;
+  background: var(--settings-surface);
+  box-shadow: var(--settings-shadow);
+  overflow: hidden;
+}
+
+#settings #currentAccountPanel > h3,
+#settings #localAccountsPanel .account-panel-heading,
+#settings #localSecurityAudit .account-panel-heading,
+#settings #localBackupPolicy > h3,
+#settings .audit-settings .panel-title {
+  min-height: 62px;
+  margin: 0;
+  padding: 15px 20px;
+  border-left: 4px solid var(--settings-accent);
+  border-bottom: 1px solid var(--settings-line-soft);
+  background: var(--settings-surface-muted);
+}
+
+#settings #currentAccountPanel > h3,
+#settings #localBackupPolicy > h3,
+#settings .audit-settings .panel-title h2 {
+  color: var(--settings-ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+#settings #currentAccountPanel > h3::after {
+  content: " 当前登录身份与可用权限";
+  margin-left: 10px;
+  color: var(--settings-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+#settings #currentAccountPanel .account-profile {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  padding: 18px 20px 12px;
+}
+
+#settings #currentAccountPanel .account-profile > div {
+  min-width: 0;
+  padding: 0 16px;
+  border-right: 1px solid var(--settings-line-soft);
+}
+
+#settings #currentAccountPanel .account-profile > div:first-child {
+  padding-left: 0;
+}
+
+#settings #currentAccountPanel .account-profile > div:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
+#settings #currentAccountPanel .account-profile dt {
+  margin-bottom: 6px;
+  color: var(--settings-muted);
+  font-size: 11px;
+}
+
+#settings #currentAccountPanel .account-profile dd {
+  overflow-wrap: anywhere;
+  color: var(--settings-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+#settings #currentAccountPanel > button {
+  margin: 0 20px 18px;
+  min-height: 34px;
+  border-color: #cbd9de;
+  background: transparent;
+  color: #45646b;
+}
+
+#settings #currentAccountPanel > button:hover {
+  border-color: var(--settings-focus);
+  background: var(--settings-accent-soft);
+  color: var(--settings-accent);
+}
+
+#settings #currentAccountPanel .account-permissions {
+  margin: 0 20px 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--settings-line-soft);
+  border-radius: 7px;
+  background: var(--settings-surface-muted);
+}
+
+#settings #currentAccountPanel .account-permissions span {
+  border-color: #cfe3e0;
+  border-radius: 999px;
+  background: var(--settings-accent-soft);
+  color: #356d6c;
+  font-size: 11px;
+}
+
+#settings #localAccountsPanel .account-panel-heading,
+#settings #localSecurityAudit .account-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0;
+}
+
+#settings #localAccountsPanel .account-panel-heading h3,
+#settings #localSecurityAudit .account-panel-heading h3 {
+  margin: 0 0 4px;
+  color: var(--settings-ink);
+  font-size: 15px;
+}
+
+#settings #localAccountsPanel .account-panel-heading p,
+#settings #localSecurityAudit .account-panel-heading p,
+#settings #localBackupPolicy > p {
+  margin: 0;
+  color: var(--settings-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+#settings #localAccountsPanel .account-count {
+  border: 1px solid #cfe3e0;
+  border-radius: 999px;
+  background: var(--settings-accent-soft);
+  color: #356d6c;
+  font-size: 11px;
+}
+
+#settings #localAccountsPanel .account-storage-note {
+  margin: 16px 20px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--settings-line);
+  border-radius: 7px;
+  background: var(--settings-surface-muted);
+  color: var(--settings-muted);
+  font-size: 11px;
+}
+
+#settings #localAccountsPanel .account-storage-link {
+  min-height: 30px !important;
+  height: 30px;
+  border-color: #cbd9de;
+  border-radius: 6px;
+  background: var(--settings-surface);
+  color: #45646b;
+  font-size: 11px !important;
+}
+
+#settings #localAccountsPanel .account-role-guide {
+  margin: 0 20px 14px;
+  border-color: var(--settings-line);
+  border-radius: 7px;
+  background: var(--settings-surface-muted);
+}
+
+#settings #localAccountsPanel .account-role-guide > summary {
+  min-height: 40px;
+  padding: 9px 36px 9px 12px;
+  color: var(--settings-ink);
+  font-size: 12px;
+}
+
+#settings #localAccountsPanel .account-manager-layout {
+  grid-template-columns: minmax(190px, .72fr) minmax(0, 1.28fr);
+  gap: 14px;
+  margin: 0 20px 20px;
+}
+
+#settings #localAccountsPanel .account-directory,
+#settings #localAccountsPanel .account-editor {
+  padding: 14px;
+  border: 1px solid var(--settings-line);
+  border-radius: 8px;
+  background: var(--settings-surface);
+}
+
+#settings #localAccountsPanel .account-directory > header,
+#settings #localAccountsPanel .account-editor > header {
+  min-height: 48px;
+  margin-bottom: 12px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--settings-line-soft);
+  background: transparent;
+  color: var(--settings-ink);
+}
+
+#settings #localAccountsPanel .account-directory > header b,
+#settings #localAccountsPanel .account-editor > header b {
+  font-size: 12px;
+}
+
+#settings #localAccountsPanel .account-new[aria-pressed="true"],
+#settings #localAccountsPanel .account-new:hover {
+  border-color: var(--settings-accent);
+  background: var(--settings-accent);
+  color: #fff;
+}
+
+#settings #localAccountsPanel [data-account-roster] {
+  gap: 7px;
+  max-height: 330px;
+}
+
+#settings #localAccountsPanel .account-roster-row {
+  min-height: 50px;
+  padding: 9px 10px;
+  border-color: var(--settings-line);
+  border-radius: 7px;
+  background: var(--settings-surface);
+}
+
+#settings #localAccountsPanel .account-roster-row[aria-current="true"] {
+  border-color: #9bc8c3;
+  background: var(--settings-accent-soft);
+  box-shadow: inset 3px 0 var(--settings-accent);
+}
+
+#settings #localAccountsPanel .account-editor form {
+  gap: 12px 14px;
+}
+
+#settings #localAccountsPanel .account-editor form > label:not(.account-active-label) {
+  align-content: end;
+}
+
+#settings #localAccountsPanel .account-editor fieldset {
+  padding: 12px;
+  border-color: var(--settings-line);
+  border-radius: 7px;
+  background: var(--settings-surface);
+}
+
+#settings #localAccountsPanel .account-editor fieldset legend {
+  color: var(--settings-muted);
+  font-size: 11px;
+}
+
+#settings #localAccountsPanel .account-editor fieldset label {
+  min-height: 54px;
+  padding: 9px;
+  border-color: var(--settings-line-soft);
+  border-radius: 6px;
+  background: var(--settings-surface-muted);
+}
+
+#settings #localAccountsPanel .account-editor fieldset label:hover {
+  border-color: #a6cfca;
+  background: var(--settings-accent-soft);
+}
+
+#settings #localAccountsPanel .account-editor fieldset label:has(input:checked) {
+  border-color: #80b8b1;
+  background: var(--settings-accent-soft);
+}
+
+#settings #localAccountsPanel .account-editor fieldset label:focus-within {
+  outline: 2px solid var(--settings-focus);
+  outline-offset: 2px;
+}
+
+#settings #localAccountsPanel .account-form-actions {
+  align-items: center;
+  padding-top: 5px;
+}
+
+#settings #localAccountsPanel .account-form-actions .primary {
+  min-width: 128px;
+}
+
+#settings #localSecurityAudit .account-audit-tabs {
+  margin: 0;
+  padding: 12px 20px 0;
+  border-bottom: 1px solid var(--settings-line-soft);
+}
+
+#settings #localSecurityAudit .account-audit-tabs [role="tab"] {
+  min-width: 108px;
+  min-height: 38px;
+  color: var(--settings-muted);
+  font-size: 12px;
+}
+
+#settings #localSecurityAudit .account-audit-tabs [role="tab"][aria-selected="true"] {
+  color: var(--settings-accent);
+}
+
+#settings #localSecurityAudit .account-audit-body,
+#settings #localSecurityAudit > .account-audit-empty {
+  margin: 0 20px;
+}
+
+#settings #localSecurityAudit > .account-audit-empty {
+  padding: 14px 0 10px;
+}
+
+#settings #localSecurityAudit .account-audit-wrap {
+  max-height: 360px;
+  margin-bottom: 20px;
+  border-color: var(--settings-line);
+  border-radius: 7px;
+}
+
+#settings #localSecurityAudit .account-audit-table {
+  min-width: 680px;
+}
+
+#settings #localSecurityAudit .account-audit-table th {
+  padding: 10px 12px;
+  background: var(--settings-surface-muted);
+  color: var(--settings-muted);
+  font-size: 11px;
+}
+
+#settings #localSecurityAudit .account-audit-table td {
+  padding: 10px 12px;
+  color: var(--settings-ink);
+  font-size: 11px;
+}
+
+#settings #localBackupPolicy {
+  padding-bottom: 18px;
+}
+
+#settings #localBackupPolicy > p,
+#settings #localBackupPolicy > form {
+  margin-right: 20px;
+  margin-left: 20px;
+}
+
+#settings #localBackupPolicy > p {
+  padding: 16px 0 10px;
+}
+
+#settings #localBackupPolicy > form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+#settings #localBackupPolicy > form > label {
+  color: var(--settings-ink);
+}
+
+#settings #localBackupPolicy > form > button {
+  min-width: 112px;
+}
+
+#settings .audit-settings > .setting-row {
+  margin: 0;
+  padding: 16px 20px 20px;
+  border: 0;
+}
+
+#settings .audit-settings > .setting-row > div b {
+  color: var(--settings-ink);
+}
+
+#settings .audit-settings > .setting-row > div small {
+  color: var(--settings-muted);
+}
+
+#settings .audit-settings > .setting-row > button {
+  min-width: 128px;
+}
+
+html[data-theme="dark"] {
+  --settings-bg: #101718;
+  --settings-surface: #1b2526;
+  --settings-surface-muted: #202d2e;
+  --settings-line: #344547;
+  --settings-line-soft: #2b393b;
+  --settings-ink: #e4efed;
+  --settings-muted: #a6b8b5;
+  --settings-accent: #78cfc1;
+  --settings-accent-soft: #254542;
+  --settings-focus: #82d8cb;
+}
+
+/* Keep destructive/confirm actions readable on dark settings dialogs.  The
+   light accent is intentionally reserved for borders and focus states; white
+   text needs a darker action surface. */
+html[data-theme="dark"] #settings button.primary {
+  border-color:#2f756c;
+  background:#2f756c;
+  color:#fff;
+}
+html[data-theme="dark"] #settings button.primary:hover {
+  border-color:#3c8d82;
+  background:#3c8d82;
+}
+
+html[data-theme="dark"] #settings .settings-nav button {
+  color: #c4d3d0;
+}
+
+html[data-theme="dark"] #settings .settings-nav button:hover {
+  border-color: var(--settings-line);
+  background: #263536;
+}
+
+html[data-theme="dark"] #settings .settings-nav button.active {
+  border-color: #4e8179;
+  background: var(--settings-accent-soft);
+  color: #e4f7f1;
+}
+
+html[data-theme="dark"] #settings input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+html[data-theme="dark"] #settings select,
+html[data-theme="dark"] #settings textarea {
+  border-color: #4b5d5f;
+  background: #152021;
+  color: var(--settings-ink);
+}
+
+html[data-theme="dark"] #settings .setting-switch,
+html[data-theme="dark"] #settings .settings-quick-grid button,
+html[data-theme="dark"] #settings .setting-note,
+html[data-theme="dark"] #settings .ar-compact-note {
+  background: #1c2527;
+  border-color: var(--settings-line);
+  color: var(--settings-ink);
+}
+
+html[data-theme="dark"] #settings #currentAccountPanel .account-permissions span,
+html[data-theme="dark"] #settings #localAccountsPanel .account-count {
+  border-color: #4e8179;
+  background: #254542;
+  color: #bde6dc;
+}
+
+html[data-theme="dark"] #settings #localAccountsPanel .account-storage-note,
+html[data-theme="dark"] #settings #localAccountsPanel .account-directory,
+html[data-theme="dark"] #settings #localAccountsPanel .account-editor,
+html[data-theme="dark"] #settings #localAccountsPanel .account-editor fieldset label,
+html[data-theme="dark"] #settings #localSecurityAudit .account-audit-table th {
+  background: #202d2e;
+  border-color: var(--settings-line);
+}
+
+html[data-theme="dark"] #settings #localAccountsPanel .account-roster-row {
+  background: #1b2526;
+  border-color: var(--settings-line);
+}
+
+html[data-theme="dark"] #settings #localAccountsPanel .account-roster-row[aria-current="true"],
+html[data-theme="dark"] #settings #localAccountsPanel .account-editor fieldset label:hover,
+html[data-theme="dark"] #settings #localAccountsPanel .account-editor fieldset label:has(input:checked) {
+  background: #254542;
+  border-color: #4e8179;
+}
+
+html[data-theme="dark"] #settings #localSecurityAudit .account-audit-table td {
+  border-color: var(--settings-line);
+}
+
+@media (max-width: 900px) {
+  body[data-window="settings"] main {
+    padding: 16px 16px 24px !important;
+  }
+
+  #settings .settings-workspace {
+    grid-template-columns: 190px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  #settings .setting-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  #settings .setting-switch,
+  #settings .settings-number-field {
+    justify-self: start;
+  }
+
+  #settings #currentAccountPanel .account-profile {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 0;
+  }
+
+  #settings #currentAccountPanel .account-profile > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  #settings #currentAccountPanel .account-profile > div:nth-child(3) {
+    padding-left: 0;
+  }
+
+  #settings #localAccountsPanel .account-manager-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 680px) {
+  body[data-window="settings"] main {
+    padding: 12px 10px 18px !important;
+  }
+
+  #settings .settings-window-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  #settings .settings-window-state {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  #settings .settings-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  #settings .settings-sidebar {
+    position: static;
+    padding: 8px;
+  }
+
+  #settings .settings-sidebar-label,
+  #settings .settings-local-indicator,
+  #settings .settings-nav button span {
+    display: none;
+  }
+
+  #settings .settings-nav {
+    display: flex;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 1px;
+  }
+
+  #settings .settings-nav button {
+    flex: 0 0 112px;
+    min-height: 42px;
+    padding: 8px 6px;
+    align-items: center;
+    text-align: center;
+  }
+
+  #settings .settings-nav button::before {
+    display: none;
+  }
+
+  #settings .settings-quick-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #settings .software-settings-body,
+  #settings .settings-quick-actions {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  #settings .software-settings-panel .panel-title {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  #settings #currentAccountPanel > h3,
+  #settings #localAccountsPanel .account-panel-heading,
+  #settings #localSecurityAudit .account-panel-heading,
+  #settings #localBackupPolicy > h3 {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  #settings #currentAccountPanel .account-profile {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+  }
+
+  #settings #currentAccountPanel .account-profile > div,
+  #settings #currentAccountPanel .account-profile > div:first-child,
+  #settings #currentAccountPanel .account-profile > div:last-child {
+    padding: 0 0 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--settings-line-soft);
+  }
+
+  #settings #currentAccountPanel .account-profile > div:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  #settings #currentAccountPanel > button,
+  #settings #currentAccountPanel .account-permissions,
+  #settings #localAccountsPanel .account-storage-note,
+  #settings #localAccountsPanel .account-role-guide,
+  #settings #localAccountsPanel .account-manager-layout,
+  #settings #localSecurityAudit .account-audit-body,
+  #settings #localSecurityAudit > .account-audit-empty,
+  #settings #localBackupPolicy > p,
+  #settings #localBackupPolicy > form {
+    margin-right: 14px;
+    margin-left: 14px;
+  }
+
+  #settings #localAccountsPanel .account-manager-layout {
+    margin-bottom: 14px;
+  }
+
+  #settings #localSecurityAudit .account-audit-tabs {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  #settings #localBackupPolicy > form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #settings #localBackupPolicy > form > button {
+    justify-self: start;
+  }
+}
+.mapping-diagnostic { display:grid; gap:4px; margin:8px 0; padding:10px 12px; border-left:3px solid #25847c; background:var(--bg,#f2f8f7); line-height:1.5; overflow-wrap:anywhere; }
+.mapping-diagnostic small { color:var(--muted); }

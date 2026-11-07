@@ -1,0 +1,785 @@
+/* Import workspace pass: one calm working surface, with the action dock kept visible. */
+#importDialog {
+  width: min(900px, calc(100vw - 28px)) !important;
+  max-width: 900px !important;
+  max-height: min(820px, calc(100dvh - 28px)) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid #c9d7d9 !important;
+  border-radius: 10px !important;
+  background: #f8fbfb !important;
+}
+#importDialog > form {
+  box-sizing: border-box;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  width: 100%;
+  height: min(820px, calc(100dvh - 28px));
+  max-height: none !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+#importDialog .import-dialog-heading {
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 70px;
+  padding: 16px 20px 12px;
+  background: #fff;
+  border-bottom: 1px solid #e0e8e9;
+}
+#importDialog .import-dialog-heading > div > span {
+  color: #14786f;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+#importDialog .import-dialog-heading h2 {
+  margin: 3px 0 2px;
+  color: #19363a;
+  font-size: 19px;
+  letter-spacing: 0;
+}
+#importDialog .import-dialog-heading p {
+  margin: 0;
+  color: #6b7d81;
+  font-size: 11px;
+}
+#importDialog .import-source-tabs {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  padding: 0 20px;
+  background: #fff;
+  border-bottom: 1px solid #dce6e7;
+}
+#importDialog .import-source-tabs button {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  min-height: 58px;
+  padding: 10px 12px 11px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: #5d7074;
+  text-align: left;
+}
+#importDialog .import-source-tabs button b {
+  color: #314b4e;
+  font-size: 12px;
+}
+#importDialog .import-source-tabs button small {
+  color: #7c8c90;
+  font-size: 10px;
+  line-height: 1.35;
+}
+#importDialog .import-source-tabs button[aria-selected="true"] {
+  border-bottom-color: #168279;
+  background: #f2f9f7;
+  box-shadow: none;
+}
+#importDialog .import-source-tabs button[aria-selected="true"] b {
+  color: #12695f;
+}
+#importDialog .import-workspace-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 20px 0;
+  overflow: auto;
+  background: #f8fbfb;
+}
+#importDialog .import-source-panel {
+  flex: 0 0 auto;
+  gap: 8px;
+  min-height: 0;
+}
+#importDialog .import-route-heading {
+  gap: 9px;
+  padding: 0 0 2px;
+}
+#importDialog .import-route-heading b {
+  color: #294347;
+  font-size: 13px;
+}
+#importDialog .import-route-heading small {
+  color: #718286;
+  font-size: 11px;
+}
+#importDialog .import-step-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: #dff1ed;
+  color: #14786f;
+}
+#importDialog .import-step-card,
+#importDialog .excel-picker,
+#importDialog .folder-import-details {
+  border: 1px solid #d7e3e4 !important;
+  border-radius: 7px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+#importDialog .excel-picker {
+  padding: 14px !important;
+}
+#importDialog .import-source-actions {
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 8px;
+}
+#importDialog .import-source-actions button {
+  min-width: 145px;
+  height: 36px;
+}
+#importDialog .import-format-hint {
+  color: #73868a;
+  font-size: 11px;
+}
+#importDialog .import-path-hint {
+  height: 34px !important;
+  margin-top: 10px !important;
+  border-color: #d7e3e4;
+  background: #f6f9f9;
+}
+#importDialog .folder-import-details {
+  display: block !important;
+  min-height: 0;
+  overflow: visible !important;
+}
+#importDialog .folder-import-content {
+  padding: 14px !important;
+}
+#importDialog .folder-import-content > p {
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+  color: #6c7f82;
+  font-size: 11px;
+}
+#importDialog .import-source-card {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+#importDialog .folder-picker {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+#importDialog .folder-picker input {
+  height: 38px;
+  border-color: #d4e1e2;
+  background: #f7faf9;
+}
+#importDialog .folder-picker button {
+  height: 38px;
+  min-width: 130px;
+}
+#importDialog .active-report-policy {
+  margin: 12px 0 8px;
+  padding: 8px 0;
+  border: 0;
+  border-top: 1px solid #e3ebeb;
+  border-bottom: 1px solid #e3ebeb;
+  border-radius: 0;
+  background: transparent;
+}
+#importDialog .active-report-policy label {
+  gap: 8px;
+}
+#importDialog .active-report-policy select {
+  height: 30px;
+  min-width: 200px;
+}
+#importDialog .active-report-policy-hint {
+  color: #7a8b8e;
+  font-size: 10px;
+}
+#importDialog .report-picker {
+  margin: 10px 0 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+#importDialog .report-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+#importDialog .report-picker-head b {
+  color: #294347;
+  font-size: 12px;
+}
+#importDialog .report-picker-head button {
+  height: 30px;
+  padding: 0 10px;
+}
+#importDialog .report-options,
+#importDialog .report-selection-summary {
+  max-height: 250px;
+  overflow: auto;
+  border: 1px solid #dbe6e6;
+  border-radius: 6px;
+  background: #fbfdfd;
+}
+#importDialog .report-options.empty {
+  min-height: 42px;
+  padding: 12px;
+  color: #7b8d90;
+  font-size: 11px;
+}
+#importDialog .report-summary-row {
+  display: grid;
+  grid-template-columns: minmax(135px, .8fr) minmax(150px, 1fr) minmax(150px, 1.15fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e6eeee;
+}
+#importDialog .report-summary-row:last-child {
+  border-bottom: 0;
+}
+#importDialog .report-summary-row > b {
+  color: #294347;
+  font-size: 11px;
+}
+#importDialog .report-summary-row small {
+  color: #708184;
+  font-size: 10px;
+}
+#importDialog .report-summary-analysts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+#importDialog .analyst-chip {
+  padding: 3px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+}
+#importDialog .rpt-conversion-result {
+  margin-top: 11px;
+  padding: 11px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+#importDialog #exportFolderExcel {
+  margin-top: 11px;
+  height: 36px;
+}
+#importDialog #importQueuePanel {
+  flex: 0 0 auto;
+  padding-top: 2px;
+  border-top: 1px solid #dce7e7;
+}
+#importDialog .excel-queue-heading {
+  min-height: 28px;
+  margin: 0;
+}
+#importDialog .excel-queue-heading b {
+  color: #294347;
+  font-size: 12px;
+}
+#importDialog .excel-queue-heading span {
+  color: #718387;
+  font-size: 10px;
+}
+#importDialog .excel-file-list {
+  max-height: 138px;
+  border: 1px solid #dbe6e6;
+  border-radius: 6px;
+  background: #fff;
+}
+#importDialog .excel-file-list:has(.failed),
+#importDialog .excel-file-list:has(.skipped) {
+  max-height: min(240px, 34dvh);
+}
+#importDialog .excel-file-list.empty {
+  padding: 15px;
+  color: #7a8b8f;
+  font-size: 11px;
+}
+#importDialog .excel-file-chip {
+  min-height: 42px;
+  padding: 7px 9px;
+  border-bottom-color: #e8eeee;
+}
+#importDialog .excel-file-chip .excel-file-name {
+  flex-basis: 28%;
+  color: #30484c;
+  font-size: 11px;
+}
+#importDialog .excel-file-chip small {
+  color: #718286;
+  font-size: 10px;
+}
+#importDialog .excel-file-chip button {
+  min-width: 30px;
+  height: 28px;
+  padding: 0 7px;
+  border-color: #d7e2e3;
+  background: #f7faf9;
+}
+#importDialog #importProgressPanel,
+#importDialog #importStatus {
+  flex: 0 0 auto;
+}
+#importDialog #importProgressPanel {
+  min-height: 42px;
+  border-radius: 6px;
+}
+#importDialog #importStatus {
+  max-height: 150px;
+  margin: 0 !important;
+  border-radius: 6px;
+  font-size: 11px;
+}
+#importDialog #importStatus > strong {
+  display: block;
+  margin-top: 8px;
+}
+#importDialog #importStatus > small {
+  max-height: 92px;
+}
+.import-result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid #dce7e7;
+  border-radius: 5px;
+  background: #dce7e7;
+}
+.import-result-grid > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 7px;
+  background: #fff;
+}
+.import-result-grid b {
+  color: #244c49;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.import-result-grid span {
+  color: #708184;
+  font-size: 10px;
+}
+.import-result-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  color: #17634f;
+  font-size: 13px;
+}
+#importDialog #importStatus[data-outcome="warning"] .import-result-heading {
+  color: #776016;
+}
+#importDialog #importStatus[data-outcome="failed"] .import-result-heading {
+  color: #993d3d;
+}
+.import-result-summary {
+  color: #53676a;
+  font-size: 11px !important;
+  font-weight: 500;
+  line-height: 1.45;
+}
+.import-result-details {
+  margin-top: 6px;
+  border-top: 1px solid #dce7e7;
+  padding-top: 5px;
+}
+.import-refresh-warning {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-left: 3px solid #9a751c;
+  color: #735614;
+  background: #faf5e8;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+html[data-theme="dark"] .import-refresh-warning {
+  border-color: #cba94e;
+  color: #ecd596;
+  background: #343024;
+}
+.import-result-details summary {
+  color: #315e59;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 650;
+}
+.import-result-details ul {
+  max-height: 110px;
+  margin: 5px 0 0;
+  padding-left: 16px;
+  overflow: auto;
+}
+.import-result-details li {
+  padding: 2px 0;
+  color: #5b7073;
+  font-size: 10px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.import-result-accessible {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+#importDialog .dialog-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 64px;
+  padding: 11px 20px 14px;
+  border-top: 1px solid #dce6e7;
+  background: #fff;
+}
+#importDialog .dialog-actions #importActionHint {
+  color: #6d7f83;
+  font-size: 10px;
+}
+#importDialog .dialog-actions button {
+  height: 38px;
+  min-width: 90px;
+}
+#importDialog .dialog-actions #runImport {
+  min-width: 156px;
+}
+
+/* Excel starts as a short picker; the RPT workflow expands into a work window. */
+#importDialog[data-import-mode="excel"] {
+  height: fit-content !important;
+  max-height: calc(100dvh - 18px) !important;
+}
+#importDialog[data-import-mode="excel"] > form {
+  height: auto;
+  max-height: calc(100dvh - 18px) !important;
+}
+#importDialog[data-import-mode="excel"] .import-workspace-body {
+  flex: 0 1 auto;
+  overflow: visible;
+}
+
+/* The report chooser is a companion window: make the analyst the first visual datum. */
+#reportChoiceDialog {
+  width: min(700px, calc(100vw - 28px));
+  border-radius: 9px;
+}
+#reportChoiceDialog .wizard-head {
+  padding: 15px 18px 12px;
+}
+#reportChoiceDialog .wizard-progress {
+  margin: 0 18px 10px;
+}
+#reportChoiceDialog .wizard-overview-head {
+  padding: 0 18px 7px;
+}
+#reportChoiceDialog .wizard-overview {
+  margin: 0 18px 10px;
+  max-height: 58px;
+}
+#reportChoiceDialog #reportWizardContext {
+  margin: 0 18px 10px;
+  color: #5f7477;
+  font-size: 11px;
+  line-height: 1.5;
+}
+#reportChoiceDialog .wizard-options {
+  margin: 0 18px;
+  border: 1px solid #d8e4e4;
+  border-radius: 7px;
+}
+#reportChoiceDialog .wizard-report-option {
+  min-height: 76px;
+  padding: 13px 14px;
+}
+#reportChoiceDialog .wizard-report-option .wizard-analyst-heading {
+  margin-bottom: 7px;
+  color: #31565a;
+  font-size: 11px;
+}
+#reportChoiceDialog .wizard-report-option .wizard-report-name {
+  color: #213c40;
+  font-size: 13px;
+}
+#reportChoiceDialog .wizard-report-option small {
+  margin-top: 6px;
+  color: #647a7d;
+  font-size: 11px;
+}
+#reportChoiceDialog .wizard-report-option em {
+  color: #829093;
+  font-size: 10px;
+}
+#reportChoiceDialog .wizard-actions {
+  margin-top: 12px;
+  padding: 12px 18px 15px;
+}
+
+html[data-theme="dark"] #importDialog {
+  border-color: #334f50 !important;
+  background: #142526 !important;
+}
+html[data-theme="dark"] #importDialog .import-dialog-heading,
+html[data-theme="dark"] #importDialog .import-source-tabs,
+html[data-theme="dark"] #importDialog .dialog-actions {
+  background: #172b2c !important;
+  border-color: #304a4b;
+}
+html[data-theme="dark"] #importDialog .import-dialog-heading h2,
+html[data-theme="dark"] #importDialog .import-source-tabs button b,
+html[data-theme="dark"] #importDialog .import-route-heading b,
+html[data-theme="dark"] #importDialog .report-picker-head b,
+html[data-theme="dark"] #importDialog .excel-queue-heading b,
+html[data-theme="dark"] #importDialog .report-summary-row > b,
+html[data-theme="dark"] #importDialog .excel-file-chip .excel-file-name {
+  color: #e3f1ef;
+}
+html[data-theme="dark"] #importDialog .import-dialog-heading p,
+html[data-theme="dark"] #importDialog .import-route-heading small,
+html[data-theme="dark"] #importDialog .folder-import-content > p,
+html[data-theme="dark"] #importDialog .import-format-hint,
+html[data-theme="dark"] #importDialog .excel-queue-heading span,
+html[data-theme="dark"] #importDialog .excel-file-chip small {
+  color: #9bb2b1;
+}
+html[data-theme="dark"] #importDialog .import-workspace-body {
+  background: #142526;
+}
+html[data-theme="dark"] #importDialog .excel-file-chip button {
+  background: #203b3c;
+  border-color: #476465;
+  color: #d8e7e4;
+}
+html[data-theme="dark"] #importDialog .excel-file-chip button:disabled {
+  background: #263b3c;
+  border-color: #3e5657;
+  color: #a7bcba;
+  opacity: 1;
+}
+html[data-theme="dark"] #importDialog .import-source-tabs button[aria-selected="true"] {
+  background: #1b3a38;
+}
+html[data-theme="dark"] #importDialog .import-step-card,
+html[data-theme="dark"] #importDialog .excel-picker,
+html[data-theme="dark"] #importDialog .folder-import-details {
+  border-color: #355253 !important;
+  background: #1a3031 !important;
+}
+html[data-theme="dark"] #importDialog .import-path-hint,
+html[data-theme="dark"] #importDialog .folder-picker input,
+html[data-theme="dark"] #importDialog .excel-file-list,
+html[data-theme="dark"] #importDialog .report-options,
+html[data-theme="dark"] #importDialog .report-selection-summary {
+  border-color: #355253;
+  background: #172b2c;
+  color: #d8e7e4;
+}
+html[data-theme="dark"] #importDialog .active-report-policy {
+  border-color: #355253;
+}
+html[data-theme="dark"] #importDialog .report-summary-row,
+html[data-theme="dark"] #importDialog .excel-file-chip,
+html[data-theme="dark"] #importDialog #importQueuePanel {
+  border-color: #304a4b;
+}
+html[data-theme="dark"] #importDialog .report-summary-row small,
+html[data-theme="dark"] #importDialog .active-report-policy-hint {
+  color: #9ab0ae;
+}
+html[data-theme="dark"] #importDialog .dialog-actions #importActionHint {
+  color: #9ab0ae;
+}
+html[data-theme="dark"] .import-result-grid {
+  border-color: #355253;
+  background: #355253;
+}
+html[data-theme="dark"] .import-result-grid > div {
+  background: #192f30;
+}
+html[data-theme="dark"] .import-result-grid b {
+  color: #a5d8c9;
+}
+html[data-theme="dark"] .import-result-grid span {
+  color: #9ab0ae;
+}
+html[data-theme="dark"] .import-result-summary,
+html[data-theme="dark"] .import-result-details li {
+  color: #b2c4c2;
+}
+html[data-theme="dark"] .import-result-details {
+  border-color: #355253;
+}
+html[data-theme="dark"] .import-result-details summary {
+  color: #a5d8c9;
+}
+
+@media (max-width: 700px) {
+  #importDialog {
+    width: calc(100vw - 18px) !important;
+    max-height: calc(100dvh - 18px) !important;
+  }
+  #importDialog > form {
+    height: calc(100dvh - 18px);
+  }
+  #importDialog .import-dialog-heading {
+    min-height: 62px;
+    padding: 12px 14px 10px;
+  }
+  #importDialog .import-dialog-heading h2 {
+    font-size: 17px;
+  }
+  #importDialog .import-source-tabs {
+    padding: 0 14px;
+  }
+  #importDialog .import-source-tabs button {
+    min-height: 52px;
+    padding: 8px 9px 9px;
+  }
+  #importDialog .import-workspace-body {
+    gap: 8px;
+    padding: 10px 14px 0;
+  }
+  #importDialog .import-source-actions {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  #importDialog .import-source-actions button {
+    min-width: 0;
+    padding: 0 7px;
+  }
+  #importDialog .import-format-hint {
+    grid-column: 1 / -1;
+  }
+  #importDialog .folder-import-content,
+  #importDialog .excel-picker {
+    padding: 11px !important;
+  }
+  #importDialog .folder-picker {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  #importDialog .folder-picker button {
+    min-width: 110px;
+    padding: 0 8px;
+  }
+  #importDialog .active-report-policy {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  #importDialog .active-report-policy select {
+    width: 100%;
+    min-width: 0;
+  }
+  #importDialog .report-summary-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  #importDialog .report-summary-row small {
+    grid-column: 1 / -1;
+  }
+  #importDialog .excel-file-list {
+    max-height: 118px;
+  }
+  #importDialog .excel-file-list:has(.failed),
+  #importDialog .excel-file-list:has(.skipped) {
+    max-height: min(200px, 30dvh);
+  }
+  #importDialog .dialog-actions {
+    flex-wrap: wrap;
+    min-height: 68px;
+    padding: 9px 14px 12px;
+  }
+  #importDialog .dialog-actions #importActionHint {
+    flex-basis: 100%;
+  }
+  .import-result-grid {
+    grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+  }
+  #importDialog .dialog-actions button {
+    flex: 1;
+    min-width: 0;
+  }
+  #reportChoiceDialog .wizard-options {
+    margin: 0 12px;
+  }
+  #reportChoiceDialog .wizard-head,
+  #reportChoiceDialog .wizard-overview-head,
+  #reportChoiceDialog #reportWizardContext {
+    margin-left: 12px;
+    margin-right: 12px;
+  }
+  #reportChoiceDialog .wizard-head {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  #reportChoiceDialog .wizard-overview-head {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  #reportChoiceDialog #reportWizardContext {
+    margin-bottom: 8px;
+  }
+  #importDialog[data-import-mode="excel"] {
+    height: auto !important;
+  }
+  #importDialog[data-import-mode="excel"] > form {
+    height: auto !important;
+  }
+}
+@media (max-width: 390px) {
+  #importDialog .folder-picker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #importDialog .folder-picker button {
+    width: 100%;
+  }
+}
+
+.import-result-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #d8e4e7}
+.import-result-actions button{height:30px;padding:0 10px;font-size:11px}
+.import-diagnostic-dialog{width:min(760px,calc(100vw - 28px));max-height:86dvh;padding:0}
+.import-diagnostic-dialog form{max-height:86dvh;display:flex;flex-direction:column}
+.import-diagnostic-dialog .import-diagnostic-body{padding:14px 18px;overflow:auto;min-height:120px}
+.import-diagnostic-body p,.import-diagnostic-issues li{overflow-wrap:anywhere}
+.import-diagnostic-summary{display:grid;gap:5px;padding:12px;background:#f3f8f8;border:1px solid #d6e4e5;border-radius:5px}
+.import-diagnostic-summary span,.import-diagnostic-summary small{overflow-wrap:anywhere;color:#5e7278}
+.import-diagnostic-metrics{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.import-diagnostic-metrics span{display:inline-flex;align-items:baseline;gap:4px;padding:4px 8px;border:1px solid #d6e4e5;border-radius:4px;background:#fff;color:#53666b}
+.import-diagnostic-metrics b{font-size:15px;color:#173c42}
+.import-diagnostic-issues{display:grid;gap:8px;margin:14px 0 0;padding-left:24px}
+.import-diagnostic-issues li{display:grid;gap:3px;padding:8px 10px;border-left:3px solid #cc4b54;background:#fff6f6}
+.import-diagnostic-issues li small{color:#687a80;overflow-wrap:anywhere}
+.import-diagnostic-issues li[data-severity="warning"]{border-left-color:#a77b24;background:#fff9eb}
+.import-recovery-hint{font-size:12px;line-height:1.6}
+.import-diagnostic-body .import-result-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:14px}
+html[data-theme="dark"] .import-diagnostic-issues li[data-severity="warning"]{background:#352f23;color:#f0e2c4}
+.import-service-log{max-height:52dvh;margin:12px 0 0;padding:12px;overflow:auto;white-space:pre-wrap;word-break:break-word;background:#17252b;color:#d9e8e7;border-radius:5px;font:11px/1.6 Consolas,monospace}
+html[data-theme="dark"] .import-result-actions{border-color:#355253}
+html[data-theme="dark"] .import-diagnostic-summary{background:#1a3031;border-color:#355253;color:#e3f1ef}
+html[data-theme="dark"] .import-diagnostic-summary span,
+html[data-theme="dark"] .import-diagnostic-summary small,
+html[data-theme="dark"] .import-diagnostic-issues li small{color:#b2c4c2}
+html[data-theme="dark"] .import-diagnostic-metrics span{background:#203a3b;border-color:#355253;color:#b7cfcc}
+html[data-theme="dark"] .import-diagnostic-metrics b{color:#e3f1ef}
+html[data-theme="dark"] .import-diagnostic-issues li{background:#38282c;color:#f2dce0}
+@media (max-width:600px){
+  .import-result-actions button{flex:1 1 100%}
+  .import-diagnostic-dialog .import-diagnostic-body{padding:12px}
+}

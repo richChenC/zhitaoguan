@@ -1,0 +1,126 @@
+html[data-theme="light"] #stage,
+html[data-theme="light"] #loading {
+  background:#f2f5f7;
+}
+
+html[data-theme="dark"] {
+  color-scheme:dark;
+  --bg:#101617;
+  --bg2:#101617;
+  --paper:#1c2527;
+  --panel:#1c2527;
+  --panel-soft:#243032;
+  --line:#3b4c4d;
+  --line-soft:#334244;
+  --ink:#e5eeec;
+  --ink2:#c4d2cf;
+  --muted:#9eafac;
+  --accent:#55c2b4;
+  --accent-soft:#294744;
+  --shadow:0 8px 28px #0006;
+}
+html[data-theme="dark"] body,
+html[data-theme="dark"] #stage,
+html[data-theme="dark"] #loading { background:#101617; color:var(--ink); }
+html[data-theme="dark"] header {
+  background:#182123;
+  border-color:var(--line);
+}
+html[data-theme="dark"] :is(#left,#right,#scale,#viewBar,#axisGizmo,#referenceTubeNavigator) {
+  background:rgba(28,37,39,.97);
+  border-color:var(--line);
+  color:var(--ink);
+  box-shadow:var(--shadow);
+}
+html[data-theme="dark"] :is(.grp,.model-legend,#right td,.reference-inspection-controls,.reference-inspection-selection,.reference-inspection-record,.reference-inspection-record dl>div) {
+  border-color:var(--line-soft);
+}
+html[data-theme="dark"] :is(.row label,.chk,.tree .item,.col-legend span,.model-legend span,.plan-hover,#right .note,#right td:last-child) { color:var(--ink2); }
+html[data-theme="dark"] :is(.seg,.tree .item:hover,#right .note) { background:var(--panel-soft); }
+html[data-theme="dark"] :is(.seg button.on,.btns button,select,#referencePanelToggle,#inspectionToggle,.top-plate-toggle,#defaultViewButton,#referenceTubeNavigator button,#scale .tick .lab,#scale .tick .dep) {
+  background:#293638;
+  border-color:#4c6261;
+  color:var(--ink);
+}
+html[data-theme="dark"] :is(.btns button:hover,#referencePanelToggle:hover,#defaultViewButton:hover,#referenceTubeNavigator button:hover) {
+  background:var(--accent-soft);
+  border-color:#62a89e;
+  color:#8fe1d5;
+}
+html[data-theme="dark"] :is(.top-plate-toggle.on,#inspectionToggle.on,#viewBar button.on) {
+  background:#23887f;
+  border-color:#35a99c;
+  color:#fff;
+}
+html[data-theme="dark"] #viewBar button { color:var(--ink2); }
+html[data-theme="dark"] #viewBar button:hover { background:var(--accent-soft); color:#8fe1d5; }
+html[data-theme="dark"] :is(#hint,.dim) {
+  background:rgba(35,47,49,.96);
+  border-color:#526766;
+  color:#d8e6e3;
+}
+html[data-theme="dark"] .dim.station.est { background:#342b1c; color:#ffd087; border-color:#8a6731; }
+html[data-theme="dark"] #right .close:hover { background:#304042; color:#fff; }
+html[data-theme="dark"] #toast {
+  background:#253335;
+  border-color:#52706d;
+  color:#eef8f6;
+  box-shadow:0 8px 24px #0007;
+}
+html[data-theme="dark"] #toast[data-error=true] { background:#42282c; border-color:#96515a; color:#ffd8dc; }
+html[data-theme="dark"] #selectionLegend { color:#bdcbc8; }
+html[data-theme="dark"] #selectionLegend i { background:#6f8180; border-color:#9aacaa; }
+html[data-theme="dark"] #selectionLegend i.selected { background:#f2b441; border-color:#ffe098; }
+html[data-theme="dark"] #left::-webkit-scrollbar-thumb,
+html[data-theme="dark"] #right::-webkit-scrollbar-thumb { background:#536866; border-color:transparent; }
+html[data-theme="dark"] #left,
+html[data-theme="dark"] #right { scrollbar-color:#536866 transparent; }
+
+/* The calibrated plan drawing stays on white paper. */
+html[data-theme="dark"] #planWrap {
+  color-scheme:light;
+  background:#fff;
+  border-color:#71817f;
+}
+
+/* Inspection layer follows the model shell. */
+html[data-theme="dark"] .reference-inspection {
+  background:#1c2527;
+  color:#e5eeec;
+  border-color:#3b4c4d;
+}
+html[data-theme="dark"] .reference-inspection>summary { color:#d8e7e4; }
+html[data-theme="dark"] .reference-inspection>summary:hover { background:#294744; color:#8fe1d5; }
+html[data-theme="dark"] :is(.reference-inspection-status,.reference-scope-controls label,.reference-inspection-search-results,.reference-inspection-empty,.reference-inspection-calibration,.reference-inspection-selection>span) { color:#9eafac; }
+html[data-theme="dark"] :is(.reference-scope-controls select,.reference-scope-controls button,.reference-inspection-search input,.reference-inspection-search button,.reference-inspection-result) {
+  background:#293638;
+  border-color:#4c6261;
+  color:#e5eeec;
+}
+html[data-theme="dark"] .reference-inspection-result:hover {
+  background:#294744;
+  border-color:#55c2b4;
+}
+html[data-theme="dark"] :is(.reference-inspection-result span,.reference-inspection-result small,.reference-inspection-record>summary span,.reference-inspection-record dt) { color:#9eafac; }
+html[data-theme="dark"] :is(.reference-inspection-selection strong,.reference-inspection-record dd) { color:#dbe8e5; }
+html[data-theme="dark"] .reference-inspection-record[data-active=true] {
+  background:#263c3a;
+  box-shadow:inset 2px 0 #55c2b4;
+}
+html[data-theme="dark"] .reference-defect-tooltip {
+  background:#253335;
+  border-color:#52706d;
+  color:#eef8f6;
+  box-shadow:0 8px 24px #0007;
+}
+html[data-theme="dark"] .reference-defect-tooltip small { color:#cdbd9f; }
+html[data-theme="dark"] .reference-inspection-status[data-error=true] {
+  background:#42282c;
+  border-color:#b85c66;
+  color:#ffd8dc;
+}
+html[data-theme="dark"] .reference-inspection-warning {
+  background:#3d321c;
+  border-color:#a87e31;
+  color:#f2ddb0;
+}

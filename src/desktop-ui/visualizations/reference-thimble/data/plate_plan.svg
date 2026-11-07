@@ -1,0 +1,598 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1336" height="1102" viewBox="0 0 1336 1102">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="501.0" y="46" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="28" font-weight="700" letter-spacing="1.8" fill="#1d2a37">LOCATION OF FLUX THIMBLES</text>
+<text x="501.0" y="72" text-anchor="middle" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="13.5" fill="#6b7a8c" letter-spacing=".6">反应堆中子通量测量指套管堆芯位置示意图 · 图 1-1 · 50 通道双编号对照</text>
+<line x1="96" y1="88" x2="906" y2="88" stroke="#46586b" stroke-width="1"/>
+<text x="123.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">R</text>
+<text x="177.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">P</text>
+<text x="231.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">N</text>
+<text x="285.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">M</text>
+<text x="339.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">L</text>
+<text x="393.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">K</text>
+<text x="447.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">J</text>
+<text x="501.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">H</text>
+<text x="555.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">G</text>
+<text x="609.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">F</text>
+<text x="663.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">E</text>
+<text x="717.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">D</text>
+<text x="771.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">C</text>
+<text x="825.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">B</text>
+<text x="879.0" y="174.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="16.5" font-weight="600" fill="#1d2a37">A</text>
+<text x="76.0" y="223.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">01</text>
+<text x="76.0" y="277.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">02</text>
+<text x="76.0" y="331.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">03</text>
+<text x="76.0" y="385.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">04</text>
+<text x="76.0" y="439.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">05</text>
+<text x="76.0" y="493.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">06</text>
+<text x="76.0" y="547.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">07</text>
+<text x="76.0" y="601.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">08</text>
+<text x="76.0" y="655.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">09</text>
+<text x="76.0" y="709.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">10</text>
+<text x="76.0" y="763.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">11</text>
+<text x="76.0" y="817.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">12</text>
+<text x="76.0" y="871.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">13</text>
+<text x="76.0" y="925.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">14</text>
+<text x="76.0" y="979.6" text-anchor="end" font-family="Consolas,'Courier New',monospace" font-size="13.5" fill="#6b7a8c">15</text>
+<rect x="420.0" y="192.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="192.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="192.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="246.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="246.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="246.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="246.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="246.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="246.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="246.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="258.0" y="300.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="300.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="300.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="300.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="300.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="300.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="300.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="300.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="690.0" y="300.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="204.0" y="354.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="258.0" y="354.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="354.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="354.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="354.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="354.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="354.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="354.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="354.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="690.0" y="354.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="744.0" y="354.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="150.0" y="408.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="204.0" y="408.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="258.0" y="408.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="408.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="408.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="408.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="408.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="408.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="408.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="408.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="690.0" y="408.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="744.0" y="408.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="798.0" y="408.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="150.0" y="462.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="204.0" y="462.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="258.0" y="462.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="462.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="462.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="462.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="462.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="462.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="462.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="462.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="690.0" y="462.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="744.0" y="462.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="798.0" y="462.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="96.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="150.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="204.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="258.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="690.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="744.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="798.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="852.0" y="516.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="96.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="150.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="204.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="258.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="690.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="744.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="798.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="852.0" y="570.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="96.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="150.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="204.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="258.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="690.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="744.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="798.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="852.0" y="624.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="96.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="150.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="204.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="258.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="690.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="744.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="798.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="852.0" y="678.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="150.0" y="732.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="204.0" y="732.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="258.0" y="732.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="732.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="732.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="732.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="732.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="732.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="732.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="732.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="690.0" y="732.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="744.0" y="732.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="798.0" y="732.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="150.0" y="786.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="204.0" y="786.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="258.0" y="786.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="786.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="786.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="786.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="786.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="786.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="786.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="786.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="690.0" y="786.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="744.0" y="786.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="798.0" y="786.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="204.0" y="840.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="258.0" y="840.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="840.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="840.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="840.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="840.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="840.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="840.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="840.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="690.0" y="840.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="744.0" y="840.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="258.0" y="894.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="894.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="894.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="894.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="894.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="894.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="894.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="894.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="690.0" y="894.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="312.0" y="948.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="366.0" y="948.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="420.0" y="948.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="474.0" y="948.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="528.0" y="948.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="582.0" y="948.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<rect x="636.0" y="948.0" width="54.0" height="54.0" fill="none" stroke="#9fb0c2" stroke-width="0.9"/>
+<path d="M420.0,192.0L474.0,192.0 M420.0,192.0L420.0,246.0 M474.0,192.0L528.0,192.0 M528.0,192.0L582.0,192.0 M582.0,192.0L582.0,246.0 M312.0,246.0L366.0,246.0 M312.0,246.0L312.0,300.0 M366.0,246.0L420.0,246.0 M582.0,246.0L636.0,246.0 M636.0,246.0L690.0,246.0 M690.0,246.0L690.0,300.0 M258.0,300.0L312.0,300.0 M258.0,300.0L258.0,354.0 M690.0,300.0L744.0,300.0 M744.0,300.0L744.0,354.0 M204.0,354.0L258.0,354.0 M204.0,354.0L204.0,408.0 M744.0,354.0L798.0,354.0 M798.0,354.0L798.0,408.0 M150.0,408.0L204.0,408.0 M150.0,408.0L150.0,462.0 M798.0,408.0L852.0,408.0 M852.0,408.0L852.0,462.0 M150.0,462.0L150.0,516.0 M852.0,462.0L852.0,516.0 M96.0,516.0L150.0,516.0 M96.0,516.0L96.0,570.0 M852.0,516.0L906.0,516.0 M906.0,516.0L906.0,570.0 M96.0,570.0L96.0,624.0 M906.0,570.0L906.0,624.0 M96.0,624.0L96.0,678.0 M906.0,624.0L906.0,678.0 M96.0,732.0L150.0,732.0 M96.0,678.0L96.0,732.0 M852.0,732.0L906.0,732.0 M906.0,678.0L906.0,732.0 M150.0,732.0L150.0,786.0 M852.0,732.0L852.0,786.0 M150.0,840.0L204.0,840.0 M150.0,786.0L150.0,840.0 M798.0,840.0L852.0,840.0 M852.0,786.0L852.0,840.0 M204.0,894.0L258.0,894.0 M204.0,840.0L204.0,894.0 M744.0,894.0L798.0,894.0 M798.0,840.0L798.0,894.0 M258.0,948.0L312.0,948.0 M258.0,894.0L258.0,948.0 M690.0,948.0L744.0,948.0 M744.0,894.0L744.0,948.0 M312.0,1002.0L366.0,1002.0 M312.0,948.0L312.0,1002.0 M366.0,1002.0L420.0,1002.0 M420.0,1002.0L474.0,1002.0 M474.0,1002.0L528.0,1002.0 M528.0,1002.0L582.0,1002.0 M582.0,1002.0L636.0,1002.0 M636.0,1002.0L690.0,1002.0 M690.0,948.0L690.0,1002.0" fill="none" stroke="#46586b" stroke-width="1.9" stroke-linecap="square"/>
+<g class="thimble" data-pos="H1">
+<title>H1 · 奇数 46 / 偶数 32 · P1→P6 2711.6 mm</title>
+<circle cx="501.0" cy="219.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="501.0" y1="198.2" x2="501.0" y2="239.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="490.6" y="223.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">46</text>
+<text x="511.4" y="223.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">32</text>
+</g>
+<g class="thimble" data-pos="F2">
+<title>F2 · 奇数 45 / 偶数 22 · P1→P6 2829.2 mm</title>
+<circle cx="609.0" cy="273.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="609.0" y1="252.2" x2="609.0" y2="293.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="598.6" y="277.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">45</text>
+<text x="619.4" y="277.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">22</text>
+</g>
+<g class="thimble" data-pos="M3">
+<title>M3 · 奇数 26 / 偶数 41 · P1→P6 2822.6 mm</title>
+<circle cx="285.0" cy="327.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="285.0" y1="306.2" x2="285.0" y2="347.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="274.6" y="331.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">26</text>
+<text x="295.4" y="331.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">41</text>
+</g>
+<g class="thimble" data-pos="J3">
+<title>J3 · 奇数 36 / 偶数 33 · P1→P6 3012.2 mm</title>
+<circle cx="447.0" cy="327.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="447.0" y1="306.2" x2="447.0" y2="347.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="436.6" y="331.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">36</text>
+<text x="457.4" y="331.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">33</text>
+</g>
+<g class="thimble" data-pos="H3">
+<title>H3 · 奇数 35 / 偶数 31 · P1→P6 3029.1 mm</title>
+<circle cx="501.0" cy="327.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="501.0" y1="306.2" x2="501.0" y2="347.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="490.6" y="331.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">35</text>
+<text x="511.4" y="331.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">31</text>
+</g>
+<g class="thimble" data-pos="D3">
+<title>D3 · 奇数 43 / 偶数 12 · P1→P6 2822.6 mm</title>
+<circle cx="717.0" cy="327.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="717.0" y1="306.2" x2="717.0" y2="347.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="706.6" y="331.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">43</text>
+<text x="727.4" y="331.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">12</text>
+</g>
+<g class="thimble" data-pos="L4">
+<title>L4 · 奇数 24 / 偶数 50 · P1→P6 3029.1 mm</title>
+<circle cx="339.0" cy="381.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="339.0" y1="360.2" x2="339.0" y2="401.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="328.6" y="385.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">24</text>
+<text x="349.4" y="385.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">50</text>
+</g>
+<g class="thimble" data-pos="H4">
+<title>H4 · 奇数 38 / 偶数 40 · P1→P6 3128.2 mm</title>
+<circle cx="501.0" cy="381.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="501.0" y1="360.2" x2="501.0" y2="401.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="490.6" y="385.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">38</text>
+<text x="511.4" y="385.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">40</text>
+</g>
+<g class="thimble" data-pos="F4">
+<title>F4 · 奇数 48 / 偶数 30 · P1→P6 3081.7 mm</title>
+<circle cx="609.0" cy="381.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="609.0" y1="360.2" x2="609.0" y2="401.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="598.6" y="385.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">48</text>
+<text x="619.4" y="385.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">30</text>
+</g>
+<g class="thimble" data-pos="N5">
+<title>N5 · 奇数 15 / 偶数 42 · P1→P6 2909.7 mm</title>
+<circle cx="231.0" cy="435.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="231.0" y1="414.2" x2="231.0" y2="455.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="220.6" y="439.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">15</text>
+<text x="241.4" y="439.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">42</text>
+</g>
+<g class="thimble" data-pos="L5">
+<title>L5 · 奇数 14 / 偶数 47 · P1→P6 3108.2 mm</title>
+<circle cx="339.0" cy="435.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="339.0" y1="414.2" x2="339.0" y2="455.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="328.6" y="439.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">14</text>
+<text x="349.4" y="439.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">47</text>
+</g>
+<g class="thimble" data-pos="J5">
+<title>J5 · 奇数 25 / 偶数 38 · P1→P6 3198.2 mm</title>
+<circle cx="447.0" cy="435.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="447.0" y1="414.2" x2="447.0" y2="455.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="436.6" y="439.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">25</text>
+<text x="457.4" y="439.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">38</text>
+</g>
+<g class="thimble" data-pos="E5">
+<title>E5 · 奇数 34 / 偶数 18 · P1→P6 3108.2 mm</title>
+<circle cx="663.0" cy="435.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="663.0" y1="414.2" x2="663.0" y2="455.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="652.6" y="439.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">34</text>
+<text x="673.4" y="439.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">18</text>
+</g>
+<g class="thimble" data-pos="D5">
+<title>D5 · 奇数 44 / 偶数 11 · P1→P6 3029.1 mm</title>
+<circle cx="717.0" cy="435.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="717.0" y1="414.2" x2="717.0" y2="455.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="706.6" y="439.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">44</text>
+<text x="727.4" y="439.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">11</text>
+</g>
+<g class="thimble" data-pos="B5">
+<title>B5 · 奇数 42 / 偶数 1 · P1→P6 2768.1 mm</title>
+<circle cx="825.0" cy="435.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="825.0" y1="414.2" x2="825.0" y2="455.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="814.6" y="439.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">42</text>
+<text x="835.4" y="439.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">1</text>
+</g>
+<g class="thimble" data-pos="L6">
+<title>L6 · 奇数 18 / 偶数 49 · P1→P6 3174.1 mm</title>
+<circle cx="339.0" cy="489.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="339.0" y1="468.2" x2="339.0" y2="509.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="328.6" y="493.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">18</text>
+<text x="349.4" y="493.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">49</text>
+</g>
+<g class="thimble" data-pos="H6">
+<title>H6 · 奇数 37 / 偶数 23 · P1→P6 3264.7 mm</title>
+<circle cx="501.0" cy="489.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="501.0" y1="468.2" x2="501.0" y2="509.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="490.6" y="493.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">37</text>
+<text x="511.4" y="493.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">23</text>
+</g>
+<g class="thimble" data-pos="F6">
+<title>F6 · 奇数 31 / 偶数 13 · P1→P6 3221.7 mm</title>
+<circle cx="609.0" cy="489.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="609.0" y1="468.2" x2="609.0" y2="509.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="598.6" y="493.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">31</text>
+<text x="619.4" y="493.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">13</text>
+</g>
+<g class="thimble" data-pos="N7">
+<title>N7 · 奇数 3 / 偶数 44 · P1→P6 3012.2 mm</title>
+<circle cx="231.0" cy="543.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="231.0" y1="522.2" x2="231.0" y2="563.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="220.6" y="547.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">3</text>
+<text x="241.4" y="547.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">44</text>
+</g>
+<g class="thimble" data-pos="J7">
+<title>J7 · 奇数 13 / 偶数 39 · P1→P6 3287.7 mm</title>
+<circle cx="447.0" cy="543.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="447.0" y1="522.2" x2="447.0" y2="563.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="436.6" y="547.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">13</text>
+<text x="457.4" y="547.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">39</text>
+</g>
+<g class="thimble" data-pos="G7">
+<title>G7 · 奇数 23 / 偶数 21 · P1→P6 3287.7 mm</title>
+<circle cx="555.0" cy="543.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="555.0" y1="522.2" x2="555.0" y2="563.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="544.6" y="547.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">23</text>
+<text x="565.4" y="547.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">21</text>
+</g>
+<g class="thimble" data-pos="D7">
+<title>D7 · 奇数 33 / 偶数 20 · P1→P6 3129.1 mm</title>
+<circle cx="717.0" cy="543.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="717.0" y1="522.2" x2="717.0" y2="563.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="706.6" y="547.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">33</text>
+<text x="727.4" y="547.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">20</text>
+</g>
+<g class="thimble" data-pos="B7">
+<title>B7 · 奇数 41 / 偶数 8 · P1→P6 2878.6 mm</title>
+<circle cx="825.0" cy="543.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="825.0" y1="522.2" x2="825.0" y2="563.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="814.6" y="547.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">41</text>
+<text x="835.4" y="547.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">8</text>
+</g>
+<g class="thimble" data-pos="R8">
+<title>R8 · 奇数 6 / 偶数 43 · P1→P6 2711.6 mm</title>
+<circle cx="123.0" cy="597.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="123.0" y1="576.2" x2="123.0" y2="617.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="112.6" y="601.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">6</text>
+<text x="133.4" y="601.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">43</text>
+</g>
+<g class="thimble" data-pos="N8">
+<title>N8 · 奇数 17 / 偶数 45 · P1→P6 3029.1 mm</title>
+<circle cx="231.0" cy="597.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="231.0" y1="576.2" x2="231.0" y2="617.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="220.6" y="601.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">17</text>
+<text x="241.4" y="601.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">45</text>
+</g>
+<g class="thimble" data-pos="L8">
+<title>L8 · 奇数 16 / 偶数 48 · P1→P6 3218.1 mm</title>
+<circle cx="339.0" cy="597.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="339.0" y1="576.2" x2="339.0" y2="617.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="328.6" y="601.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">16</text>
+<text x="349.4" y="601.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">48</text>
+</g>
+<g class="thimble" data-pos="F8">
+<title>F8 · 奇数 39 / 偶数 29 · P1→P6 3264.7 mm</title>
+<circle cx="609.0" cy="597.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="609.0" y1="576.2" x2="609.0" y2="617.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="598.6" y="601.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">39</text>
+<text x="619.4" y="601.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">29</text>
+</g>
+<g class="thimble" data-pos="C8">
+<title>C8 · 奇数 49 / 偶数 2 · P1→P6 3029.1 mm</title>
+<circle cx="771.0" cy="597.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="771.0" y1="576.2" x2="771.0" y2="617.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="760.6" y="601.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">49</text>
+<text x="781.4" y="601.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">2</text>
+</g>
+<g class="thimble" data-pos="B8">
+<title>B8 · 奇数 47 / 偶数 10 · P1→P6 2885.2 mm</title>
+<circle cx="825.0" cy="597.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="825.0" y1="576.2" x2="825.0" y2="617.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="814.6" y="601.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">47</text>
+<text x="835.4" y="601.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">10</text>
+</g>
+<g class="thimble" data-pos="L9">
+<title>L9 · 奇数 20 / 偶数 35 · P1→P6 3198.2 mm</title>
+<circle cx="339.0" cy="651.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="339.0" y1="630.2" x2="339.0" y2="671.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="328.6" y="655.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">20</text>
+<text x="349.4" y="655.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">35</text>
+</g>
+<g class="thimble" data-pos="G9">
+<title>G9 · 奇数 27 / 偶数 28 · P1→P6 3287.7 mm</title>
+<circle cx="555.0" cy="651.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="555.0" y1="630.2" x2="555.0" y2="671.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="544.6" y="655.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">27</text>
+<text x="565.4" y="655.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">28</text>
+</g>
+<g class="thimble" data-pos="F9">
+<title>F9 · 奇数 21 / 偶数 15 · P1→P6 3261.1 mm</title>
+<circle cx="609.0" cy="651.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="609.0" y1="630.2" x2="609.0" y2="671.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="598.6" y="655.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">21</text>
+<text x="619.4" y="655.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">15</text>
+</g>
+<g class="thimble" data-pos="A9">
+<title>A9 · 奇数 50 / 偶数 9 · P1→P6 2694.1 mm</title>
+<circle cx="879.0" cy="651.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="879.0" y1="630.2" x2="879.0" y2="671.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="868.6" y="655.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">50</text>
+<text x="889.4" y="655.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">9</text>
+</g>
+<g class="thimble" data-pos="N10">
+<title>N10 · 奇数 8 / 偶数 46 · P1→P6 2979.6 mm</title>
+<circle cx="231.0" cy="705.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="231.0" y1="684.2" x2="231.0" y2="725.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="220.6" y="709.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">8</text>
+<text x="241.4" y="709.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">46</text>
+</g>
+<g class="thimble" data-pos="J10">
+<title>J10 · 奇数 19 / 偶数 25 · P1→P6 3261.1 mm</title>
+<circle cx="447.0" cy="705.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="447.0" y1="684.2" x2="447.0" y2="725.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="436.6" y="709.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">19</text>
+<text x="457.4" y="709.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">25</text>
+</g>
+<g class="thimble" data-pos="D10">
+<title>D10 · 奇数 40 / 偶数 4 · P1→P6 3081.7 mm</title>
+<circle cx="717.0" cy="705.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="717.0" y1="684.2" x2="717.0" y2="725.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="706.6" y="709.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">40</text>
+<text x="727.4" y="709.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">4</text>
+</g>
+<g class="thimble" data-pos="B10">
+<title>B10 · 奇数 32 / 偶数 7 · P1→P6 2829.2 mm</title>
+<circle cx="825.0" cy="705.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="825.0" y1="684.2" x2="825.0" y2="725.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="814.6" y="709.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">32</text>
+<text x="835.4" y="709.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">7</text>
+</g>
+<g class="thimble" data-pos="L11">
+<title>L11 · 奇数 1 / 偶数 36 · P1→P6 3108.2 mm</title>
+<circle cx="339.0" cy="759.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="339.0" y1="738.2" x2="339.0" y2="779.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="328.6" y="763.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">1</text>
+<text x="349.4" y="763.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">36</text>
+</g>
+<g class="thimble" data-pos="H11">
+<title>H11 · 奇数 11 / 偶数 24 · P1→P6 3218.1 mm</title>
+<circle cx="501.0" cy="759.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="501.0" y1="738.2" x2="501.0" y2="779.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="490.6" y="763.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">11</text>
+<text x="511.4" y="763.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">24</text>
+</g>
+<g class="thimble" data-pos="F11">
+<title>F11 · 奇数 29 / 偶数 19 · P1→P6 3174.1 mm</title>
+<circle cx="609.0" cy="759.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="609.0" y1="738.2" x2="609.0" y2="779.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="598.6" y="763.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">29</text>
+<text x="619.4" y="763.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">19</text>
+</g>
+<g class="thimble" data-pos="E11">
+<title>E11 · 奇数 28 / 偶数 3 · P1→P6 3108.2 mm</title>
+<circle cx="663.0" cy="759.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="663.0" y1="738.2" x2="663.0" y2="779.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="652.6" y="763.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">28</text>
+<text x="673.4" y="763.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">3</text>
+</g>
+<g class="thimble" data-pos="N12">
+<title>N12 · 奇数 7 / 偶数 34 · P1→P6 2822.6 mm</title>
+<circle cx="231.0" cy="813.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="231.0" y1="792.2" x2="231.0" y2="833.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="220.6" y="817.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">7</text>
+<text x="241.4" y="817.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">34</text>
+</g>
+<g class="thimble" data-pos="J12">
+<title>J12 · 奇数 5 / 偶数 26 · P1→P6 3129.1 mm</title>
+<circle cx="447.0" cy="813.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="447.0" y1="792.2" x2="447.0" y2="833.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="436.6" y="817.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">5</text>
+<text x="457.4" y="817.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">26</text>
+</g>
+<g class="thimble" data-pos="D12">
+<title>D12 · 奇数 30 / 偶数 5 · P1→P6 2938.2 mm</title>
+<circle cx="717.0" cy="813.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="717.0" y1="792.2" x2="717.0" y2="833.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="706.6" y="817.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">30</text>
+<text x="727.4" y="817.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">5</text>
+</g>
+<g class="thimble" data-pos="C12">
+<title>C12 · 奇数 22 / 偶数 6 · P1→P6 2822.6 mm</title>
+<circle cx="771.0" cy="813.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="771.0" y1="792.2" x2="771.0" y2="833.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="760.6" y="817.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">22</text>
+<text x="781.4" y="817.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">6</text>
+</g>
+<g class="thimble" data-pos="H13">
+<title>H13 · 奇数 4 / 偶数 14 · P1→P6 3029.1 mm</title>
+<circle cx="501.0" cy="867.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="501.0" y1="846.2" x2="501.0" y2="887.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="490.6" y="871.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">4</text>
+<text x="511.4" y="871.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">14</text>
+</g>
+<g class="thimble" data-pos="F13">
+<title>F13 · 奇数 12 / 偶数 17 · P1→P6 2979.6 mm</title>
+<circle cx="609.0" cy="867.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="609.0" y1="846.2" x2="609.0" y2="887.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="598.6" y="871.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">12</text>
+<text x="619.4" y="871.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">17</text>
+</g>
+<g class="thimble" data-pos="L14">
+<title>L14 · 奇数 9 / 偶数 37 · P1→P6 2768.1 mm</title>
+<circle cx="339.0" cy="921.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="339.0" y1="900.2" x2="339.0" y2="941.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="328.6" y="925.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">9</text>
+<text x="349.4" y="925.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">37</text>
+</g>
+<g class="thimble" data-pos="G14">
+<title>G14 · 奇数 2 / 偶数 16 · P1→P6 2878.6 mm</title>
+<circle cx="555.0" cy="921.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="555.0" y1="900.2" x2="555.0" y2="941.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="544.6" y="925.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">2</text>
+<text x="565.4" y="925.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">16</text>
+</g>
+<g class="thimble" data-pos="J15">
+<title>J15 · 奇数 10 / 偶数 27 · P1→P6 2694.1 mm</title>
+<circle cx="447.0" cy="975.0" r="20.8" fill="#fff" stroke="#1d2a37" stroke-width="1.55"/>
+<line x1="447.0" y1="954.2" x2="447.0" y2="995.8" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="436.6" y="979.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#1f5fa9">10</text>
+<text x="457.4" y="979.9" text-anchor="middle" font-family="Consolas,'Courier New',monospace" font-size="14.0" font-weight="600" fill="#b1502a">27</text>
+</g>
+<text x="501.0" y="112.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="15" font-weight="600" fill="#1d2a37">180°</text>
+<text x="501.0" y="1034.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="15" font-weight="600" fill="#1d2a37">0°</text>
+<text x="42.0" y="597.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="15" font-weight="600" fill="#1d2a37">90°</text>
+<text x="920.0" y="597.0" text-anchor="start" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="15" font-weight="600" fill="#1d2a37">270°</text>
+<line x1="178.0" y1="112.0" x2="248.0" y2="158.0" stroke="#1d2a37" stroke-width="1.5"/>
+<path d="M0,0 l-10,-4.6 l0,9.2 z" fill="#1d2a37" transform="translate(248.0,158.0) rotate(33.3)"/>
+<text x="170.0" y="104.0" text-anchor="end" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="12.5" letter-spacing="1.1" fill="#6b7a8c">INLET</text>
+<line x1="824.0" y1="112.0" x2="754.0" y2="158.0" stroke="#1d2a37" stroke-width="1.5"/>
+<path d="M0,0 l-10,-4.6 l0,9.2 z" fill="#1d2a37" transform="translate(754.0,158.0) rotate(146.7)"/>
+<text x="832.0" y="104.0" text-anchor="start" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="12.5" letter-spacing="1.1" fill="#6b7a8c">INLET</text>
+<line x1="914.0" y1="678.0" x2="960.0" y2="678.0" stroke="#1d2a37" stroke-width="1.5"/>
+<path d="M960.0,678.0 l-10,-4.6 l0,9.2 z" fill="#1d2a37"/>
+<text x="968.0" y="669.0" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="12.5" letter-spacing="1.1" fill="#6b7a8c">OUTLET</text>
+<text x="1124.0" y="252.0" text-anchor="middle" font-family="'Times New Roman',Georgia,'Songti SC',serif" font-size="15" font-weight="700" letter-spacing="1.2" fill="#1d2a37">PATH IDENTIFICATION</text>
+<circle cx="1124.0" cy="288.0" r="26" fill="#fff" stroke="#1d2a37" stroke-width="1.5"/>
+<line x1="1124.0" y1="262.0" x2="1124.0" y2="314.0" stroke="#1d2a37" stroke-width="1.1"/>
+<line x1="1105.8" y1="306.7" x2="1066.0" y2="346.0" stroke="#1d2a37" stroke-width="1.1"/>
+<line x1="1142.2" y1="306.7" x2="1182.0" y2="346.0" stroke="#1d2a37" stroke-width="1.1"/>
+<text x="1062.0" y="362.0" text-anchor="end" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="12.5" fill="#1f5fa9">奇数机组 Odd UNIT</text>
+<text x="1186.0" y="362.0" text-anchor="start" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="12.5" fill="#b1502a">偶数机组 Even UNIT</text>
+<text x="1024.0" y="420.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="12" font-weight="700" letter-spacing=".4" fill="#1d2a37">读图</text>
+<text x="1024.0" y="442.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#6b7a8c">每格 = 一个堆芯栅元；格内无圆 =</text>
+<text x="1024.0" y="460.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#6b7a8c">该栅元无指套管。</text>
+<text x="1024.0" y="481.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#6b7a8c">圆内竖线左半 = 奇数机组通道号，右半 =</text>
+<text x="1024.0" y="499.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#6b7a8c">偶数机组通道号。</text>
+<text x="1024.0" y="520.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#6b7a8c">同一根管在两台机组各有一个号，两套映射互为置</text>
+<text x="1024.0" y="538.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#6b7a8c">换。</text>
+<text x="1024.0" y="559.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#6b7a8c">1–50</text>
+<text x="1024.0" y="577.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#6b7a8c">各出现且仅出现一次，无重号、无缺号。</text>
+<text x="1024.0" y="752.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="12" font-weight="700" letter-spacing=".4" fill="#1d2a37">数量核对</text>
+<line x1="1024" y1="762" x2="1292" y2="762" stroke="#9fb0c2" stroke-width="1"/>
+<text x="1024.0" y="784.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#6b7a8c">指套管总数</text>
+<text x="1292.0" y="784.0" text-anchor="end" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="12" font-weight="600" fill="#1d2a37">50 根</text>
+<text x="1024.0" y="809.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#6b7a8c">奇数机组通道号</text>
+<text x="1292.0" y="809.0" text-anchor="end" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="12" font-weight="600" fill="#1d2a37">1 – 50（50 路）</text>
+<text x="1024.0" y="834.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#6b7a8c">偶数机组通道号</text>
+<text x="1292.0" y="834.0" text-anchor="end" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="12" font-weight="600" fill="#1d2a37">1 – 50（50 路）</text>
+<text x="1024.0" y="859.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#6b7a8c">堆芯栅格</text>
+<text x="1292.0" y="859.0" text-anchor="end" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="12" font-weight="600" fill="#1d2a37">15 行 × 15 列（A–R，跳 I/O/Q）</text>
+<text x="1024.0" y="884.0" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#6b7a8c">P1→P6 长度范围</text>
+<text x="1292.0" y="884.0" text-anchor="end" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="12" font-weight="600" fill="#1d2a37">2694.1 – 3287.7 mm</text>
+<text x="501.0" y="1066.0" text-anchor="middle" font-family="'Microsoft YaHei UI','Microsoft YaHei',system-ui,sans-serif" font-size="11.5" fill="#8fa0b3">图 1-1　反应堆中子通量测量指套管堆芯位置示意图（按图纸版式复刻：格数与行列取自图纸逐行实测，编号取自 P1–P6 距离表与机组台账映射）</text>
+</svg>

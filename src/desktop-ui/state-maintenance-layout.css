@@ -1,0 +1,218 @@
+/* Desktop state workspace hierarchy:
+   scope first, current status second, processing actions third. */
+#states .state-controls {
+  display: flex;
+  flex-direction: column;
+}
+
+#states .state-controls .state-scope {
+  order: 1;
+}
+
+#states .state-controls .state-summary-strip {
+  order: 2;
+}
+
+#states .state-controls .state-bulk-actions {
+  order: 5;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 10px 16px 11px;
+  border-top: 1px solid #e2eaed;
+  border-bottom: 0;
+  background: #fbfcfd;
+}
+
+#states .state-controls .state-bulk-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+#states .state-controls .state-bulk-buttons {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+}
+
+#states .state-controls .state-bulk-hint {
+  display: block;
+  width: 100%;
+}
+
+#states .state-controls .state-meaning-guide {
+  order: 4;
+}
+
+@media (max-width: 780px) {
+  #states .state-controls .state-bulk-buttons {
+    align-items: stretch;
+  }
+
+  #states .state-controls .state-bulk-buttons > button,
+  #states .state-controls .state-bulk-buttons > select,
+  #states .state-controls .state-bulk-buttons > label {
+    flex: 1 1 145px;
+    min-width: 0;
+  }
+
+  #states .state-controls .state-bulk-buttons > select {
+    max-width: none;
+  }
+}
+
+#states .state-panel .state-bulk-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 7px;
+  margin: 0 12px 8px;
+  padding: 8px 10px;
+  border: 1px solid #dce5e8;
+  border-radius: 5px;
+  background: #f7f9fa;
+}
+#states .state-panel .state-bulk-actions.state-action-dock {
+  margin: 0 12px 8px;
+  border-color: #d6e6e8;
+  background: #f7fbfb;
+}
+#states .state-panel .state-bulk-buttons {
+  display:grid;
+  grid-template-columns:minmax(105px,1fr) minmax(82px,.8fr) minmax(142px,1.3fr) minmax(170px,1.7fr) minmax(92px,.9fr);
+  align-items:center;
+  justify-content:stretch;
+}
+#states .state-panel .state-bulk-buttons > button,
+#states .state-panel .state-bulk-buttons > select,
+#states .state-panel .state-bulk-buttons > label { width:100%; min-width:0; }
+#states .state-panel .state-bulk-heading,
+#states .state-panel .state-bulk-hint { display:none!important; }
+#states .state-panel .state-export-result { grid-column:1/-1; margin:0; }
+#states .state-panel .state-bulk-scope { display:none; }
+
+#states .state-panel .state-bulk-heading {
+  display: none;
+}
+
+#states .state-panel .state-bulk-buttons {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  width: 100%;
+  min-width: 0;
+}
+
+#states .state-panel .state-bulk-buttons > button,
+#states .state-panel .state-bulk-buttons > select,
+#states .state-panel .state-bulk-buttons > label {
+  min-height: 32px;
+}
+
+#states .state-panel #stateAllNormal {
+  border-color: #c6a15e;
+  background: #fff8e9;
+  color: #74551c;
+}
+
+#states .state-panel .state-default-direction {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid #d9e2e5;
+  border-radius: 4px;
+  background: #fff;
+  color: #5a6d76;
+  font-size: 11px;
+}
+
+#states .state-panel .state-default-direction select {
+  min-height: 28px;
+  border: 0;
+  background: transparent;
+}
+
+#states .state-panel .state-bulk-hint,
+#states .state-panel .state-bulk-heading { display:none; }
+
+#states .state-summary-heading .state-review-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 25px;
+  padding: 2px 7px;
+  border: 1px solid #e5cc91;
+  border-radius: 4px;
+  background: #fff9ea;
+  color: #7b5b1a;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+
+#states .state-summary-heading .state-review-entry[hidden] {
+  display: none;
+}
+
+#states .state-review-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f6e3ae;
+  color: #80580b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+#states .state-summary-heading .state-review-entry > span:nth-child(2) {
+  color: inherit;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+#states .state-summary-heading .state-review-entry b {
+  color: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+#states .state-summary-heading .state-review-entry:focus-visible {
+  outline: 2px solid #b8862d;
+  outline-offset: 2px;
+}
+
+@media (max-width: 780px) {
+  #states .state-panel .state-bulk-buttons { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #states .state-panel .state-bulk-buttons > button,
+  #states .state-panel .state-bulk-buttons > select,
+  #states .state-panel .state-bulk-buttons > label {
+    flex: 1 1 145px;
+    min-width: 0;
+  }
+}
+
+html[data-theme="dark"] #states .state-panel .state-bulk-actions.state-action-dock {
+  border-color: var(--dark-line);
+  background: var(--dark-panel-2);
+}
+html[data-theme="dark"] #states .state-panel .state-default-direction {
+  border-color: var(--dark-line);
+  background: var(--dark-panel);
+  color: var(--dark-muted);
+}
+html[data-theme="dark"] #states .state-panel .state-default-direction select {
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] #states .state-panel #stateAllNormal {
+  border-color: #a88138;
+  background: #493c20;
+  color: #ffe8b4;
+}

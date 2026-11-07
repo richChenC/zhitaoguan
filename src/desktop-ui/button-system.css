@@ -1,0 +1,125 @@
+/* Final button hierarchy. Specific workspaces may override fixed-format controls below. */
+:root{
+  --btn-height:34px;
+  --btn-radius:5px;
+  --btn-pad:0 13px;
+  --btn-gap:8px;
+  --btn-border:#cbd6dc;
+  --btn-text:#29404a;
+  --btn-hover:#f2f6f7;
+  --btn-primary:#167a73;
+  --btn-primary-hover:#11655f;
+  --btn-danger:#b33a47;
+  --btn-danger-hover:#96303c;
+}
+button,.button{
+  min-height:var(--btn-height);
+  height:var(--btn-height);
+  padding:var(--btn-pad);
+  border:1px solid var(--btn-border);
+  border-radius:var(--btn-radius);
+  color:var(--btn-text);
+  background:#fff;
+  font-size:12px;
+  font-weight:600;
+  line-height:1.2;
+  white-space:nowrap;
+  vertical-align:middle;
+  transition:background-color .15s,border-color .15s,color .15s,box-shadow .15s,transform .15s;
+}
+button:hover:not(:disabled),.button:hover{
+  background:var(--btn-hover);
+  border-color:#9cafb8;
+}
+button:active:not(:disabled),.button:active{transform:translateY(1px)}
+button:focus-visible,.button:focus-visible{
+  outline:2px solid #238b83;
+  outline-offset:2px;
+}
+button:disabled,.button[aria-disabled=true]{
+  cursor:not-allowed;
+  opacity:.52;
+  filter:saturate(.55);
+}
+button.primary,.button.primary,
+button[data-variant=primary],.button[data-variant=primary]{
+  color:#fff;
+  background:var(--btn-primary);
+  border-color:var(--btn-primary);
+}
+button.primary:hover:not(:disabled),.button.primary:hover,
+button[data-variant=primary]:hover:not(:disabled),.button[data-variant=primary]:hover{
+  color:#fff;
+  background:var(--btn-primary-hover);
+  border-color:var(--btn-primary-hover);
+}
+button.danger-action,.button.danger-action,
+button[data-variant=danger],.button[data-variant=danger]{
+  color:#fff;
+  background:var(--btn-danger);
+  border-color:var(--btn-danger);
+}
+button.danger-action:hover:not(:disabled),.button.danger-action:hover,
+button[data-variant=danger]:hover:not(:disabled),.button[data-variant=danger]:hover{
+  color:#fff;
+  background:var(--btn-danger-hover);
+  border-color:var(--btn-danger-hover);
+}
+button.secondary,.button.secondary{background:#f5f8f9;color:#46606b}
+button.ghost,.button.ghost{border-color:transparent;background:transparent}
+button.ghost:hover:not(:disabled),.button.ghost:hover{background:var(--btn-hover);border-color:var(--btn-border)}
+
+/* Action groups stay aligned and wrap cleanly instead of producing uneven rows. */
+:is(.toolbar,.workspace-actions,.dialog-actions,.setting-actions,.panel-actions,.state-bulk-buttons,.state-file-actions,.import-source-actions,.rc-downloads,.report-header-file-actions,.lifecycle-batch-toolbar,.lifecycle-event-options,.selection-tools){
+  display:flex;
+  align-items:center;
+  gap:var(--btn-gap);
+  flex-wrap:wrap;
+}
+:is(.toolbar,.workspace-actions,.dialog-actions,.setting-actions,.panel-actions,.state-bulk-buttons,.state-file-actions,.import-source-actions,.rc-downloads,.report-header-file-actions,.lifecycle-batch-toolbar,.selection-tools)>button,
+:is(.toolbar,.workspace-actions,.dialog-actions,.setting-actions,.panel-actions,.state-bulk-buttons,.state-file-actions,.import-source-actions,.rc-downloads,.report-header-file-actions,.lifecycle-batch-toolbar,.selection-tools)>.button{
+  flex:0 0 auto;
+}
+.dialog-actions{justify-content:flex-end}
+.dialog-actions button{min-width:88px}
+.toolbar{row-gap:8px}
+.panel-title>:is(button,.button),.panel-title .panel-actions button{min-height:30px;height:30px}
+
+/* Icon-only controls remain compact and predictable. */
+button:has(>.app-icon):not(:has(>span:not(.app-icon))),
+button.icon-only,.icon-button{
+  width:34px;
+  min-width:34px;
+  padding:0;
+}
+button:has(>.app-icon) .app-icon{width:17px;height:17px}
+
+/* Fixed-format controls are intentionally excluded from the global height. */
+.state-tube-grid button,.path-marker,.tube,.wizard-overview button,
+#feedbackToggle.nav-icon,.app-nav .nav-icon,.grid-cell,[role=tab].compact-tab{
+  min-height:0;
+}
+
+html[data-theme=dark]{
+  --btn-border:#475762;
+  --btn-text:#deeaee;
+  --btn-hover:#2c3b43;
+}
+html[data-theme=dark] button:not(.primary):not(.danger-action):not([data-variant=primary]):not([data-variant=danger]),
+html[data-theme=dark] .button:not(.primary):not(.danger-action){
+  background:#26343c;
+  color:var(--btn-text);
+  border-color:var(--btn-border);
+}
+html[data-theme=dark] button.ghost,html[data-theme=dark] .button.ghost{background:transparent}
+@media(max-width:760px){
+  button,.button{min-height:36px;height:36px;padding:0 11px}
+  .dialog-actions button{flex:1 1 120px}
+  :is(.toolbar,.workspace-actions,.panel-actions,.state-bulk-buttons,.state-file-actions,.import-source-actions,.rc-downloads)>button,
+  :is(.toolbar,.workspace-actions,.panel-actions,.state-bulk-buttons,.state-file-actions,.import-source-actions,.rc-downloads)>.button{flex:1 1 auto}
+  button:has(>.app-icon):not(:has(>span:not(.app-icon))),button.icon-only,.icon-button{width:36px;min-width:36px}
+}
+@media(prefers-reduced-motion:reduce){
+  button,.button{transition:none}
+  button:active:not(:disabled),.button:active{transform:none}
+}

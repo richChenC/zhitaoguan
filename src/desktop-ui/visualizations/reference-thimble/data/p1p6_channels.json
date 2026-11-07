@@ -1,0 +1,372 @@
+{
+ "source": "孔姐发的/指套管信息/指套管资料/指套管P1-P6距离.xlsx · 工作表《P1 P6 理论距离》",
+ "unit": "mm",
+ "meaning": "P1→P6 段理论长度（P1=堆芯支承柱螺栓顶部/十字支承柱顶部，P6=中子测量贯穿管底部）",
+ "range": {
+  "min": 2694.1,
+  "max": 3287.67
+ },
+ "notes": {
+  "n27": "P1点为堆芯支承柱螺栓的顶部或十字支承柱的顶部",
+  "n28": "P6点为中子测量贯穿管的底部"
+ },
+ "rows": [
+  {
+   "oddChannel": [
+    "13",
+    "23",
+    "27"
+   ],
+   "evenChannel": [
+    "39",
+    "21",
+    "28"
+   ],
+   "posCodes": [
+    "J7",
+    "G7",
+    "G9"
+   ],
+   "p1p6_mm": 3287.67
+  },
+  {
+   "oddChannel": [
+    "37",
+    "39"
+   ],
+   "evenChannel": [
+    "23",
+    "29"
+   ],
+   "posCodes": [
+    "H6",
+    "F8"
+   ],
+   "p1p6_mm": 3264.67
+  },
+  {
+   "oddChannel": [
+    "19",
+    "21"
+   ],
+   "evenChannel": [
+    "25",
+    "15"
+   ],
+   "posCodes": [
+    "J10",
+    "F9"
+   ],
+   "p1p6_mm": 3261.1
+  },
+  {
+   "oddChannel": [
+    "31"
+   ],
+   "evenChannel": [
+    "13"
+   ],
+   "posCodes": [
+    "F6"
+   ],
+   "p1p6_mm": 3221.67
+  },
+  {
+   "oddChannel": [
+    "46",
+    "16"
+   ],
+   "evenChannel": [
+    "24",
+    "48"
+   ],
+   "posCodes": [
+    "H11",
+    "L8"
+   ],
+   "p1p6_mm": 3218.1
+  },
+  {
+   "oddChannel": [
+    "20",
+    "25"
+   ],
+   "evenChannel": [
+    "35",
+    "38"
+   ],
+   "posCodes": [
+    "L9",
+    "J5"
+   ],
+   "p1p6_mm": 3198.17
+  },
+  {
+   "oddChannel": [
+    "18",
+    "29"
+   ],
+   "evenChannel": [
+    "49",
+    "19"
+   ],
+   "posCodes": [
+    "L6",
+    "F11"
+   ],
+   "p1p6_mm": 3174.1
+  },
+  {
+   "oddChannel": [
+    "38"
+   ],
+   "evenChannel": [
+    "40"
+   ],
+   "posCodes": [
+    "H4"
+   ],
+   "p1p6_mm": 3128.17
+  },
+  {
+   "oddChannel": [
+    "5",
+    "33"
+   ],
+   "evenChannel": [
+    "26",
+    "20"
+   ],
+   "posCodes": [
+    "J12",
+    "D7"
+   ],
+   "p1p6_mm": 3129.1
+  },
+  {
+   "oddChannel": [
+    "1",
+    "14",
+    "34",
+    "28"
+   ],
+   "evenChannel": [
+    "36",
+    "47",
+    "18",
+    "3"
+   ],
+   "posCodes": [
+    "L11",
+    "L5",
+    "E5",
+    "E11"
+   ],
+   "p1p6_mm": 3108.17
+  },
+  {
+   "oddChannel": [
+    "48",
+    "40"
+   ],
+   "evenChannel": [
+    "30",
+    "4"
+   ],
+   "posCodes": [
+    "F4",
+    "D10"
+   ],
+   "p1p6_mm": 3081.67
+  },
+  {
+   "oddChannel": [
+    "4",
+    "17",
+    "24",
+    "35",
+    "44",
+    "49"
+   ],
+   "evenChannel": [
+    "14",
+    "45",
+    "50",
+    "31",
+    "11",
+    "2"
+   ],
+   "posCodes": [
+    "H13",
+    "N8",
+    "L4",
+    "H3",
+    "D5",
+    "C8"
+   ],
+   "p1p6_mm": 3029.1
+  },
+  {
+   "oddChannel": [
+    "3",
+    "36"
+   ],
+   "evenChannel": [
+    "44",
+    "33"
+   ],
+   "posCodes": [
+    "N7",
+    "J3"
+   ],
+   "p1p6_mm": 3012.17
+  },
+  {
+   "oddChannel": [
+    "8",
+    "12"
+   ],
+   "evenChannel": [
+    "46",
+    "17"
+   ],
+   "posCodes": [
+    "N10",
+    "F13"
+   ],
+   "p1p6_mm": 2979.6
+  },
+  {
+   "oddChannel": [
+    "30"
+   ],
+   "evenChannel": [
+    "5"
+   ],
+   "posCodes": [
+    "D12"
+   ],
+   "p1p6_mm": 2938.17
+  },
+  {
+   "oddChannel": [
+    "15"
+   ],
+   "evenChannel": [
+    "42"
+   ],
+   "posCodes": [
+    "N5"
+   ],
+   "p1p6_mm": 2909.67
+  },
+  {
+   "oddChannel": [
+    "47"
+   ],
+   "evenChannel": [
+    "10"
+   ],
+   "posCodes": [
+    "B8"
+   ],
+   "p1p6_mm": 2885.17
+  },
+  {
+   "oddChannel": [
+    "41",
+    "2"
+   ],
+   "evenChannel": [
+    "8",
+    "16"
+   ],
+   "posCodes": [
+    "B7",
+    "G14"
+   ],
+   "p1p6_mm": 2878.6
+  },
+  {
+   "oddChannel": [
+    "45",
+    "32"
+   ],
+   "evenChannel": [
+    "22",
+    "7"
+   ],
+   "posCodes": [
+    "F2",
+    "B10"
+   ],
+   "p1p6_mm": 2829.17
+  },
+  {
+   "oddChannel": [
+    "7",
+    "26",
+    "43",
+    "22"
+   ],
+   "evenChannel": [
+    "34",
+    "41",
+    "12",
+    "6"
+   ],
+   "posCodes": [
+    "N12",
+    "M3",
+    "D3",
+    "C12"
+   ],
+   "p1p6_mm": 2822.6
+  },
+  {
+   "oddChannel": [
+    "9",
+    "42"
+   ],
+   "evenChannel": [
+    "37",
+    "1"
+   ],
+   "posCodes": [
+    "L14",
+    "B5"
+   ],
+   "p1p6_mm": 2768.1
+  },
+  {
+   "oddChannel": [
+    "6",
+    "46"
+   ],
+   "evenChannel": [
+    "43",
+    "32"
+   ],
+   "posCodes": [
+    "R8",
+    "H1"
+   ],
+   "p1p6_mm": 2711.6
+  },
+  {
+   "oddChannel": [
+    "10",
+    "50"
+   ],
+   "evenChannel": [
+    "27",
+    "9"
+   ],
+   "posCodes": [
+    "J15",
+    "A9"
+   ],
+   "p1p6_mm": 2694.1
+  }
+ ]
+}

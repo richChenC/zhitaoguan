@@ -1,0 +1,82 @@
+{
+  "schema": "thimble-dimensions/1.0",
+  "meta": {
+    "title": "指套管（仪表套管）模型尺寸清单与溯源",
+    "unit": "mm",
+    "updated": "2026-10-20",
+    "basis": [
+      "红沿河指套管图纸 AAX44226xxx 系列（PDF，11 张 + 堆内构件 16 张）",
+      "指套管装配模型 STEP（7 个，SolidWorks 2014 / AP203，2018-03-05）",
+      "指套管模型.exe（内嵌 SolidWorks HSF V19.10 三维模型 + 材质 + 场景）",
+      "指套管P1-P6距离.xlsx（1/2 号机 50 通道 P1→P6 理论长度）"
+    ],
+    "statusLegend": {
+      "确认": "有两处及以上独立来源一致（图纸/STEP/HSF/xlsx）",
+      "单一来源": "仅一处来源直接给出",
+      "推导": "由已知几何关系反算得出",
+      "推定": "图纸扫描件可读性所限或缺失，按行业通例给定，使用前需人工复核"
+    }
+  },
+
+  "geometry": {
+    "material": "Z2CN19-10 控氮奥氏体不锈钢（RCC-M M3301 / 图纸标注 22CN19-10 控制）",
+    "tube_od": 8.6,
+    "tube_id": 5.2,
+    "tube_wall": 1.7,
+    "tube_length_default": 3000.0,
+    "tip_radius": 2.0,
+    "tip_cone_half_angle": 30.0,
+    "tip_fillet": 0.8,
+    "end_chamfer": 0.5,
+    "nut_height": 90.5,
+    "nut_od": 57.15,
+    "nut_top_od": 38.10,
+    "nut_bore_top": 33.27,
+    "nut_thread_major": 32.0,
+    "nut_boss_height": 21.6,
+    "nut_cone_angle": 78.45,
+    "socket_hex_od": 47.3,
+    "socket_length": 126.87,
+    "socket_bore": 13.84,
+    "socket_thread": 25.127,
+    "penetration_od": 50.8,
+    "support_column_od": 89.9,
+    "support_column_id": 69.9,
+    "ferrule_od": 15.24,
+    "seat_dia": 29.838,
+    "joint_dia": 56.0
+  },
+
+  "dimensions": [
+    { "id": "D01", "name": "指套管外径", "value": 8.6, "tol": "±0.05", "part": "指套管本体", "source": "HSF 轴线 axis8/10/12/15 diameter=0.008600 m；图纸 Φ8.6", "status": "确认" },
+    { "id": "D02", "name": "指套管内径（通孔）", "value": 5.2, "tol": "±0.05", "part": "指套管本体", "source": "HSF 轴线 axis7/9/11/13/14 diameter=0.005200 m；STEP 圆柱面 R2.600", "status": "确认" },
+    { "id": "D03", "name": "指套管壁厚", "value": 1.7, "tol": "—", "part": "指套管本体", "source": "=(D01−D02)/2，与 STEP 圆柱面 R4.300/R2.600 一致", "status": "推导" },
+    { "id": "D04", "name": "封头球头半径", "value": 2.0, "tol": "—", "part": "指套管本体", "source": "STEP 网格顶点拟合：顶点 →R1.08(1.3mm) →R2.15(3.9mm) →R4.3(6.5mm)，按 R2 球头 + 30° 锥拟合；图纸量规说明『两端带球形头』", "status": "推导" },
+    { "id": "D05", "name": "封头锥面半角", "value": 30.0, "tol": "°", "part": "指套管本体", "source": "STEP 圆锥面 CONICAL_SURFACE semiangle=30.000°", "status": "单一来源" },
+    { "id": "D06", "name": "封头过渡圆角", "value": 0.8, "tol": "—", "part": "指套管本体", "source": "STEP 环面 TOROIDAL_SURFACE R1=7.92/R2=1.00（锥-柱过渡）+ 网格拟合", "status": "推定" },
+    { "id": "D07", "name": "P1→P6 段长度", "value": "2694.1 ~ 3287.67", "tol": "±0.07（图纸明细表）", "part": "指套管本体", "source": "指套管P1-P6距离.xlsx《P1 P6 理论距离》50 通道逐条；图纸明细表 X=1066.80±0.07 / 571.50±0.07", "status": "确认" },
+    { "id": "D08", "name": "指套管组件总长（焊后）", "value": 1180.20, "tol": "—", "part": "仪表套管组件", "source": "图纸 AAX44226800CS2444DD-1 视图标注『1180.20 焊后』", "status": "单一来源" },
+    { "id": "D09", "name": "螺纹管座六角对边径", "value": 47.3, "tol": "—", "part": "螺纹管座", "source": "STEP 圆柱面 R23.650（六方头外接圆）", "status": "单一来源" },
+    { "id": "D10", "name": "螺纹管座总长", "value": 126.87, "tol": "—", "part": "螺纹管座", "source": "STEP 装配包围盒 Y 向 126.87", "status": "确认" },
+    { "id": "D11", "name": "螺纹管座内通孔", "value": 13.84, "tol": "—", "part": "螺纹管座", "source": "STEP 圆柱面 R6.920", "status": "单一来源" },
+    { "id": "D12", "name": "螺纹管座内螺纹大径", "value": 25.127, "tol": "—", "part": "螺纹管座", "source": "STEP 圆柱面 R12.5635（螺纹牙型面）", "status": "单一来源" },
+    { "id": "D13", "name": "螺纹管座密封锥面", "value": "60.59° / 45° / 31.56° / 26.32°", "tol": "°", "part": "螺纹管座", "source": "STEP 圆锥面 semiangle 全量提取", "status": "单一来源" },
+    { "id": "D14", "name": "螺纹管座密封环面", "value": "R13.8/R2.3、R13.32/R6.4、R23.27/R0.38", "tol": "—", "part": "螺纹管座", "source": "STEP 环面 TOROIDAL_SURFACE 全量提取", "status": "单一来源" },
+    { "id": "D15", "name": "调整螺母外径", "value": 57.15, "tol": "±0.25", "part": "调整螺母", "source": "图纸 AAX44226010CS2444DD-1（B-B 剖视 Φ57.15±0.25）", "status": "确认" },
+    { "id": "D16", "name": "调整螺母上凸台外径", "value": 38.10, "tol": "±0.25", "part": "调整螺母", "source": "图纸 AAX44226010（Φ38.10±0.25）", "status": "确认" },
+    { "id": "D17", "name": "调整螺母内孔", "value": 33.27, "tol": "+0.25 / 0", "part": "调整螺母", "source": "图纸 AAX44226010（Φ33.27 +0.25/0）", "status": "确认" },
+    { "id": "D18", "name": "调整螺母内螺纹", "value": "M32×2-6H", "tol": "6H", "part": "调整螺母", "source": "图纸 AAX44226010 标注", "status": "确认" },
+    { "id": "D19", "name": "调整螺母总高", "value": 90.5, "tol": "±0.8", "part": "调整螺母", "source": "图纸 AAX44226010（90.5±0.8）", "status": "确认" },
+    { "id": "D20", "name": "调整螺母凸台高", "value": 21.6, "tol": "±0.8", "part": "调整螺母", "source": "图纸 AAX44226010（21.6±0.8）", "status": "确认" },
+    { "id": "D21", "name": "调整螺母内锥面", "value": 78.45, "tol": "°", "part": "调整螺母", "source": "图纸 AAX44226010（78.45°）", "status": "确认" },
+    { "id": "D22", "name": "中子测量贯穿管外径", "value": 50.8, "tol": "—", "part": "贯穿管", "source": "HSF 轴线 axis5/axis2 diameter=0.050800 m（2 in）", "status": "单一来源" },
+    { "id": "D23", "name": "空心二次支承柱外径/内径", "value": "89.9 / 69.9", "tol": "—", "part": "二次支承柱", "source": "HSF 轴线 axis3 diameter=0.089900 m、axis1 diameter=0.069900 m", "status": "单一来源" },
+    { "id": "D24", "name": "密封环/压套外径", "value": 15.24, "tol": "—", "part": "接头组件", "source": "HSF 轴线 axis0 diameter=0.015240 m（0.6 in）", "status": "单一来源" },
+    { "id": "D25", "name": "锥面座直径", "value": 29.838, "tol": "—", "part": "接头组件", "source": "HSF 轴线 axis6 diameter=0.029838 m", "status": "单一来源" },
+    { "id": "D26", "name": "接头体直径", "value": 56.0, "tol": "—", "part": "接头组件", "source": "HSF 轴线 axis4 diameter=0.056000 m", "status": "单一来源" },
+    { "id": "D27", "name": "整根管数量", "value": "48 根仪表套管 + 2 根空心二次支承柱", "tol": "—", "part": "堆内构件", "source": "图纸技术要求：『对 48 根仪表套管和 2 根空心二次支承柱进行抽插试验』", "status": "确认" },
+    { "id": "D28", "name": "插入试验量规", "value": "Φ7±0.05 × 914±3，两端带球形头", "tol": "—", "part": "—（工艺量规）", "source": "图纸技术要求", "status": "确认" },
+    { "id": "D29", "name": "模型质量/体积（HSF 原模型）", "value": "3.6327 kg / 3632.7 cm³", "tol": "—", "part": "整体", "source": "HSF massprops 属性（material 段未给出密度，仅作对照）", "status": "单一来源" },
+    { "id": "D30", "name": "HSF 原模型形心", "value": "y = 371.59", "tol": "—", "part": "整体", "source": "HSF massprops grav_center_y=0.37159379779428564 m", "status": "单一来源" }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "name": "thimble-inspection-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "在役检查系统-指套管数据管理工具",
+  "author": "YGC",
+  "main": "src/desktop/main.cjs",
+  "scripts": {
+    "prepare:electron": "node node_modules/electron/install.js",
+    "predesktop": "npm run prepare:electron",
+    "prebuild:win": "npm run prepare:electron",
+    "pretest:release": "npm run prepare:electron",
+    "desktop": "electron .",
+    "server": "python src/backend/server.py",
+    "test:python": "python -m unittest discover -s tests",
+    "test:desktop": "node scripts/release-check.mjs --group=desktop",
+    "test:import": "node scripts/release-check.mjs --only=import_progress_desktop,import_outcome_desktop,import_wizard_verify,import_recovery_desktop,rpt_folder_regression",
+    "test:interaction": "node scripts/release-check.mjs --only=settings_window_desktop,workbench_display_desktop,selection_export_desktop,status_change_desktop,state_batch_desktop,notification_modal_desktop",
+    "test:notifications": "node tests/notification_modal_desktop.mjs",
+    "test:state-batch": "node tests/state_batch_desktop.mjs",
+    "test:window": "node tests/window_size_desktop.mjs",
+    "test:settings": "node scripts/release-check.mjs --only=settings_window_desktop,settings_workspace_desktop,settings_linkage_desktop",
+    "test:release": "node scripts/release-check.mjs",
+    "check:source": "node scripts/source-audit.mjs",
+    "check:js": "node --check src/desktop/main.cjs && node --check src/desktop-ui/app.js && node --check src/desktop-ui/interaction-system.js && node --check src/desktop-ui/data-delete-manager.js && node --check src/desktop-ui/recycle-bin-manager.js && node --check src/desktop-ui/operation-log-viewer.js && node --check src/desktop-ui/data-delete-entry.js && node --check src/desktop-ui/tube-state-workspace.js && node --check src/desktop-ui/tube-lifecycle-workspace.js && node --check src/desktop-ui/workspace-actions.js && node --check src/desktop-ui/modules/three-d/main-view.js && node --input-type=module --check < src/desktop-ui/visualizations/reference-thimble/app.js && node --input-type=module --check < src/desktop-ui/visualizations/reference-thimble/defect-layer.js",
+    "test:three": "node tests/reference_model_desktop.mjs",
+    "check:esm": "node scripts/check-esm.mjs",
+    "check:settings": "node --check src/desktop-ui/software-settings.js && node --check src/desktop-ui/settings-sync.js && node --check src/desktop-ui/state-preferences.js",
+    "check:progress": "node --check src/desktop-ui/task-progress.js",
+    "check": "npm run check:js && npm run check:settings && npm run check:progress && npm run check:esm && npm run check:auth",
+    "build:backend": "powershell -ExecutionPolicy Bypass -File scripts/build-backend.ps1",
+    "build:win": "npm run build:backend && electron-builder --win nsis portable",
+    "check:auth": "node --check src/desktop-ui/login.js && node --check src/desktop-ui/local-auth.js && node --check src/desktop/offline-policy.cjs",
+    "test:local": "python -m unittest discover -s tests -p test_local_enterprise.py -v",
+    "test:local-desktop": "node tests/local_enterprise_desktop.mjs"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "electron": "43.8.6",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "cn.ygc.inservice.thimble",
+    "productName": "在役检查系统-指套管数据管理工具",
+    "copyright": "Copyright (C) 2026 YGC",
+    "electronDist": "node_modules/electron/dist",
+    "afterPack": "scripts/sync-packaged-backend.cjs",
+    "directories": {
+      "output": "release"
+    },
+    "extraResources": [
+      {
+        "from": "build/backend/thimble-backend.exe",
+        "to": "backend/thimble-backend.exe"
+      }
+    ],
+    "files": [
+      "docs/**/*",
+      "assets/app-icon.ico",
+      "src/desktop/**/*",
+      "src/desktop-ui/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "docs/**/*"
+    ],
+    "asar": true,
+    "win": {
+      "icon": "assets/app-icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "artifactName": "在役检查系统-指套管数据管理工具-安装版-${version}-${arch}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "portable": {
+      "artifactName": "在役检查系统-指套管数据管理工具-便携版-${version}-${arch}.${ext}"
+    }
+  }
+}

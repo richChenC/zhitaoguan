@@ -1,0 +1,1724 @@
+.theme-sun { --icon:url("/assets/icons/sun.svg"); }
+.theme-moon { --icon:url("/assets/icons/moon.svg"); }
+#settings .theme-switch { display:flex; gap:4px; width:max-content; max-width:100%; padding:3px; border:1px solid #cbd9dc; border-radius:5px; background:#eef3f3; }
+#settings .theme-switch button { display:inline-flex; align-items:center; gap:7px; min-width:86px; min-height:32px; padding:5px 12px; border:1px solid transparent; background:transparent; color:#52666c; }
+#settings .theme-switch button[aria-pressed="true"] { border-color:#c6d8d7; background:#fff; color:#176c69; box-shadow:0 1px 3px #1a3b3820; }
+#settings .theme-switch .app-icon { width:16px; height:16px; flex:none; }
+#settings .settings-workspace { max-width:1260px; grid-template-columns:204px minmax(0,1fr); gap:24px; }
+#settings .settings-pane { gap:12px; }
+#settings .preferences-panel { max-width:980px; }
+@media (max-width:680px) {
+  #settings .settings-nav { grid-template-columns:repeat(5,minmax(0,1fr)) !important; gap:3px; }
+  #settings .settings-nav button { min-height:48px; padding:7px 3px; font-size:10px; }
+  #settings .settings-workspace { grid-template-columns:minmax(0,1fr); gap:10px; }
+}
+
+html[data-theme="light"] body { color-scheme:light; }
+html[data-theme="dark"] {
+  color-scheme:dark;
+  --bg:#111719;
+  --paper:#1c2527;
+  --ink:#e5eeec;
+  --muted:#a8b8b5;
+  --line:#3b4c4d;
+  --primary:#35a99c;
+  --primary-dark:#23887f;
+  --focus:#78d3c7;
+  --dark-bg:#111719;
+  --dark-panel:#1c2527;
+  --dark-panel-2:#232f31;
+  --dark-panel-3:#2b393b;
+  --dark-line:#3b4c4d;
+  --dark-line-strong:#566b69;
+  --dark-ink:#e5eeec;
+  --dark-muted:#a8b8b5;
+  --dark-accent:#55c2b4;
+}
+html[data-theme="dark"] body {
+  background:var(--dark-bg);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] :is(main,.workspace,.workspace-view,.workspace-page,#workspace,#workbench,#analytics,#states,#reports,#settings) {
+  background-color:var(--dark-bg);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] :is(.panel,.ac-panel,.software-settings-panel,.table-panel,.core-panel,.workspace-card,.dialog-card) {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+  box-shadow:0 8px 24px #0003;
+}
+html[data-theme="dark"] :is(.panel-title,.ac-heading,.toolbar,.workspace-filter,.workspace-commands,.selection-tools,.pager,.core-stats,.detail,.legend,.workspace-scope-summary,.workspace-pager-settings,.workspace-pager-navigation) {
+  background:var(--dark-panel-2);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] :is(h1,h2,h3,h4,h5,strong,b,label,.panel-title h2,.ac-heading h2) { color:var(--dark-ink); }
+html[data-theme="dark"] :is(.muted,small,.hint,.help,.description,.subtitle,.panel-subtitle,.empty-state,.empty-hint) { color:var(--dark-muted); }
+html[data-theme="dark"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),select,textarea) {
+  background-color:var(--dark-panel-3);
+  border-color:var(--dark-line-strong);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] :is(input,textarea)::placeholder { color:#90a29e; }
+html[data-theme="dark"] select option { background:var(--dark-panel-3); color:var(--dark-ink); }
+html[data-theme="dark"] :is(input,select,textarea):focus {
+  border-color:var(--dark-accent);
+  box-shadow:0 0 0 2px #55c2b433;
+}
+html[data-theme="dark"] button:not(.primary):not(.danger):not(.destructive):not(.active):not([aria-pressed="true"]) {
+  background-color:var(--dark-panel-2);
+  border-color:var(--dark-line-strong);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] button:not(.primary):not(.danger):not(.destructive):hover {
+  background-color:#304142;
+  border-color:#65817d;
+}
+html[data-theme="dark"] :is(button.primary,.primary,[data-variant="primary"]) {
+  background:#207e75;
+  border-color:#35a99c;
+  color:#fff;
+}
+html[data-theme="dark"] :is(button.danger,button.destructive,button.danger-action,[data-variant="danger"]) {
+  background:#723940;
+  border-color:#b85c66;
+  color:#fff;
+}
+html[data-theme="dark"] :is(button,input,select,textarea):disabled {
+  opacity:.58;
+  cursor:not-allowed;
+}
+
+/* Application navigation and status chrome. */
+html[data-theme="dark"] :is(.app-nav,body .app-nav) {
+  background:#182123 !important;
+  border-color:var(--dark-line) !important;
+  box-shadow:0 2px 12px #0004;
+}
+html[data-theme="dark"] body .app-nav :is(button,.nav-icon,.nav-label) { color:#c9d7d4 !important; }
+html[data-theme="dark"] body .app-nav button:hover { background:#263436 !important; }
+html[data-theme="dark"] body .app-nav button.active {
+  background:#294744 !important;
+  color:#91e2d6 !important;
+}
+html[data-theme="dark"] body .app-nav footer,
+html[data-theme="dark"] :is(.app-footer,.status-bar,.connection-status) {
+  background:#182123 !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-muted) !important;
+}
+
+/* Data workbench. */
+html[data-theme="dark"] #workbench :is(.workbench-shell,.workbench-main,.workbench-toolbar,.workbench-summary,.filter-bar,.workbench-filter,.data-grid-toolbar) {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] :is(.table-wrap,.table-scroll,.data-grid,.grid-shell) {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+}
+html[data-theme="dark"] table:not(.source-form table):not(.report-sheet table) {
+  background:var(--dark-panel);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] table:not(.source-form table):not(.report-sheet table) :is(th,td) {
+  border-color:var(--dark-line);
+}
+html[data-theme="dark"] table:not(.source-form table):not(.report-sheet table) th {
+  background:#293638;
+  color:#dce8e5;
+}
+html[data-theme="dark"] table:not(.source-form table):not(.report-sheet table) tbody tr {
+  background:var(--dark-panel);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] table:not(.source-form table):not(.report-sheet table) tbody tr:nth-child(even) { background:#202a2c; }
+html[data-theme="dark"] table:not(.source-form table):not(.report-sheet table) tbody tr:hover { background:#2a3c3b; }
+html[data-theme="dark"] table:not(.source-form table):not(.report-sheet table) tbody tr:is(.selected,[aria-selected="true"]) {
+  background:#31524e;
+  box-shadow:inset 3px 0 #65d0c2;
+}
+
+/* Tube state maintenance starts directly with its scope controls. */
+html[data-theme="dark"] #states {
+  --state-bg:var(--dark-bg);
+  --state-panel:var(--dark-panel);
+  --state-line:var(--dark-line);
+  --state-ink:var(--dark-ink);
+  --state-muted:var(--dark-muted);
+  --state-accent:var(--dark-accent);
+}
+html[data-theme="dark"] #states :is(.state-controls,.state-scope,.state-bulk-actions,.state-summary-item,.state-meaning-guide,.state-grid-view,.lifecycle-batch-toolbar,.lifecycle-batch-settings,.state-preview-tools,.state-preview-head,.state-filter-panel) {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] #states :is(.state-rule,.lifecycle-summary,.lifecycle-events p,.state-note,.state-source) {
+  background:var(--dark-panel-2);
+  border-color:var(--dark-line);
+  color:var(--dark-muted);
+}
+/* State buttons carry inline colors so the light theme can mirror composite
+   events.  Dark-theme rules must explicitly override those inline values. */
+html[data-theme="dark"] #states .state-tube-grid button {
+  background:#2a3335 !important;
+  border-color:#4c5a5c !important;
+  color:#e3ecea !important;
+}
+html[data-theme="dark"] #states .state-tube-grid button[data-state="normal"] { background:#203a33 !important; border-color:#427662 !important; color:#d8f0e4 !important; }
+html[data-theme="dark"] #states .state-tube-grid button[data-state="plugged"] { background:#473035 !important; border-color:#9c5962 !important; color:#ffdadd !important; }
+html[data-theme="dark"] #states .state-tube-grid button[data-state="shifted"] { background:#493c20 !important; border-color:#a88138 !important; color:#ffe8b4 !important; }
+html[data-theme="dark"] #states .state-tube-grid button[data-state="replaced"] { background:#243d51 !important; border-color:#5482a6 !important; color:#d5ebff !important; }
+html[data-theme="dark"] #states .state-tube-grid button[data-composite="true"] {
+  background:linear-gradient(90deg,#473035 0 50%,#493c20 50% 100%) !important;
+  border-color:#a34552 !important;
+  color:#f0f7f4 !important;
+}
+html[data-theme="dark"] #states .state-tube-grid button[data-events="plugged,shifted"] { background:linear-gradient(90deg,#473035 0 50%,#493c20 50% 100%)!important;border-color:#a34552!important; }
+html[data-theme="dark"] #states .state-tube-grid button[data-events="plugged,replaced"] { background:linear-gradient(90deg,#473035 0 50%,#243d51 50% 100%)!important;border-color:#875078!important; }
+html[data-theme="dark"] #states .state-tube-grid button[data-events="shifted,replaced"] { background:linear-gradient(90deg,#493c20 0 50%,#243d51 50% 100%)!important;border-color:#92702c!important; }
+html[data-theme="dark"] #states .state-tube-grid button[data-events="plugged,shifted,replaced"] { background:linear-gradient(90deg,#473035 0 33.333%,#493c20 33.333% 66.666%,#243d51 66.666% 100%)!important;border-color:#6f5878!important; }
+html[data-theme="dark"] #states .state-tube-grid button:is(.selected,.batch-selected,[aria-pressed="true"]) {
+  outline:2px solid #85e3d7;
+  outline-offset:2px;
+  box-shadow:0 0 0 4px #101718,0 0 16px #55c2b477;
+  filter:brightness(1.18);
+}
+
+/* Settings, including audit and maintenance subviews. */
+html[data-theme="dark"] #settings .settings-workspace { background:var(--dark-bg); }
+html[data-theme="dark"] #settings :is(.settings-sidebar,.settings-pane,.software-settings-panel,.preferences-panel) {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] #settings :is(.panel-title,.settings-subheading,.settings-action-row,.backup-list-head) {
+  background:var(--dark-panel-2);
+  border-color:var(--dark-line);
+}
+html[data-theme="dark"] #settings :is(.setting-row,.storage-details,.backup-row,.backup-list,.dedup-summary,.duplicate-records,.duplicate-pair,.duplicate-side,.ar-rule-row,.ar-purpose,.ar-purpose-head,.ar-guidance,.ar-example,.ar-active,.ar-outcomes) {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] #settings :is(.software-docs-panel,.docs-toolbar,.doc-item,.docs-empty,.ar-compact-note,.ar-new-heading) {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] #settings :is(.docs-categories button:hover) { background:var(--dark-panel-2); }
+html[data-theme="dark"] #settings .docs-categories button.active { background:#294744; border-color:#4c7771; color:#e2f4ef; }
+html[data-theme="dark"] #settings :is(.docs-toolbar label,.doc-item p,.doc-item small,.docs-count,.docs-categories button span,.ar-compact-note,.ar-new-heading span) { color:var(--dark-muted); }
+html[data-theme="dark"] #settings .doc-type { background:#21413f; border-color:#4c7771; color:#d0ede8; }
+html[data-theme="dark"] #settings :is(.setting-row small,.settings-subheading span,.settings-status,.settings-nav button span,.setting-note,.backup-dir,.backup-meta,.ar-guidance,.ar-example) { color:var(--dark-muted); }
+html[data-theme="dark"] #settings :is(.panel-title h2,.settings-subheading b,.setting-row b,.settings-sidebar-label,.ar-flow b,.ar-purpose p strong) { color:var(--dark-ink); }
+html[data-theme="dark"] #settings :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),select,textarea) {
+  background:var(--dark-panel-3);
+  border-color:var(--dark-line-strong);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] #settings input:disabled:not([type="checkbox"]) {
+  background:#20292b;
+  color:#849591;
+}
+html[data-theme="dark"] #settings :is(.storage-path,.storage-details code) {
+  background:#151e20;
+  border-color:var(--dark-line);
+  color:#d5e2df;
+}
+html[data-theme="dark"] #settings .settings-nav button { background:transparent; border-color:transparent; color:#c4d2cf; }
+html[data-theme="dark"] #settings .settings-nav button:hover { background:#2a3738; }
+html[data-theme="dark"] #settings .settings-nav button.active {
+  background:#294744;
+  border-color:#4c7771;
+  color:#e2f4ef;
+}
+html[data-theme="dark"] #settings .theme-switch { background:#151e20; border-color:var(--dark-line-strong); }
+html[data-theme="dark"] #settings .theme-switch button { background:transparent; color:#c2d0cd; }
+html[data-theme="dark"] #settings .theme-switch button[aria-pressed="true"] {
+  background:#345a55;
+  border-color:#65968b;
+  color:#fff;
+}
+html[data-theme="dark"] #settings :is(.storage-path-value button,#analysisRulesPanel .ar-flow>div,#settingsReportsPane #rcSources) {
+  background:var(--dark-panel-2);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+
+/* Visualization workspaces. Reference plates keep their calibrated light palette. */
+html[data-theme="dark"] #analytics .official-viz {
+  --vw-bg:var(--dark-bg);
+  --vw-panel:var(--dark-panel);
+  --vw-line:var(--dark-line);
+  --vw-ink:var(--dark-ink);
+  --vw-muted:var(--dark-muted);
+}
+html[data-theme="dark"] #analytics .official-viz :is(#anFilter,#anKpis,.vw-kpi,.vw-hero-status,.vw-site-status,.vw-site-group,.vw-unit-card,.vw-view>.panel,.vw-unit-panel,.vw-position-panel,.vw-frequency-panel,.vw-auxiliary,.viz-state-indicator,.vw-outage-details,.vw-tube-history,.vw-tube-detail,.vw-tabs,.vw-segmented,.vw-bases,.vw-overview-note,.vw-history-note) {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview :is(.vw-site-group-head,.vw-unit-grid-head) {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-muted) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview :is(.vw-site-group-head h3,.vw-site-summary b,.vw-unit-card-head strong,.vw-unit-depth b,.vw-unit-coverage>b,.vw-unit-card-meta b) {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview :is(.vw-site-group-head p,.vw-site-summary small,.vw-unit-grid-head span,.vw-unit-card-head small,.vw-unit-depth span,.vw-unit-coverage>span,.vw-unit-card-meta,.vw-unit-history>summary) {
+  color:var(--dark-muted) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview :is(.vw-unit-card-bar,.vw-coverage-meter,.vw-coverage-track) {
+  background:var(--dark-line) !important;
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview .vw-unit-card:hover,
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview .vw-unit-card.is-selected {
+  background:#233634 !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(.vw-base-filter,.vw-base-filter:hover) {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-base-filter[aria-pressed="true"] {
+  background:#31524e !important;
+  border-color:#5c9f95 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-base-filter b {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-base-filter > span > small,
+html[data-theme="dark"] #analytics .official-viz .vw-base-filter small {
+  color:#d7e5e2 !important;
+  opacity:1 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-base-filter em {
+  color:#a9e1d4 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-analysis-detail>summary {
+  color:#b8cfca !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(.vw-panel-count,.vw-hero-tags span,.vw-source,.vw-chart-context,.vw-metric-note) {
+  background:var(--dark-panel-2);
+  border-color:var(--dark-line);
+  color:var(--dark-muted);
+}
+html[data-theme="dark"] #analytics .official-viz .vw-ring::after { background:var(--dark-panel); }
+html[data-theme="dark"] #analytics .official-viz .viz-chart:not(.vw-reference-plate) {
+  background:#182123;
+  border-color:var(--dark-line);
+}
+html[data-theme="dark"] #analytics .official-viz .viz-chart:not(.vw-reference-plate) svg text { fill:#c7d6d3; }
+html[data-theme="dark"] #analytics .official-viz .viz-chart:not(.vw-reference-plate) svg :is(.domain,.tick line) { stroke:#536866; }
+html[data-theme="dark"] #analytics .official-viz :is(.vw-reference-plate,.vw-plate-background,.vw-plate-grid,.core-map) {
+  color:#17252c;
+  color-scheme:light;
+}
+
+/* Resolve module-level white surfaces with higher selector specificity. */
+html[data-theme="dark"] #workspace :is(.toolbar,.core-panel,.workspace-selection-status,.table-panel,.workbench-toolbar) {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] #analytics .panel-bd { background:var(--dark-panel); }
+html[data-theme="dark"] #analytics .panel:fullscreen { background:var(--dark-bg); }
+html[data-theme="dark"] #states :is(.state-scope,.state-summary-item,.state-tube-panel,.state-panel,.state-table-panel) {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] #states .state-summary-item b { color:var(--dark-ink); }
+html[data-theme="dark"] #states .state-summary-strip.is-empty .state-summary-item {
+  background:#202a2c;
+  color:#83938f;
+}
+html[data-theme="dark"] #states .state-grid-view button[aria-pressed="true"] {
+  background:#31524e;
+  color:#dffffa;
+}
+
+/* Report controls use the dark shell; the report itself remains white paper. */
+html[data-theme="dark"] .report-center {
+  --rc-border:var(--dark-line);
+  --rc-muted:var(--dark-muted);
+  --rc-accent:var(--dark-accent);
+  background:var(--dark-bg);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] .report-center :is(.rc-toolbar,.rc-preview-heading,.rc-viewbar,.rc-editor,#rcHeader[open],.rc-draft-entry,.rc-sidebar,.rc-scope) {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] .report-center .rc-preview {
+  background:#101617;
+  border-color:var(--dark-line);
+}
+html[data-theme="dark"] .report-center.rc-workspace :is(.rc-toolbar,#rcHeader[open],.rc-preview-heading,.rc-editor) {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] #rcHeaderForm :is(.report-header-table,.report-header-cell) {
+  background:var(--dark-panel) !important;
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #rcHeaderForm .report-header-cell :is(input,select) {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line-strong) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] :is(.ac-notice,.ac-warning-item,.ac-warning-detail) {
+  background:#3d321c;
+  border-color:#806832;
+  color:#f2ddb0;
+}
+html[data-theme="dark"] :is(.report-sheet,.report-page,.source-form) {
+  color-scheme:light;
+  background:#fff;
+  color:#111;
+}
+html[data-theme="dark"] :is(.report-sheet,.report-page,.source-form) :is(table,thead,tbody,tr,th,td) {
+  background:#fff;
+  color:#111;
+  border-color:#111;
+}
+html[data-theme="dark"] .rc-inline-editor {
+  background:#effbea;
+  color:#111;
+  border-color:#38833a;
+}
+
+/* Dialogs, toasts, progress and import/delete workflows. */
+html[data-theme="dark"] :is(dialog,.modal,.dialog,.app-confirm,.interaction-confirm,.audit-dialog,.import-dialog,.delete-dialog,.ddm-dialog,.recycle-dialog,#feedbackDrawer) {
+  background:var(--dark-panel);
+  border-color:var(--dark-line-strong);
+  color:var(--dark-ink);
+  box-shadow:0 18px 48px #0008;
+}
+html[data-theme="dark"] dialog::backdrop { background:#05090ac2; }
+html[data-theme="dark"] :is(.dialog-actions,.modal-actions,.confirm-actions,.import-actions,.ddm-actions,.recycle-actions,.feedback-drawer-heading) {
+  background:var(--dark-panel-2);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] :is(.confirm-phrase,.import-step,.import-preview,.quality-summary,.mapping-row,.queue-item,.progress-panel,.ddm-record,.recycle-item,#feedbackHistory,.audit-entry) {
+  background:var(--dark-panel-2);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] #toast,
+html[data-theme="dark"] :is(.toast,.notification-toast,.feedback-toast) {
+  background:#253335;
+  border-color:#52706d;
+  color:#eef8f6;
+  box-shadow:0 8px 24px #0007;
+}
+html[data-theme="dark"] body .app-nav footer #requestActivity {
+  background:#182123;
+  color:var(--dark-muted);
+}
+html[data-theme="dark"] #feedbackDrawer {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+  color:var(--dark-ink);
+}
+html[data-theme="dark"] #importDialog .dialog-actions {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+}
+html[data-theme="dark"] :is(.progress-track,.task-progress-track) { background:#344244; }
+html[data-theme="dark"] :is(.progress-fill,.task-progress-fill) { background:#55c2b4; }
+
+/* Native scrollable surfaces. */
+html[data-theme="dark"] * { scrollbar-color:#536866 #182123; }
+html[data-theme="dark"] *::-webkit-scrollbar-track { background:#182123; }
+html[data-theme="dark"] *::-webkit-scrollbar-thumb { background:#536866; border-color:#182123; }
+
+/* Final module overrides. These selectors intentionally match the business
+   workspace specificity so hard-coded light surfaces cannot leak through. */
+html[data-theme="dark"] #workspace .toolbar,
+html[data-theme="dark"] #workspace .workspace-filters,
+html[data-theme="dark"] #workspace .workspace-commands,
+html[data-theme="dark"] #workspace .table-panel,
+html[data-theme="dark"] #workspace .table-panel .panel-title,
+html[data-theme="dark"] #workspace .workspace-selection-status,
+html[data-theme="dark"] #workspace .pager,
+html[data-theme="dark"] #workspace .core-panel .panel-title,
+html[data-theme="dark"] #workspace .core-switch,
+html[data-theme="dark"] #workspace .core-stats,
+html[data-theme="dark"] #workspace .detail {
+  background:var(--dark-panel) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #workspace .workspace-commands {
+  background:var(--dark-panel-2) !important;
+}
+html[data-theme="dark"] #workspace .workspace-commands #clearRecordsBtn,
+html[data-theme="dark"] #workspace #clearRecordsBtn {
+  background:#5a3036 !important;
+  border-color:#a85e68 !important;
+  color:#ffdce0 !important;
+}
+html[data-theme="dark"] #workspace .workspace-commands #clearRecordsBtn:hover,
+html[data-theme="dark"] #workspace #clearRecordsBtn:hover {
+  background:#743b43 !important;
+  border-color:#d17a84 !important;
+  color:#fff3f4 !important;
+}
+html[data-theme="dark"] #workspace #exportCorePng {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line-strong) !important;
+  color:#dce8e5 !important;
+}
+html[data-theme="dark"] #workspace #exportCorePng:hover {
+  background:#304142 !important;
+  border-color:#65968b !important;
+  color:#f1fffc !important;
+}
+html[data-theme="dark"] #workspace .split-divider {
+  background:#263436 !important;
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #workspace .split-divider::after {
+  background:repeating-linear-gradient(to bottom,#7d9894 0 3px,transparent 3px 8px) !important;
+}
+html[data-theme="dark"] #workspace .split-divider:hover,
+html[data-theme="dark"] #workspace .split-divider:focus-visible {
+  background:#34514e !important;
+}
+html[data-theme="dark"] #workspace .toolbar label,
+html[data-theme="dark"] #workspace .workspace-filter label {
+  color:#b9cdca !important;
+}
+html[data-theme="dark"] #workspace .toolbar .workspace-filter input,
+html[data-theme="dark"] #workspace .toolbar .workspace-filter select,
+html[data-theme="dark"] #workspace .pager #pageSize {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line-strong) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #workspace .panel-title h2,
+html[data-theme="dark"] #workspace #resultInfo,
+html[data-theme="dark"] #workspace .workspace-scope-summary,
+html[data-theme="dark"] #workspace .workspace-pager-settings,
+html[data-theme="dark"] #workspace .workspace-pager-navigation #pageInfo {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #workspace .table-wrap {
+  background:var(--dark-panel) !important;
+}
+html[data-theme="dark"] #workspace table thead th {
+  background:#293638 !important;
+  color:#dce8e5 !important;
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #workspace table tbody tr,
+html[data-theme="dark"] #workspace table tbody tr:nth-child(even) {
+  background:var(--dark-panel) !important;
+}
+html[data-theme="dark"] #workspace table tbody tr:nth-child(even) {
+  background:#202a2c !important;
+}
+html[data-theme="dark"] #workspace table tbody tr:hover {
+  background:#2a3c3b !important;
+}
+html[data-theme="dark"] #workspace table tbody tr.selected {
+  background:#31524e !important;
+}
+html[data-theme="dark"] #workspace table tbody td {
+  color:#d8e5e2 !important;
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #workspace table tbody td.empty-value {
+  color:#91a29f !important;
+}
+
+/* The reference core drawing is calibrated light artwork, not application
+   chrome. Keep every label and marker readable on its white paper. */
+html[data-theme="dark"] #workspace :is(.core-map,.reference-grid,.grid-cell,.path-marker,.path-half) {
+  color-scheme:light;
+}
+html[data-theme="dark"] #workspace .core-map {
+  background:#fff !important;
+  color:#26343c !important;
+  /* 白纸图稿保持浅色标定，但用卡片框线表明它是放在暗色台面上的图纸，
+     避免看起来像未适配的白色残留。 */
+  border:1px solid #4a5c5e !important;
+  border-radius:8px;
+  box-shadow:0 3px 14px #0008;
+}
+html[data-theme="dark"] #workspace :is(.ref-axis span,.orientation,.path-marker b,.path-marker small,.path-half) {
+  color:#26343c !important;
+}
+html[data-theme="dark"] #workspace .grid-cell,
+html[data-theme="dark"] #workspace .path-marker {
+  background:#fff !important;
+}
+/* Tube halves carry calibrated defect-severity colors. Do not flatten them
+   to white in dark mode; only the unselected combined label uses paper white. */
+html[data-theme="dark"] #workspace .path-marker:not(.selected) .combined-path {
+  background:#fff !important;
+  color:#26343c !important;
+}
+html[data-theme="dark"] #workspace .path-marker.selected .odd-path,
+html[data-theme="dark"] #workspace .path-marker.selected .even-path,
+html[data-theme="dark"] #workspace .path-marker.selected .combined-path {
+  color:#172b22 !important;
+}
+html[data-theme="dark"] #workspace .core-map .flow-mark {
+  color:#263a43 !important;
+}
+
+html[data-theme="dark"] #states .state-controls,
+html[data-theme="dark"] #states .state-scope,
+html[data-theme="dark"] #states .state-summary-strip,
+html[data-theme="dark"] #states .state-maintenance-layout,
+html[data-theme="dark"] #states .state-tube-panel,
+html[data-theme="dark"] #states .state-panel,
+html[data-theme="dark"] #states .state-table-panel,
+html[data-theme="dark"] #states .state-tube-panel .panel-title,
+html[data-theme="dark"] #states .state-panel .panel-title,
+html[data-theme="dark"] #states .state-table-panel .panel-title,
+html[data-theme="dark"] #states .state-grid-view,
+html[data-theme="dark"] #states .state-tube-grid,
+html[data-theme="dark"] #states .state-grid-legend,
+html[data-theme="dark"] #states #stateForm,
+html[data-theme="dark"] #states .state-table-toolbar,
+html[data-theme="dark"] #states .state-table-panel .table-wrap,
+html[data-theme="dark"] #states .state-list-pager {
+  background:var(--dark-panel) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #states .state-summary-strip {
+  background:var(--dark-panel-2) !important;
+}
+html[data-theme="dark"] #states :is(.state-summary-item,.state-grid-view>div,.lifecycle-batch-toolbar,.state-rule) {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #states .state-recognition-bar {
+  background:#3d321c !important;
+  border-color:#a87e31 !important;
+  color:#f2ddb0 !important;
+}
+html[data-theme="dark"] #states .state-import-status {
+  background:#213537 !important;
+  border-color:#4c8d88 !important;
+  color:#d6ebe7 !important;
+}
+html[data-theme="dark"] #states #stateForm label,
+html[data-theme="dark"] #states :is(.state-grid-legend span,.state-bulk-heading,.state-bulk-hint,.state-table-panel td) {
+  color:#c6d5d2 !important;
+}
+html[data-theme="dark"] #states #stateForm label :is(input,select,textarea),
+html[data-theme="dark"] #states .state-scope :is(input,select),
+html[data-theme="dark"] #states .state-table-toolbar :is(input,select),
+html[data-theme="dark"] #states .lifecycle-batch-toolbar input:not([type]) {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line-strong) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #states .state-form-actions {
+  background:linear-gradient(#1c252700,#1c2527 26%) !important;
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #states .state-table-panel th {
+  background:#293638 !important;
+  color:#dce8e5 !important;
+}
+html[data-theme="dark"] #states .state-table-panel td {
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #states :is(
+  .state-tube-panel .panel-title h2,
+  .state-panel .panel-title h2,
+  .state-table-panel .panel-title h2,
+  .state-scope label,
+  .state-scope [role="status"],
+  .state-summary-item span,
+  .state-grid-view,
+  .state-grid-view button,
+  .state-grid-legend span,
+  .state-note-tools button
+) {
+  color:#c7d8d5 !important;
+}
+html[data-theme="dark"] #states .state-scope-manage,
+html[data-theme="dark"] #states #statePickLatest,
+html[data-theme="dark"] #states .state-note-tools button {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line-strong) !important;
+  color:#d9ebe7 !important;
+}
+html[data-theme="dark"] #states .state-note-tools button:hover,
+html[data-theme="dark"] #states .state-scope-manage:hover,
+html[data-theme="dark"] #states #statePickLatest:hover {
+  background:#304142 !important;
+  border-color:#65968b !important;
+  color:#f1fffc !important;
+}
+
+html[data-theme="dark"] #analytics .official-viz #anFilter,
+html[data-theme="dark"] #analytics .official-viz #anKpis,
+html[data-theme="dark"] #analytics .official-viz .panel,
+html[data-theme="dark"] #analytics .official-viz .panel-title,
+html[data-theme="dark"] #analytics .official-viz .panel-bd,
+html[data-theme="dark"] #analytics .official-viz .vw-quality p,
+html[data-theme="dark"] #analytics .official-viz .vw-unit-card,
+html[data-theme="dark"] #analytics .official-viz #vwTube>.panel {
+  background:var(--dark-panel) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz>.vw-tabs,
+html[data-theme="dark"] #analytics .official-viz .vw-segmented,
+html[data-theme="dark"] #analytics .official-viz .chart-toolbar,
+html[data-theme="dark"] #analytics .official-viz .legendbar,
+html[data-theme="dark"] #analytics .official-viz .vw-position-share {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(.vw-bases button,#c31Legend button,.vw-filter-bottom button) {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line-strong) !important;
+  color:#dce8e5 !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(.vw-bases button[aria-pressed=true],.vw-tabs button[aria-selected=true],.vw-segmented input:checked+span,#c31Legend button[aria-pressed=true]) {
+  background:#31524e !important;
+  border-color:#65a79f !important;
+  color:#e8fffb !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(
+  .an-head h2,.vw-filter-heading>b,.vw-filter-label,.panel-title h2,.vw-kpi strong,
+  .vw-kpi-copy>span,.vw-tube-detail,.vw-tube-detail strong,.vw-tube-detail dd,
+  .vw-position-share-head strong,.vw-position-share-row>b,.vw-position-share-row>strong,
+  .vw-unit-card-head strong,.vw-unit-card-meta b,.vw-site-group-head h3
+) {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(
+  .an-head .sub,.panel-title span,.vw-source,.vw-chart-context,.vw-metric-note,
+  .vw-tube-detail span,.vw-tube-detail p,.vw-tube-detail dt,.vw-tube-detail small,
+  .vw-position-share-head span,.vw-position-share-row>small,.vw-position-share>p
+) {
+  color:var(--dark-muted) !important;
+}
+html[data-theme="dark"] #analytics .official-viz .viz-chart:not(.vw-reference-plate) {
+  background:#182123 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .viz-chart .cft-svg>rect:first-child {
+  fill:#182123 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .viz-chart .cft-svg text {
+  fill:#c7d6d3 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .viz-chart .cft-svg :is(.cft-grid,.cft-grid-x) line {
+  stroke:#455a58 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .viz-chart .cft-svg .cft-axes {
+  stroke:#9fb4b0 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-reference-plate {
+  background:#fff !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(.chart-legend-note,#c31Note,#c32Note,#c34Note,.vw-metric-note) {
+  background:var(--dark-panel-2) !important;
+  border-color:#5d918b !important;
+  color:var(--dark-muted) !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-expand {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line-strong) !important;
+  color:#dce8e5 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-expand:hover {
+  background:#304142 !important;
+  color:#f1fffc !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview>.panel-title,
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview .vw-site-groups,
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview .vw-site-group,
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview .vw-site-group-head,
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview .vw-unit-card,
+html[data-theme="dark"] #analytics .official-viz .vw-overview-note {
+  background:var(--dark-panel) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview .vw-site-groups {
+  background:var(--dark-panel-2) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview .vw-site-group-head {
+  background:#263436 !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(.chart-toolbar button,.vw-export,.vw-fullscreen,#exportVisualization) {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line-strong) !important;
+  color:#dce8e5 !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(.chart-toolbar button,.vw-export,.vw-fullscreen,#exportVisualization):hover {
+  background:#304142 !important;
+  border-color:#65968b !important;
+  color:#f1fffc !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-overview-note {
+  border-top-color:var(--dark-line) !important;
+}
+
+/* Preserve the source report's typography and black-on-white paper despite
+   global dark heading/label rules. */
+html[data-theme="dark"] .report-center :is(.report-sheet,.report-page,.source-form),
+html[data-theme="dark"] .report-center :is(.report-sheet,.report-page,.source-form) * {
+  color-scheme:light;
+}
+html[data-theme="dark"] .report-center :is(.report-sheet,.report-page,.source-form) :is(h1,h2,h3,h4,h5,p,span,strong,b,label,small) {
+  color:inherit !important;
+}
+
+/* Secondary workflows: deletion, recycle bin, audit and import wizards. */
+html[data-theme="dark"] :is(
+  .ddm-modal,.recycle-bin-panel,.import-quality,.wizard-head,.wizard-actions,
+  .wizard-overview-head,.wizard-options,.excel-mapping-controls,
+  .indication-warning-dialog,.restore-danger,.restore-compare,.restore-check
+) {
+  background:var(--dark-panel) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] :is(
+  .ddm-header,.ddm-footer,.wizard-head,.wizard-actions,
+  .wizard-overview-head,.import-quality .iq-tabs,.import-quality .iq-review,
+  .excel-mapping-controls,.indication-warning-actions
+) {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] :is(
+  .ddm-title,.ddm-scope-title,.ddm-options-title,.ddm-step2-title,
+  .recycle-header h3,.wizard-head h2,.wizard-overview-head b,
+  .import-quality .iq-toolbar label,.import-quality #iqStatus,
+  .restore-compare dt,.restore-check,.indication-warning-summary b
+) {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] :is(
+  .ddm-scope-label,.ddm-option-row,.ddm-step2-sub,.ddm-phrase-label,
+  .recycle-tip,.recycle-time,.recycle-pagination,.import-quality .iq-review header span,
+  .import-quality .iq-review-history,.wizard-head span,.wizard-overview-head span,
+  .restore-compare dd,.indication-warning-summary p
+) {
+  color:var(--dark-muted) !important;
+}
+html[data-theme="dark"] :is(
+  .ddm-scope-card,.ddm-step2-scope,.ddm-phrase-text,.ddm-phrase-input,
+  .recycle-table th,.import-quality select,.import-quality .iq-review-reason,
+  .excel-mapping-controls select,.excel-mapping-controls input,
+  .mapping-row select,.restore-compare,.restore-check
+) {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line-strong) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] :is(
+  .ddm-preview,.ddm-cooldown,.restore-danger,
+  .indication-warning-summary,.import-quality .iq-review-history
+) {
+  background:#3d321c !important;
+  border-color:#806832 !important;
+  color:#f2ddb0 !important;
+}
+html[data-theme="dark"] :is(
+  .ddm-preview-title,.ddm-preview-label,.ddm-preview-total,
+  .ddm-cooldown-text,.ddm-cooldown-num,.restore-danger b
+) {
+  color:#f2ddb0 !important;
+}
+html[data-theme="dark"] :is(
+  .ddm-option-tip,.ddm-scope-value,.recycle-scope-label,.recycle-backup,
+  .recycle-empty,.import-quality .iq-tabs button,
+  .import-quality .iq-review header,.import-quality dialog
+) {
+  color:#c4d2cf !important;
+}
+html[data-theme="dark"] .ddm-warning {
+  background:#42282c !important;
+  border-color:#96515a !important;
+}
+html[data-theme="dark"] :is(.ddm-warning-title,.ddm-warning-desc,.ddm-confirm-check) {
+  color:#ffd8dc !important;
+}
+html[data-theme="dark"] .ddm-cancel {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line-strong) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] :is(.ddm-confirm,.ddm-btn-danger) {
+  background:#723940 !important;
+  border-color:#b85c66 !important;
+  color:#fff !important;
+}
+html[data-theme="dark"] .recycle-table th {
+  background:#293638 !important;
+}
+html[data-theme="dark"] .recycle-table td {
+  border-color:var(--dark-line) !important;
+  color:#d8e5e2 !important;
+}
+html[data-theme="dark"] .recycle-table tr:hover {
+  background:#2a3c3b !important;
+}
+html[data-theme="dark"] :is(.wizard-progress,.wizard-overview,.excel-mapping-grid) {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] :is(.wizard-report-option,.wizard-overview button,.mapping-row) {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line-strong) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] :is(.wizard-report-option:hover,.wizard-overview button:hover,.mapping-row:hover) {
+  background:#304142 !important;
+}
+html[data-theme="dark"] .import-quality :is(th,td) {
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] .import-quality th {
+  background:#293638 !important;
+  color:#dce8e5 !important;
+}
+html[data-theme="dark"] .import-quality td {
+  color:#d8e5e2 !important;
+}
+html[data-theme="dark"] .import-quality .iq-tabs .active {
+  color:#91e2d6 !important;
+  border-bottom-color:#55c2b4 !important;
+}
+html[data-theme="dark"] :is(.btn-link,.recycle-table .btn-link) {
+  background:transparent !important;
+  color:#8fe1d5 !important;
+}
+html[data-theme="dark"] .btn-link.btn-danger {
+  color:#ff9ba5 !important;
+}
+
+/* Nested import surfaces and semantic confirmations have independent light
+   styles in the workflow modules. Keep their text and surfaces paired. */
+html[data-theme="dark"] #importDialog :is(
+  .import-step-card.import-source-card,.import-step-card.excel-picker,
+  .folder-import-details,.excel-file-list,.report-options
+) {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #importDialog :is(.active-report-policy,.excel-file-chip) {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #importDialog :is(
+  .import-dialog-heading p,.import-route-heading small,.folder-import-details summary small,
+  .folder-import-content>p,.import-format-hint,.excel-queue-heading span,
+  .excel-file-list.empty,.active-report-policy-hint,.report-summary-row small,
+  .import-progress-copy span,#importProgressEta,#importActionHint
+) {
+  color:var(--dark-muted) !important;
+}
+html[data-theme="dark"] #importDialog :is(
+  .import-route-heading,.excel-queue-heading,.active-report-policy b,.report-summary-row b,
+  .folder-import-details>summary
+) {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #importDialog .import-step-number {
+  background:#31524e;
+  color:#dffff7;
+}
+html[data-theme="dark"] #importDialog .folder-import-details>summary::after {
+  color:#91e2d6;
+}
+html[data-theme="dark"] #importDialog :is(.folder-import-content>p,.report-summary-row,.dialog-actions) {
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #importDialog :is(#importProgressPanel,#importStatus) {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #importDialog #importStatus[data-outcome="success"] {
+  background:#203a33 !important;
+  border-color:#427662 !important;
+  color:#d8f0e4 !important;
+}
+html[data-theme="dark"] #importDialog #importStatus[data-outcome="warning"] {
+  background:#3d321c !important;
+  border-color:#806832 !important;
+  color:#f2ddb0 !important;
+}
+html[data-theme="dark"] #importDialog #importStatus[data-outcome="failed"] {
+  background:#42282c !important;
+  border-color:#96515a !important;
+  color:#ffd8dc !important;
+}
+html[data-theme="dark"] :is(.import-progress-copy b,#importProgressPercent) { color:#91e2d6 !important; }
+html[data-theme="dark"] :is(.import-progress-track,.parse-progress) { background:#3b4c4d; }
+html[data-theme="dark"] :is(.import-progress-track i,.parse-progress i) { background:#55c2b4; }
+html[data-theme="dark"] :is(
+  .interaction-confirm #confirmDescription,.ddm-step2-scope span,
+  .wizard-report-option small,.wizard-report-option em,#reportWizardContext,
+  .wizard-actions span,.mapping-row span,#mappingHint,.state-import-direction,
+  .state-import-preview details
+) { color:var(--dark-muted) !important; }
+html[data-theme="dark"] .mapping-row.required span { color:#ffd79b !important; }
+html[data-theme="dark"] :is(#mappingError,#restoreError) { color:#ffb5be !important; }
+html[data-theme="dark"] .wizard-report-option:has(input:checked),
+html[data-theme="dark"] .wizard-overview button.confirmed {
+  background:#31524e !important;
+  border-color:#65a79f !important;
+}
+html[data-theme="dark"] #reportChoiceDialog :is(.wizard-report-option:has(input:checked),.wizard-report-option:hover) :is(small,em) {
+  color:#c4d2cf !important;
+}
+html[data-theme="dark"] .restore-danger p { color:#f2ddb0 !important; }
+html[data-theme="dark"] #reportWizardContext b { color:#91e2d6 !important; }
+html[data-theme="dark"] #reportWizardContext small {
+  background:#493c20 !important;
+  color:#ffe0a0 !important;
+}
+html[data-theme="dark"] .wizard-overview button.current {
+  background:#493c20 !important;
+  border-color:#bd984b !important;
+  outline-color:#bd984b !important;
+}
+html[data-theme="dark"] .ddm-preview-item {
+  background:var(--dark-panel-2) !important;
+  border-color:#806832 !important;
+}
+html[data-theme="dark"] .ddm-preview-num { color:#ffe0a0 !important; }
+html[data-theme="dark"] .ddm-preview-total { border-color:#806832 !important; }
+html[data-theme="dark"] .ddm-confirm-check { border-color:var(--dark-line) !important; }
+html[data-theme="dark"] .ddm-confirm-check span { color:#ffd8dc !important; }
+html[data-theme="dark"] button.danger-action {
+  background:#723940 !important;
+  border-color:#b85c66 !important;
+  color:#fff !important;
+}
+html[data-theme="dark"] button.danger-action:hover { background:#86434b !important; }
+html[data-theme="dark"] #toast button { color:#d3e3df !important; }
+html[data-theme="dark"] dialog.ddm-overlay {
+  background:transparent !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+html[data-theme="dark"] .state-import-preview .state-preview-tools {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] .state-import-preview :is(td,.state-preview-tools label) {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] .state-import-preview td[data-state] {
+  background:#2a3335 !important;
+  border-color:#4c5a5c !important;
+  color:#e3ecea !important;
+  font-weight:600;
+}
+html[data-theme="dark"] .state-import-preview td[data-state="normal"] { background:#203a33 !important; border-color:#427662 !important; color:#d8f0e4 !important; }
+html[data-theme="dark"] .state-import-preview td[data-state="plugged"] { background:#473035 !important; border-color:#9c5962 !important; color:#ffdadd !important; }
+html[data-theme="dark"] .state-import-preview td[data-state="shifted"] { background:#493c20 !important; border-color:#a88138 !important; color:#ffe8b4 !important; }
+html[data-theme="dark"] .state-import-preview td[data-state="replaced"] { background:#243d51 !important; border-color:#5482a6 !important; color:#d5ebff !important; }
+html[data-theme="dark"] .state-import-preview td[data-composite="true"] {
+  background:linear-gradient(90deg,#473035 0 50%,#493c20 50% 100%) !important;
+  border-color:#85a99f !important;
+  color:#f0f7f4 !important;
+}
+html[data-theme="dark"] .state-import-preview :is(.state-preview-tools span,.state-source-cell) {
+  color:var(--dark-muted) !important;
+}
+
+/* Settings content scrolls independently of dialog-sized workflows. */
+html[data-theme="dark"] #settings :is(
+  .setting-note,.server-sources.empty,.settings-status-badge,
+  .ar-guidance>div,.ar-flow>div
+) {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-muted) !important;
+}
+html[data-theme="dark"] #settings :is(
+  .panel-title span,.settings-saved,.storage-details dt,.settings-local-indicator,
+  .settings-number-field,.backup-summary span,.dedup-summary span,
+  .ar-purpose p,.ar-purpose-kicker,.ar-flow small,.ar-outcomes span,
+  .ar-example span,.ar-guidance span,.ar-rule-row span,.ar-active span
+) { color:var(--dark-muted) !important; }
+html[data-theme="dark"] #settings :is(
+  .storage-details dd,.server-settings>label,.severity-control span,
+  .ar-guidance b,.ar-example b,.ar-outcomes b
+) { color:var(--dark-ink) !important; }
+html[data-theme="dark"] #settings :is(
+  .settings-status[data-state="success"],.settings-saved[data-state="success"],
+  .settings-status-badge[data-state="success"]
+) { color:#a2d8b6 !important; }
+html[data-theme="dark"] #settings :is(
+  .settings-status[data-state="error"],.settings-status-badge[data-state="error"]
+) { color:#ffb5be !important; }
+html[data-theme="dark"] #settings .settings-status[data-state="dirty"] { color:#ffe0a0 !important; }
+
+/* Maintenance dialogs are mounted outside the state workspace. */
+html[data-theme="dark"] .state-scope-dialog :is(.state-preview-head,.state-scope-format) {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] .state-scope-dialog :is(
+  .state-preview-head p,.state-scope-format,.state-legacy-scopes
+) { color:var(--dark-muted) !important; }
+html[data-theme="dark"] .state-scope-dialog .state-scope-form label {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] :is(.state-scope-error,.lifecycle-dialog-error) {
+  color:#ffb5be !important;
+}
+html[data-theme="dark"] .lifecycle-dialog :is(.lifecycle-table,details,.dialog-actions) {
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] .lifecycle-dialog :is(td,summary),
+html[data-theme="dark"] .indication-warning-table td {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] .lifecycle-dialog .lifecycle-table tbody tr,
+html[data-theme="dark"] .lifecycle-dialog .lifecycle-table tbody tr:nth-child(even),
+html[data-theme="dark"] .lifecycle-dialog .lifecycle-table tbody tr:hover {
+  background:var(--dark-panel) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] .lifecycle-dialog .lifecycle-skipped td {
+  background:#3d321c !important;
+  color:#f2ddb0 !important;
+}
+html[data-theme="dark"] .lifecycle-dialog .lifecycle-dialog-error[data-kind="progress"] {
+  background:#203a33 !important;
+  border-color:#55c2b4 !important;
+  color:#d8f0e4 !important;
+}
+html[data-theme="dark"] #feedbackHistory :is(li,time) {
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #feedbackHistory time { color:var(--dark-muted) !important; }
+html[data-theme="dark"] #toast .feedback-mark {
+  background:#203a33 !important;
+  color:#a2e4bf !important;
+}
+html[data-theme="dark"] #toast[data-type="warning"] .feedback-mark {
+  background:#493c20 !important;
+  color:#ffe0a0 !important;
+}
+html[data-theme="dark"] #toast[data-type="error"] .feedback-mark {
+  background:#473035 !important;
+  color:#ffb5be !important;
+}
+html[data-theme="dark"] #toast[data-type="info"] .feedback-mark {
+  background:#243d51 !important;
+  color:#b7dcff !important;
+}
+/* pro-grade.css 用 ID 选择器给 #states 斑马纹上白底，全局暗色规则
+   （无 ID）赢不了它；这里按同特异度补暗色覆盖，避免偶数行白底残留。 */
+html[data-theme="dark"] #states table tbody tr,
+html[data-theme="dark"] .state-table-panel table tbody tr {
+  background:var(--dark-panel);
+}
+html[data-theme="dark"] #states table tbody tr:nth-child(even),
+html[data-theme="dark"] .state-table-panel table tbody tr:nth-child(even) {
+  background:#202a2c;
+}
+html[data-theme="dark"] #states table tbody tr:hover,
+html[data-theme="dark"] .state-table-panel table tbody tr:hover {
+  background:#2a3c3b;
+}
+html[data-theme="dark"] #states #stateRows tr.state-row-selected {
+  background:#31524e !important;
+}
+html[data-theme="dark"] #states #stateRows td:last-child {
+  background:inherit !important;
+  box-shadow:-2px 0 4px #0003;
+}
+html[data-theme="dark"] #states :is(.state-delete,#stateDeleteSelected) {
+  background:#473035 !important;
+  border-color:#a15d68 !important;
+  color:#ffb5be !important;
+}
+html[data-theme="dark"] #states :is(.state-delete,#stateDeleteSelected):hover:not(:disabled) {
+  background:#59383f !important;
+}
+
+/* Expanded workspaces need the same readable palette as their outer panels. */
+html[data-theme="dark"] #workspace #resetBtn,
+html[data-theme="dark"] #workspace :is(
+  .pager .page-size-label,.core-panel .panel-title span,
+  .core-switch button,.detail span
+) { color:var(--dark-muted) !important; }
+html[data-theme="dark"] #workspace .toolbar #openImportFlow,
+html[data-theme="dark"] #workspace .core-switch button.active {
+  background:#207e75 !important;
+  border-color:#55c2b4 !important;
+  color:#fff !important;
+}
+html[data-theme="dark"] #workspace #btn-data-delete {
+  color:#ffb5be !important;
+}
+html[data-theme="dark"] #workspace #rows .ledger-editable:hover {
+  background:#304b47 !important;
+}
+html[data-theme="dark"] #workspace .core-map .flow-mark b {
+  color:#263a43 !important;
+}
+
+html[data-theme="dark"] #analytics .official-viz #anFilter label,
+html[data-theme="dark"] #analytics .official-viz #c34Legend .lb,
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-tabs button span,
+  .vw-segmented label>span,.vw-legend-label,.vw-site-group-head p,
+  .vw-site-group-stat small,.vw-unit-card-head small,.vw-unit-card-meta span,
+  .vw-unit-history-meta,.vw-history-conclusions,.vw-plate-modes>span,
+  .vw-plate-scope label,.vw-plate-outage-scope,
+  .vw-coverage-intro
+) { color:var(--dark-muted) !important; }
+html[data-theme="dark"] #analytics .official-viz .vw-bases button small {
+  color:#d7e5e2 !important;
+  opacity:1 !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-site-group-stat,.vw-outage-row>summary b,#vwTubeDetail td
+) { color:var(--dark-ink) !important; }
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-unit-history>summary,.vw-tube-findings>summary,.vw-tube-history>summary,
+  .vw-outage-row>summary::before
+) { color:#91e2d6 !important; }
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-quality>summary,.vw-unit-history-meta[data-warning="true"],
+  .vw-history-warning,.vw-history-gap,.vw-history-states
+) { color:#f2ddb0 !important; }
+html[data-theme="dark"] #analytics .official-viz .vw-history-ok {
+  color:#a2e4bf !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-tabs button[aria-selected="true"] span,.vw-segmented input:checked+span
+) { color:#e8fffb !important; }
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-unit-history,.vw-outage-row,.vw-tube-history,.vw-tube-findings,
+  #vwTubeDetail td,#vwTubeDetail th
+) { border-color:var(--dark-line) !important; }
+html[data-theme="dark"] #analytics .official-viz .vw-plate-scope select {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line-strong) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #c32Toolbar select,
+html[data-theme="dark"] #analytics .official-viz #c32Legend .lb,
+html[data-theme="dark"] #analytics .official-viz #vwTubeDetail th {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+/* Keep the configured severity color as a swatch, with readable numeric text. */
+html[data-theme="dark"] #analytics .official-viz .vw-depth-badge {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-depth-badge::before {
+  content:"";
+  width:9px;
+  height:9px;
+  flex:none;
+  background:var(--depth-color);
+  border-radius:2px;
+}
+/* The generic chart label rule must not recolor the calibrated tube plate. */
+html[data-theme="dark"] #analytics .official-viz .vw-reference-plate text {
+  fill:#172c35 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-reference-plate text[fill="#fff"] {
+  fill:#fff !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-reference-plate text[fill="#000000"] {
+  fill:#000 !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview :is(.vw-site-groups,.vw-site-group-head) {
+  background:var(--dark-panel) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview .vw-unit-card:hover,
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview .vw-unit-card.is-selected {
+  background:#273f3e !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-unit-depth span,.vw-analysis-caption,.vw-frequency-toolbar,.vw-frequency-ranking>span,
+  .vw-frequency-ranking p,.vw-frequency-ranking small,.vw-plate-breakdown>div
+) { color:var(--dark-muted) !important; }
+html[data-theme="dark"] #analytics .official-viz :is(.vw-unit-depth b,.vw-plate-breakdown b) {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwTube .vw-plate-summary>div {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-plate-breakdown h3 {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-open-unit,.vw-summary-back,.vw-replacement-list button,.vw-frequency-ranking button
+) {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-frequency-ranking button[aria-pressed=true] {
+  background:#31524e !important;
+  border-color:#65a79f !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-frequency-ranking button[aria-pressed=true] small {
+  color:#d9ebe6 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-analysis-paper { fill:var(--dark-panel) !important; }
+html[data-theme="dark"] #analytics .official-viz .vw-analysis-svg text:not([data-cell-label]) { fill:var(--dark-ink) !important; }
+html[data-theme="dark"] #analytics .official-viz .vw-analysis-track { fill:var(--dark-panel-3) !important; }
+html[data-theme="dark"] #analytics .official-viz .vw-analysis-grid { stroke:var(--dark-line) !important; }
+html[data-theme="dark"] #analytics .official-viz [data-cell-label][fill="#fff"] { fill:#fff !important; }
+html[data-theme="dark"] #analytics .official-viz [data-cell-label][fill="#000000"] { fill:#000 !important; }
+html[data-theme="dark"] #analytics .official-viz .vw-frequency-detail { border-color:var(--dark-line) !important; }
+html[data-theme="dark"] #analytics .official-viz .vw-frequency-detail>summary { color:#91e2d6 !important; }
+html[data-theme="dark"] #analytics .official-viz .vw-frequency-records button {
+  background:transparent !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-risk-panel,.vw-risk-box,.vw-risk-unit select,.vw-risk-filter select
+) {
+  background:var(--dark-panel) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-risk-kpis,.vw-risk-box>header,.vw-risk-table th,.vw-risk-note
+) {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-risk-kpis>div,.vw-risk-table td,.vw-state-row,.vw-state-legend
+) { border-color:var(--dark-line) !important; }
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-risk-kpis b,.vw-risk-box>header strong,.vw-risk-table td,
+  .vw-risk-table td b,.vw-state-row-head b
+) { color:var(--dark-ink) !important; }
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-risk-unit,.vw-risk-filter,.vw-risk-kpis span,.vw-risk-kpis small,.vw-risk-box>header span,
+  .vw-risk-table th,.vw-risk-note,.vw-state-row-head small,.vw-state-legend
+) { color:var(--dark-muted) !important; }
+html[data-theme="dark"] #analytics .official-viz .vw-risk-reason {
+  color:#f2ddb0 !important;
+  background:#3d321f !important;
+  border-color:#806832 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-risk-tag {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-muted) !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-risk-tag.is-up {
+  color:#efb7b7 !important;
+  background:#3b2a2d !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-risk-tag.is-down {
+  color:#a9ddc7 !important;
+  background:#233a35 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-risk-tag.is-high {
+  color:#ffe0a1 !important;
+  background:#493414 !important;
+  border-color:#b47a1c !important;
+  border-left-color:#f0ad35 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-risk-threshold-note {
+  color:#f0d49b !important;
+  background:#342b1b !important;
+  border-color:#5e4a29 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-risk-threshold-note b {
+  color:#ffe0a1 !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-risk-threshold-note span {
+  color:#d6c9ad !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-risk-tag.is-replace {
+  color:#d4c3e5 !important;
+  background:#342c3f !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-risk-tag.is-shift {
+  color:#e5c694 !important;
+  background:#3b3123 !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwUnitOverview .vw-site-group-head {
+  background:var(--dark-panel-2) !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-risk-table tbody tr:hover,.vw-risk-table tbody tr:focus-visible,.vw-state-row:hover
+) { background:#28433f !important; }
+html[data-theme="dark"] #analytics .official-viz .vw-state-meter {
+  background:var(--dark-panel-3) !important;
+}
+
+html[data-theme="dark"] .report-center.rc-workspace {
+  --rc-accent:#91e2d6;
+}
+html[data-theme="dark"] .report-center.rc-workspace :is(
+  #rcStatus,#rcZoomValue,#rcHeader summary,.rc-editor-empty,#rcCellStatus,
+  .rc-editor-title span,.rc-draft-entry strong,.rc-draft-entry del,
+  .rc-comparison-summary,.rc-comparison-summary small
+) { color:var(--dark-muted) !important; }
+html[data-theme="dark"] .report-center.rc-workspace :is(
+  #rcPreviewTitle,.rc-comparison-summary b
+) { color:var(--dark-ink) !important; }
+html[data-theme="dark"] #rcHeaderForm .report-header-cell>span {
+  color:var(--dark-muted) !important;
+}
+html[data-theme="dark"] .report-center.rc-workspace #rcExport {
+  background:#207e75 !important;
+  border-color:#55c2b4 !important;
+  color:#fff !important;
+}
+html[data-theme="dark"] .report-center.rc-workspace #rcExportLabel {
+  color:inherit !important;
+}
+html[data-theme="dark"] .report-center.rc-workspace :is(
+  #rcFullScope,.rc-mode-tabs button.active,#rcDraftUndo,#rcDraftReset,
+  .rc-draft-entry-actions button
+) { color:#91e2d6 !important; }
+html[data-theme="dark"] .report-center.rc-workspace #rcToggleEditor[aria-pressed="true"] {
+  background:#31524e !important;
+  border-color:#65a79f !important;
+  color:#e8fffb !important;
+}
+html[data-theme="dark"] .report-center.rc-workspace :is(
+  #rcHeader[open] summary,.rc-draft-heading,.rc-draft-entry,.rc-editor-title span
+) { border-color:var(--dark-line) !important; }
+html[data-theme="dark"] .report-center.rc-workspace #rcWarnings :is(
+  .ac-notice,.ac-warning-item,.ac-warning-detail
+) {
+  background:#3d321c !important;
+  border-color:#806832 !important;
+  color:#f2ddb0 !important;
+}
+html[data-theme="dark"] .report-center.rc-workspace #rcWarnings :is(
+  summary,summary b,summary em,.ac-warning-intro,.ac-warning-item-head,
+  .ac-warning-item-head strong,.ac-warning-item-head span,.ac-comparison-summary small
+),html[data-theme="dark"] .report-center.rc-workspace .rc-draft-entry span {
+  color:#f2ddb0 !important;
+}
+html[data-theme="dark"] .report-center.rc-workspace .comparison-coverage {
+  background:#203a33 !important;
+  border-color:#427662 !important;
+  color:#d8f0e4 !important;
+}
+html[data-theme="dark"] .report-center.rc-workspace :is(
+  .comparison-coverage.incomplete,.rc-coverage-error
+) {
+  background:#42282c !important;
+  border-color:#96515a !important;
+  color:#ffd8dc !important;
+}
+html[data-theme="dark"] .report-center.rc-workspace :is(
+  #rcStatus[data-state="error"],.rc-catalog-status[data-error="true"]
+) { color:#ffb5be !important; }
+/* Inline report edits belong to the source document's light paper surface. */
+html[data-theme="dark"] .report-center.rc-workspace .rc-preview .rc-inline-editor {
+  background:#f1faf8 !important;
+  border-color:#38833a !important;
+  color:#111 !important;
+  color-scheme:light;
+}
+
+/* Unified maintenance-state palette. Composite backgrounds are supplied by
+   state-colors.js so two- and three-event records remain visibly distinct. */
+#states .state-summary-item[data-tone=normal]{border-left-color:var(--state-normal-edge)}
+#states .state-summary-item[data-tone=plugged]{border-left-color:var(--state-plugged-edge)}
+#states .state-summary-item[data-tone=shifted]{border-left-color:var(--state-shifted-edge)}
+#states .state-summary-item[data-tone=replaced]{border-left-color:var(--state-replaced-edge)}
+#states .state-summary-item[data-tone=pending]{border-left-color:var(--state-review-edge)}
+#states .state-summary-item[data-tone=missing]{border-left-color:var(--state-missing-edge)}
+#states .state-tube-grid [data-state=normal]{border-bottom-color:var(--state-normal-edge)}
+#states .state-tube-grid [data-state=plugged]{border-bottom-color:var(--state-plugged-edge)}
+#states .state-tube-grid [data-state=shifted]{border-bottom-color:var(--state-shifted-edge)}
+#states .state-tube-grid [data-state=replaced]{border-bottom-color:var(--state-replaced-edge)}
+#states .state-grid-legend [data-state=normal]{border-color:var(--state-normal-edge)}
+#states .state-grid-legend [data-state=plugged]{border-color:var(--state-plugged-edge)}
+#states .state-grid-legend [data-state=shifted]{border-color:var(--state-shifted-edge)}
+#states .state-grid-legend [data-state=replaced]{border-color:var(--state-replaced-edge)}
+#states .state-grid-legend [data-composite=true]::before{
+  border-color:var(--state-review-edge);
+  background:linear-gradient(90deg,var(--state-plugged-fill) 0 33.333%,var(--state-shifted-fill) 33.333% 66.666%,var(--state-replaced-fill) 66.666% 100%);
+}
+#states .state-tube-grid button[data-review=true],
+#states .state-import-preview td[data-review=true]{
+  border-top:3px solid var(--state-review-edge);
+}
+#states .state-import-preview td[data-composite=true],
+#states .state-composite{
+  border-color:var(--state-review-edge);
+  color:var(--state-review-ink);
+}
+#states :is(.state-tube-grid button,.state-grid-legend span)[data-state=normal]{
+  --state-fill:var(--state-normal-fill);--state-edge:var(--state-normal-edge);--state-ink:var(--state-normal-ink);
+}
+#states :is(.state-tube-grid button,.state-grid-legend span)[data-state=plugged]{
+  --state-fill:var(--state-plugged-fill);--state-edge:var(--state-plugged-edge);--state-ink:var(--state-plugged-ink);
+}
+#states :is(.state-tube-grid button,.state-grid-legend span)[data-state=shifted]{
+  --state-fill:var(--state-shifted-fill);--state-edge:var(--state-shifted-edge);--state-ink:var(--state-shifted-ink);
+}
+#states :is(.state-tube-grid button,.state-grid-legend span)[data-state=replaced]{
+  --state-fill:var(--state-replaced-fill);--state-edge:var(--state-replaced-edge);--state-ink:var(--state-replaced-ink);
+}
+#states .state-grid-legend span:first-child::before{
+  background:var(--state-missing-fill);
+  border-color:var(--state-missing-edge);
+}
+#states .state-tube-grid button.selected{
+  outline-color:#087d79;
+  box-shadow:0 0 0 3px #b9e5df,0 2px 7px rgba(8,125,121,.22);
+}
+#states .state-tube-grid button.batch-selected{
+  outline:3px solid #087d79 !important;
+  outline-offset:2px !important;
+  box-shadow:0 0 0 5px #087d7926,0 2px 8px #087d7945 !important;
+}
+html[data-theme="dark"] #states .state-tube-grid button.batch-selected{
+  outline:3px solid #55d6c5 !important;
+  outline-offset:2px !important;
+  box-shadow:0 0 0 5px #101718,0 0 18px #55c2b488 !important;
+  filter:brightness(1.12);
+}
+
+html[data-theme="dark"] #states .state-summary-heading {
+  background:var(--dark-panel-2);
+  border-color:var(--dark-line);
+}
+html[data-theme="dark"] #states .state-summary-heading b,
+html[data-theme="dark"] #states .state-bulk-heading b,
+html[data-theme="dark"] #states .state-summary-item b {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #states .state-summary-heading span,
+html[data-theme="dark"] #states #stateSummaryMeta,
+html[data-theme="dark"] #states .state-bulk-heading span,
+html[data-theme="dark"] #states .state-summary-item span,
+html[data-theme="dark"] #states .state-summary-item small {
+  color:var(--dark-muted) !important;
+}
+html[data-theme="dark"] #states .state-summary-strip {
+  background:var(--dark-panel-2);
+}
+html[data-theme="dark"] #states .state-summary-item {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+}
+html[data-theme="dark"] #states .state-controls .state-bulk-actions {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+}
+html[data-theme="dark"] #states .state-tube-panel .state-bulk-actions {
+  background:var(--dark-panel-2);
+  border-color:var(--dark-line);
+}
+html[data-theme="dark"] #states .state-tube-panel #stateAllNormal {
+  background:#453a24;
+  border-color:#927334;
+  color:#f2dfa9;
+}
+html[data-theme="dark"] #states .state-tube-panel .state-default-direction {
+  background:var(--dark-panel);
+  border-color:var(--dark-line);
+  color:var(--dark-muted);
+}
+html[data-theme="dark"] #states .state-summary-heading .state-review-entry {
+  background:#3e3521;
+  border-color:#80662c;
+  color:#f1d99e;
+}
+html[data-theme="dark"] #states .state-summary-heading .state-review-mark {
+  background:#685324;
+  color:#ffe7a1;
+}
+
+/* Visualization dark-mode finishing pass.
+   The reference tube plate is white in exported PNGs, but on screen it
+   belongs to the dark visualization workspace and must not read as a
+   disconnected white sheet. */
+html[data-theme="dark"] #analytics .official-viz :is(
+  .vw-plate-layout,#vwTube .panel-bd,#vwTube .vw-plate-scope,
+  #c34Toolbar,#c34Legend,.vw-plate-summary,.vw-plate-breakdown,
+  .vw-plate-outage-scope,.vw-plate-modes,.vw-plate-content,
+  .vw-plate-note,.vw-plate-caption,.vw-plate-detail
+) {
+  background:var(--dark-panel) !important;
+  border-color:var(--dark-line) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwTube #chart34 {
+  background:#182123 !important;
+  border-color:var(--dark-line) !important;
+  box-shadow:inset 0 0 0 1px #263638;
+}
+html[data-theme="dark"] #analytics .official-viz #chart34 .vw-reference-plate {
+  background:#182123 !important;
+}
+html[data-theme="dark"] #analytics .official-viz #chart34 .vw-plate-background {
+  fill:#182123 !important;
+}
+html[data-theme="dark"] #analytics .official-viz #chart34 .vw-plate-grid rect {
+  fill:#223032 !important;
+  stroke:#5b7476 !important;
+}
+html[data-theme="dark"] #analytics .official-viz #chart34 .vw-plate-outline {
+  stroke:#89aaa7 !important;
+}
+html[data-theme="dark"] #analytics .official-viz #chart34 .vw-plate-axis text {
+  fill:#c8d8d4 !important;
+}
+html[data-theme="dark"] #analytics .official-viz #chart34 g[role="button"]:hover .vw-tube-cell,
+html[data-theme="dark"] #analytics .official-viz #chart34 g[role="button"]:focus-visible .vw-tube-cell {
+  stroke:#a9eee2 !important;
+  filter:drop-shadow(0 0 6px #55c2b477) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #chart34 g[aria-pressed="true"] .vw-tube-cell {
+  stroke:#e5fffa !important;
+  filter:drop-shadow(0 0 7px #55c2b499) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #c34Toolbar {
+  border-bottom:1px solid var(--dark-line) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #c34Toolbar .vw-segmented {
+  background:#202d2f !important;
+  border-color:var(--dark-line-strong) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #c34Toolbar .vw-segmented input:checked + span {
+  background:#31524e !important;
+  color:#e8fffb !important;
+  box-shadow:0 0 0 1px #65a79f inset !important;
+}
+html[data-theme="dark"] #analytics .official-viz #c34Toolbar select {
+  background:var(--dark-panel-3) !important;
+  border-color:var(--dark-line-strong) !important;
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #c34Legend {
+  color:var(--dark-muted) !important;
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #c34Legend .lb {
+  color:var(--dark-muted) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwTube .vw-tube-detail {
+  background:var(--dark-panel) !important;
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwTube .vw-tube-detail dl > div,
+html[data-theme="dark"] #analytics .official-viz #vwTube .vw-tube-history {
+  border-color:var(--dark-line) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwTube .vw-tube-history th {
+  background:var(--dark-panel-3) !important;
+  color:var(--dark-muted) !important;
+}
+html[data-theme="dark"] #analytics .official-viz #vwTube .vw-tube-history td {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz :is(
+  #vwTube .vw-plate-summary > div,.vw-plate-breakdown > div,
+  .vw-plate-note,.vw-plate-caption
+) {
+  background:var(--dark-panel-2) !important;
+  border-color:var(--dark-line) !important;
+}
+
+/* The batch action is the execution entry point; keep the preview/confirm
+   safeguard, but make the action and its next step obvious. */
+#states .lifecycle-batch-hint {
+  color: #49636f;
+  font-size: 11px;
+  line-height: 1.35;
+}
+#states #lifecyclePreview {
+  min-width: 168px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+#states #lifecyclePreview:not(:disabled) {
+  box-shadow: 0 2px 6px rgba(18, 105, 101, .16);
+}
+html[data-theme="dark"] #states .lifecycle-batch-hint {
+  color: var(--dark-muted);
+}
+
+/* Keep secondary visualization controls readable against dark panels. */
+html[data-theme="dark"] #analytics .official-viz .vw-frequency-custom {
+  color:#c3d2cf !important;
+}
+html[data-theme="dark"] #analytics .official-viz .vw-frequency-custom input {
+  color:var(--dark-ink) !important;
+}
+html[data-theme="dark"] #analytics .official-viz .tt-anomaly-details>summary {
+  color:#c3d2cf !important;
+}
+html[data-theme="dark"] #states #lifecyclePreview:not(:disabled) {
+  box-shadow: 0 2px 8px rgba(83, 197, 184, .22);
+}
+
+/* Avoid animating every table cell and control when the palette changes. */
+html.theme-switching *, html.theme-switching *::before, html.theme-switching *::after {
+  transition: none !important;
+}
+html[data-theme="dark"] #workspace #coreMap {
+  background:#182123 !important;
+  border-color:#405657 !important;
+  box-shadow:none;
+}
+html[data-theme="dark"] #workspace #coreMap .grid-cell {
+  background:#233032 !important;
+  border-color:#607475 !important;
+}
+html[data-theme="dark"] #workspace #coreMap .ref-axis span,
+html[data-theme="dark"] #workspace #coreMap .flow-mark,
+html[data-theme="dark"] #workspace #coreMap .flow-mark b,
+html[data-theme="dark"] #workspace #coreMap .flow-mark span { color:#d5e2df !important; }
+html[data-theme="dark"] #workspace #coreMap .flow-mark i { background:#c0d1cd; }
+html[data-theme="dark"] #workspace #coreMap .flow-mark i::after { border-left-color:#c0d1cd; }
+html[data-theme="dark"] #workspace #coreMap .path-marker:not(.selected):not(.has-severity) .path-half {
+  background:#334446 !important;
+  color:#edf6f4 !important;
+}
+html[data-theme="dark"] #workspace #coreMap .path-marker { border-color:#9cb4b0; }
+html[data-theme="dark"] #reports :is(.report-sheet,.report-page,.source-form),
+html[data-theme="dark"] #reports :is(.report-sheet,.report-page,.source-form) :is(table,thead,tbody,tr,th,td) {
+  background:#263234 !important;
+  color:#e2ecea !important;
+  border-color:#71827e !important;
+  color-scheme:dark;
+}
+#analytics #chart34 g[data-replacement-count]:not([data-replacement-count="0"]) .vw-tube-cell {
+  stroke:#a66000;
+  stroke-width:3;
+}

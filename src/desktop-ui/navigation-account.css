@@ -1,0 +1,91 @@
+/* Account identity has its own space; settings stays the final utility. */
+html body .app-nav footer {
+  --account-ink:#31566b;
+  --account-muted:#536c79;
+  --account-line:#dce5e9;
+  flex:0 0 256px!important;
+  width:256px!important;
+  min-width:256px!important;
+  grid-template-rows:36px 12px!important;
+}
+html body .app-nav .nav-utilities {
+  width:100%;
+  min-width:0;
+  justify-content:flex-end!important;
+  gap:8px!important;
+}
+html body .app-nav #localAccountButton.account-identity {
+  display:flex;
+  flex:1 1 0!important;
+  align-items:center;
+  justify-content:flex-start;
+  gap:9px;
+  min-width:0!important;
+  max-width:154px;
+  height:34px;
+  min-height:34px;
+  margin:0 6px 0 0;
+  padding:0 12px 0 0;
+  overflow:hidden;
+  border:0;
+  border-right:1px solid var(--account-line);
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+  text-align:left;
+}
+html body .app-nav #localAccountButton:hover .account-name {text-decoration:underline}
+.account-avatar {
+  display:grid;
+  flex:none;
+  place-items:center;
+  width:28px;
+  height:28px;
+  border:1px solid #c5e2df;
+  border-radius:50%;
+  background:#e9f5f3;
+  color:#08796f;
+  font-size:11px;
+  font-weight:700;
+}
+.account-summary {display:grid;min-width:0;gap:2px}
+.account-name {
+  overflow:hidden;
+  color:var(--account-ink);
+  font-size:12px;
+  font-weight:700;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.account-status {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  color:var(--account-muted);
+  font-size:10px;
+  line-height:1.2;
+}
+.account-status i {
+  flex:none;
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#33946c;
+}
+html[data-theme="dark"] body .app-nav footer {
+  --account-ink:#b9d9e8;
+  --account-muted:#b1c3cd;
+  --account-line:#455560;
+}
+html[data-theme="dark"] .account-avatar {border-color:#32625e;background:#203b3a;color:#9be0d3}
+@media(max-width:1100px) {
+  html body .app-nav footer {flex-basis:224px!important;width:224px!important;min-width:224px!important}
+  html body .app-nav #localAccountButton.account-identity {gap:7px;padding-right:8px;margin-right:4px}
+}
+@media(max-width:560px) {
+  html body .app-nav footer {flex-basis:122px!important;width:122px!important;min-width:122px!important}
+  html body .app-nav #localAccountButton.account-identity {flex:0 0 30px!important;width:30px;margin:0 4px 0 0;padding:0;border:0}
+  html body .app-nav #localAccountButton .account-summary {display:none}
+  html body .app-nav .nav-utilities {gap:4px!important}
+  .account-avatar {width:26px;height:26px;font-size:10px}
+}

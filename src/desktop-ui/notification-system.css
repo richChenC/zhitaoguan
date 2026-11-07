@@ -1,0 +1,99 @@
+/* Shared feedback surfaces; keep modal positioning in interaction-system.js. */
+#toast,#feedbackDrawer,.ddm-toast,.interaction-confirm{--feedback-bg:#fff;--feedback-ink:#243342;--feedback-muted:#637383;--feedback-line:#dce3e9;--feedback-soft:#f5f7f9;color:var(--feedback-ink);font-family:inherit;letter-spacing:0}
+#toast{box-sizing:border-box;gap:12px;padding:14px;border-radius:8px;background:var(--feedback-bg);border-color:var(--feedback-line);box-shadow:0 8px 32px #182c4026;align-items:flex-start}
+#toast>span{font-size:13px;line-height:1.65;min-width:0;max-height:180px;scrollbar-width:thin}
+#toast>span:before{content:attr(data-heading);display:block;font-size:12px;font-weight:700;margin-bottom:3px;color:var(--feedback-muted)}
+#toast.in-modal>span{max-height:calc(var(--notification-height) - 30px)}
+#toast.in-modal:is([data-type=success],[data-type=info]){pointer-events:none}
+#toast.in-modal:is([data-type=success],[data-type=info]) button{pointer-events:auto}
+#toast .feedback-mark,#feedbackHistory .feedback-mark{width:25px;height:25px;margin-top:2px;font-size:14px}
+#toast button,.feedback-drawer-heading button,.ddm-toast-close{display:grid;place-items:center;width:28px;height:28px;padding:5px;flex:none;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--feedback-muted);cursor:pointer}
+#toast button img,.feedback-drawer-heading button img{width:16px;height:16px;opacity:.7}
+#toast button:hover,.feedback-drawer-heading button:hover,.ddm-toast-close:hover{background:var(--feedback-soft);border-color:var(--feedback-line)}
+#toast button:focus-visible,#feedbackDrawer button:focus-visible,.ddm-toast button:focus-visible{outline:2px solid var(--primary,#247b73);outline-offset:2px}
+#feedbackDrawer{width:min(440px,calc(100vw - 28px));max-height:calc(100dvh - 90px);border:1px solid var(--feedback-line);border-radius:8px;background:var(--feedback-bg);box-shadow:0 12px 40px #182c4026;overflow:hidden;display:flex;flex-direction:column}
+#feedbackDrawer[hidden]{display:none}
+#feedbackDrawer .feedback-drawer-heading{position:static;padding:16px;gap:6px;background:var(--feedback-bg);border-bottom:0;flex:none}
+.feedback-drawer-heading>div{flex:1;min-width:0}
+#feedbackDrawer h2{font-size:15px;line-height:1.5;margin:0 0 3px}
+#feedbackSummary{font-size:11px;color:var(--feedback-muted)}
+#feedbackDrawer .feedback-drawer-heading button:disabled{opacity:.35;cursor:default}
+.feedback-filters{display:flex;gap:4px;padding:0 16px 12px;border-bottom:1px solid var(--feedback-line);flex:none}
+.feedback-filters button{flex:1;min-width:0;height:30px;padding:0 8px;border:1px solid transparent;background:transparent;color:var(--feedback-muted);border-radius:5px;font-size:12px;cursor:pointer}
+.feedback-filters button:hover{background:var(--feedback-soft)}
+.feedback-filters button[aria-pressed=true]{background:var(--feedback-soft);color:var(--feedback-ink);border-color:var(--feedback-line);font-weight:700}
+#feedbackHistory{overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;min-height:0}
+#feedbackHistory li{gap:10px;padding:14px 16px;border:0;border-bottom:1px solid var(--feedback-line);font-size:12px;line-height:1.7}
+#feedbackHistory li[data-unread=true]{background:var(--feedback-soft)}
+#feedbackHistory li>span{min-width:0}
+#feedbackHistory time{font-size:10px;line-height:1.8;text-align:right;color:var(--feedback-muted)}
+.feedback-repeat{display:inline-block;font-size:10px;font-weight:600;color:var(--feedback-muted)}
+#feedbackHistory .feedback-empty{padding:48px 16px;border:0;color:var(--feedback-muted)}
+#feedbackHistory li[data-type=warning] .feedback-mark{background:#fff2d8;color:#916818}
+#feedbackHistory li[data-type=error] .feedback-mark{background:#f9e9ec;color:#ae293b}
+#feedbackHistory li[data-type=info] .feedback-mark{background:#eaf3fb;color:#2c6799}
+#feedbackCount[hidden]{display:none}
+/* The drawer close control contains one Lucide image; suppress legacy generated icons. */
+#feedbackClose::before,#feedbackClose::after{content:none!important;display:none!important}
+#states .state-table-panel{container:state-history / inline-size}
+/* Keep the maintenance history actions in one predictable row. The delete
+   command is the final control, beside the selection count, rather than a
+   second-line orphan created by competing legacy toolbar rules. */
+@container state-history (min-width:920px){
+  #states .state-table-panel .state-table-toolbar{
+    display:grid!important;
+    grid-template-columns:minmax(86px,1fr) minmax(86px,1fr) minmax(86px,1fr) minmax(86px,1fr) minmax(110px,1.3fr) auto auto minmax(110px,auto) auto!important;
+    align-items:center;
+    gap:7px!important;
+  }
+  #states .state-table-panel .state-table-toolbar :is(select,input){width:100%;min-width:0}
+  #states .state-table-panel .state-table-toolbar #stateSelectionCount{grid-column:auto!important;justify-self:end;margin-left:0!important}
+  #states .state-table-panel .state-table-toolbar #stateDeleteSelected{grid-column:auto!important;justify-self:end}
+}
+@container state-history (max-width:919px){
+  #states .state-table-panel .state-table-toolbar{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;align-items:center;gap:6px!important}
+  #states .state-table-panel .state-table-toolbar :is(select,input){width:100%;min-width:0}
+  #states .state-table-panel .state-table-toolbar #stateFilterSearch{grid-column:span 2}
+  #states .state-table-panel .state-table-toolbar #stateSelectionCount{grid-column:span 3!important;justify-self:end;margin-left:0!important}
+  #states .state-table-panel .state-table-toolbar #stateDeleteSelected{justify-self:end}
+}
+/* Keep utilities at the trailing edge of the desktop navigation bar. */
+.app-nav{position:relative}
+html body .app-nav{position:relative!important;top:auto!important;flex-wrap:nowrap!important}
+html body .app-nav footer{order:4}
+.app-nav .nav-utilities{position:static;transform:none;display:flex;align-items:center;justify-content:center;gap:8px}
+.app-nav .nav-utilities .nav-settings{margin:0!important}
+.app-nav .nav-utilities .nav-icon{position:relative;display:grid;place-items:center;flex:0 0 36px;min-width:36px;width:36px;height:36px;padding:0;border:1px solid transparent;border-radius:6px;background:transparent;color:inherit}
+.app-nav .nav-utilities .nav-icon:hover{background:var(--feedback-soft);border-color:var(--feedback-line)}
+.app-nav .nav-utilities .nav-icon .app-icon{width:18px;height:18px}
+.app-nav .nav-utilities #feedbackCount{position:absolute;right:-3px;top:-3px;min-width:16px;height:16px;padding:0 3px;border-radius:9px;background:#b33546;color:white;font-size:9px;line-height:16px;text-align:center}
+/* Keep the user-fixed upper-right settings entry visible at narrow window sizes. */
+@media(max-width:760px){
+  html body .app-nav{overflow:hidden!important}
+  html body .app-nav .nav-group{flex:1 1 auto!important;min-width:0!important;overflow-x:auto!important;overflow-y:hidden!important}
+}
+html[data-theme="dark"] #analytics .official-viz .vw-frequency-toolbar .vw-frequency-custom,
+html[data-theme="dark"] #analytics .official-viz .tt-anomaly-details>summary{color:#d4e2df!important}
+.interaction-confirm{padding:24px;border:1px solid var(--feedback-line);border-radius:8px;background:var(--feedback-bg);box-shadow:0 20px 64px #14263840}
+.interaction-confirm h2{font-size:17px;line-height:1.5;padding:0 0 12px;margin:0 0 14px;border-bottom:1px solid var(--feedback-line)}
+.interaction-confirm[data-danger=true] h2{color:#b33546}
+.interaction-confirm p{color:var(--feedback-ink);font-size:13px;line-height:1.85;overflow-wrap:anywhere;max-height:45dvh;overflow:auto;margin:0 0 18px}
+.interaction-confirm .confirm-phrase{padding:12px;background:var(--feedback-soft);border:1px solid var(--feedback-line);border-radius:6px;gap:8px}
+.interaction-confirm .dialog-actions{margin:20px 0 0;padding:14px 0 0;border-top:1px solid var(--feedback-line);display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+.ddm-toast{display:flex;align-items:center;gap:12px;right:22px;bottom:22px;width:max-content;max-width:calc(100vw - 44px);box-sizing:border-box;transform:none;padding:14px;border:1px solid var(--feedback-line);border-left:3px solid #328463;border-radius:8px;background:var(--feedback-bg);color:var(--feedback-ink);box-shadow:0 8px 32px #182c4026}
+.ddm-toast{top:auto;left:auto}
+body:has(.ddm-toast) #toast:not(.in-modal){bottom:110px}
+.ddm-toast .ddm-toast-icon{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#e3f3ea;color:#177253;flex:none}
+.ddm-toast .ddm-toast-text{font-size:13px;line-height:1.65;overflow-wrap:anywhere;min-width:0}
+.ddm-toast .ddm-toast-undo{white-space:nowrap;background:var(--feedback-soft);color:var(--feedback-ink);border:1px solid var(--feedback-line);border-radius:5px;padding:6px 10px;font-size:12px}
+.ddm-toast .ddm-toast-undo:hover{background:var(--feedback-line)}
+.ddm-toast .ddm-toast-close{opacity:1;font-size:20px}
+html[data-theme=dark] :is(#toast,#feedbackDrawer,.ddm-toast,.interaction-confirm){--feedback-bg:#202a34;--feedback-ink:#e2e9f0;--feedback-muted:#acbac8;--feedback-line:#3c4956;--feedback-soft:#2b3743}
+html[data-theme=dark] :is(#toast,.feedback-drawer-heading) button img{filter:invert(1);opacity:.8}
+html[data-theme=dark] #feedbackHistory li[data-type=success] .feedback-mark,html[data-theme=dark] .ddm-toast .ddm-toast-icon{background:#203a33;color:#a2e4bf}
+html[data-theme=dark] #feedbackHistory li[data-type=warning] .feedback-mark{background:#493c20;color:#ffe0a0}
+html[data-theme=dark] #feedbackHistory li[data-type=error] .feedback-mark{background:#473035;color:#ffb5be}
+html[data-theme=dark] #feedbackHistory li[data-type=info] .feedback-mark{background:#243d51;color:#b7dcff}
+html[data-theme=dark] .interaction-confirm[data-danger=true] h2{color:#ffb5be}
+@media(max-width:600px){#toast{right:14px;bottom:14px}#feedbackDrawer{right:14px}.ddm-toast{right:14px;bottom:14px;max-width:calc(100vw - 28px);gap:8px}.interaction-confirm{padding:18px}}
+@media(prefers-reduced-motion:reduce){#toast,.ddm-toast{animation:none;transition:none}}

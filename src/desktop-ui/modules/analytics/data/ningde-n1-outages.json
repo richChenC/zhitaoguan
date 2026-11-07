@@ -1,0 +1,5226 @@
+{
+ "meta": {
+  "source": "宁德核电厂1号机 C1~C8 历次大修《反应堆中子通量测量指套管涡流检验结果综合报告》",
+  "unit": "N1 (宁德1号机)",
+  "tubes": 50,
+  "note": "WAR=达到记录阈值的磨损显示；NDD=无降质显示；深度为壁厚百分比"
+ },
+ "channelPos": {
+  "1": "L11",
+  "2": "G14",
+  "3": "N7",
+  "4": "H13",
+  "5": "J12",
+  "6": "R8",
+  "7": "N12",
+  "8": "N10",
+  "9": "L14",
+  "10": "J15",
+  "11": "H11",
+  "12": "F13",
+  "13": "J7",
+  "14": "L5",
+  "15": "N5",
+  "16": "L8",
+  "17": "N8",
+  "18": "L6",
+  "19": "J10",
+  "20": "L9",
+  "21": "F9",
+  "22": "C12",
+  "23": "G7",
+  "24": "L4",
+  "25": "J5",
+  "26": "M3",
+  "27": "G9",
+  "28": "E11",
+  "29": "F11",
+  "30": "D12",
+  "31": "F6",
+  "32": "B10",
+  "33": "D7",
+  "34": "E5",
+  "35": "H3",
+  "36": "J3",
+  "37": "H6",
+  "38": "H4",
+  "39": "F8",
+  "40": "D10",
+  "41": "B7",
+  "42": "B5",
+  "43": "D3",
+  "44": "D5",
+  "45": "F2",
+  "46": "H1",
+  "47": "B8",
+  "48": "F4",
+  "49": "C8",
+  "50": "A9"
+ },
+ "outages": [
+  {
+   "code": "C1",
+   "tag": "P1/2014",
+   "year": 2014,
+   "mode": "state",
+   "summary": {
+    "tubes": 11,
+    "findings": 14,
+    "ndd": 39,
+    "ge30": 6,
+    "over50": 0,
+    "maxDepth": 50,
+    "avgDepth": 31.1
+   },
+   "channels": [
+    {
+     "ch": 1,
+     "pos": "L11",
+     "state": "WAR",
+     "maxDepth": 50,
+     "maxAmp": 5.6,
+     "n": 2,
+     "depths": [
+      50,
+      45
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 2,
+     "pos": "G14",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 3,
+     "pos": "N7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 4,
+     "pos": "H13",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 5,
+     "pos": "J12",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 6,
+     "pos": "R8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 7,
+     "pos": "N12",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 8,
+     "pos": "N10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 9,
+     "pos": "L14",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 10,
+     "pos": "J15",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 11,
+     "pos": "H11",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 12,
+     "pos": "F13",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 13,
+     "pos": "J7",
+     "state": "WAR",
+     "maxDepth": 23,
+     "maxAmp": 1.47,
+     "n": 1,
+     "depths": [
+      23
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 14,
+     "pos": "L5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 15,
+     "pos": "N5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 16,
+     "pos": "L8",
+     "state": "WAR",
+     "maxDepth": 36,
+     "maxAmp": 2.95,
+     "n": 1,
+     "depths": [
+      36
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 17,
+     "pos": "N8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 18,
+     "pos": "L6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 19,
+     "pos": "J10",
+     "state": "WAR",
+     "maxDepth": 41,
+     "maxAmp": 3.7,
+     "n": 2,
+     "depths": [
+      41,
+      36
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 20,
+     "pos": "L9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 21,
+     "pos": "F9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 22,
+     "pos": "C12",
+     "state": "WAR",
+     "maxDepth": 20,
+     "maxAmp": 1.35,
+     "n": 1,
+     "depths": [
+      20
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 23,
+     "pos": "G7",
+     "state": "WAR",
+     "maxDepth": 29,
+     "maxAmp": 2.04,
+     "n": 2,
+     "depths": [
+      29,
+      23
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 24,
+     "pos": "L4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 25,
+     "pos": "J5",
+     "state": "WAR",
+     "maxDepth": 40,
+     "maxAmp": 3.43,
+     "n": 1,
+     "depths": [
+      40
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 26,
+     "pos": "M3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 27,
+     "pos": "G9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 28,
+     "pos": "E11",
+     "state": "WAR",
+     "maxDepth": 25,
+     "maxAmp": 1.69,
+     "n": 1,
+     "depths": [
+      25
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 29,
+     "pos": "F11",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 30,
+     "pos": "D12",
+     "state": "WAR",
+     "maxDepth": 22,
+     "maxAmp": 1.39,
+     "n": 1,
+     "depths": [
+      22
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 31,
+     "pos": "F6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 32,
+     "pos": "B10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 33,
+     "pos": "D7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 34,
+     "pos": "E5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 35,
+     "pos": "H3",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.29,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 36,
+     "pos": "J3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 37,
+     "pos": "H6",
+     "state": "WAR",
+     "maxDepth": 25,
+     "maxAmp": 1.7,
+     "n": 1,
+     "depths": [
+      25
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 38,
+     "pos": "H4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 39,
+     "pos": "F8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 40,
+     "pos": "D10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 41,
+     "pos": "B7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 42,
+     "pos": "B5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 43,
+     "pos": "D3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 44,
+     "pos": "D5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 45,
+     "pos": "F2",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 46,
+     "pos": "H1",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 47,
+     "pos": "B8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 48,
+     "pos": "F4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 49,
+     "pos": "C8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 50,
+     "pos": "A9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    }
+   ]
+  },
+  {
+   "code": "C2",
+   "tag": "P2/2015",
+   "year": 2015,
+   "mode": "compare",
+   "summary": {
+    "tubes": 17,
+    "findings": 28,
+    "ndd": 33,
+    "ge30": 16,
+    "over50": 0,
+    "maxDepth": 48,
+    "avgDepth": 32.6
+   },
+   "channels": [
+    {
+     "ch": 1,
+     "pos": "L11",
+     "state": "WAR",
+     "maxDepth": 48,
+     "maxAmp": 4.48,
+     "n": 3,
+     "depths": [
+      27,
+      48,
+      45
+     ],
+     "locs": [
+      "P1",
+      "P1+41mm",
+      "P4+41mm"
+     ]
+    },
+    {
+     "ch": 2,
+     "pos": "G14",
+     "state": "WAR",
+     "maxDepth": 22,
+     "maxAmp": 1.21,
+     "n": 1,
+     "depths": [
+      22
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 3,
+     "pos": "N7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 4,
+     "pos": "H13",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 5,
+     "pos": "J12",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 6,
+     "pos": "R8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 7,
+     "pos": "N12",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 8,
+     "pos": "N10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 9,
+     "pos": "L14",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 10,
+     "pos": "J15",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.16,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 11,
+     "pos": "H11",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 12,
+     "pos": "F13",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.14,
+     "n": 2,
+     "depths": [
+      21,
+      21
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 13,
+     "pos": "J7",
+     "state": "WAR",
+     "maxDepth": 43,
+     "maxAmp": 4.22,
+     "n": 1,
+     "depths": [
+      43
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 14,
+     "pos": "L5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 15,
+     "pos": "N5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 16,
+     "pos": "L8",
+     "state": "WAR",
+     "maxDepth": 40,
+     "maxAmp": 3.9,
+     "n": 2,
+     "depths": [
+      40,
+      35
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm"
+     ]
+    },
+    {
+     "ch": 17,
+     "pos": "N8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 18,
+     "pos": "L6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 19,
+     "pos": "J10",
+     "state": "WAR",
+     "maxDepth": 46,
+     "maxAmp": 4.82,
+     "n": 4,
+     "depths": [
+      46,
+      41,
+      41,
+      37
+     ],
+     "locs": [
+      "P1",
+      "P1+41mm",
+      "P4",
+      "P4+41mm"
+     ]
+    },
+    {
+     "ch": 20,
+     "pos": "L9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 21,
+     "pos": "F9",
+     "state": "WAR",
+     "maxDepth": 22,
+     "maxAmp": 1.21,
+     "n": 1,
+     "depths": [
+      22
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 22,
+     "pos": "C12",
+     "state": "WAR",
+     "maxDepth": 25,
+     "maxAmp": 1.4,
+     "n": 1,
+     "depths": [
+      25
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 23,
+     "pos": "G7",
+     "state": "WAR",
+     "maxDepth": 36,
+     "maxAmp": 2.86,
+     "n": 2,
+     "depths": [
+      33,
+      36
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 24,
+     "pos": "L4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 25,
+     "pos": "J5",
+     "state": "WAR",
+     "maxDepth": 36,
+     "maxAmp": 3.05,
+     "n": 2,
+     "depths": [
+      28,
+      36
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm"
+     ]
+    },
+    {
+     "ch": 26,
+     "pos": "M3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 27,
+     "pos": "G9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 28,
+     "pos": "E11",
+     "state": "WAR",
+     "maxDepth": 31,
+     "maxAmp": 2.42,
+     "n": 1,
+     "depths": [
+      31
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 29,
+     "pos": "F11",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 30,
+     "pos": "D12",
+     "state": "WAR",
+     "maxDepth": 33,
+     "maxAmp": 2.16,
+     "n": 1,
+     "depths": [
+      33
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 31,
+     "pos": "F6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 32,
+     "pos": "B10",
+     "state": "WAR",
+     "maxDepth": 41,
+     "maxAmp": 3.19,
+     "n": 1,
+     "depths": [
+      41
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 33,
+     "pos": "D7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 34,
+     "pos": "E5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 35,
+     "pos": "H3",
+     "state": "WAR",
+     "maxDepth": 22,
+     "maxAmp": 1.34,
+     "n": 2,
+     "depths": [
+      21,
+      22
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 36,
+     "pos": "J3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 37,
+     "pos": "H6",
+     "state": "WAR",
+     "maxDepth": 45,
+     "maxAmp": 4.68,
+     "n": 2,
+     "depths": [
+      45,
+      25
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 38,
+     "pos": "H4",
+     "state": "WAR",
+     "maxDepth": 28,
+     "maxAmp": 2.03,
+     "n": 1,
+     "depths": [
+      28
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 39,
+     "pos": "F8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 40,
+     "pos": "D10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 41,
+     "pos": "B7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 42,
+     "pos": "B5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 43,
+     "pos": "D3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 44,
+     "pos": "D5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 45,
+     "pos": "F2",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 46,
+     "pos": "H1",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 47,
+     "pos": "B8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 48,
+     "pos": "F4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 49,
+     "pos": "C8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 50,
+     "pos": "A9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    }
+   ]
+  },
+  {
+   "code": "C3",
+   "tag": "P3/2017",
+   "year": 2017,
+   "mode": "compare",
+   "summary": {
+    "tubes": 20,
+    "findings": 38,
+    "ndd": 30,
+    "ge30": 23,
+    "over50": 1,
+    "maxDepth": 52,
+    "avgDepth": 34.4
+   },
+   "channels": [
+    {
+     "ch": 1,
+     "pos": "L11",
+     "state": "WAR",
+     "maxDepth": 48,
+     "maxAmp": 4.73,
+     "n": 4,
+     "depths": [
+      28,
+      48,
+      46,
+      43
+     ],
+     "locs": [
+      "P1",
+      "P1+41mm",
+      "P4",
+      "P4+41mm"
+     ]
+    },
+    {
+     "ch": 2,
+     "pos": "G14",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.37,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 3,
+     "pos": "N7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 4,
+     "pos": "H13",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 5,
+     "pos": "J12",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 6,
+     "pos": "R8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 7,
+     "pos": "N12",
+     "state": "WAR",
+     "maxDepth": 22,
+     "maxAmp": 1.3,
+     "n": 1,
+     "depths": [
+      22
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 8,
+     "pos": "N10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 9,
+     "pos": "L14",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 10,
+     "pos": "J15",
+     "state": "WAR",
+     "maxDepth": 26,
+     "maxAmp": 1.78,
+     "n": 1,
+     "depths": [
+      26
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 11,
+     "pos": "H11",
+     "state": "WAR",
+     "maxDepth": 24,
+     "maxAmp": 1.62,
+     "n": 1,
+     "depths": [
+      24
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 12,
+     "pos": "F13",
+     "state": "WAR",
+     "maxDepth": 22,
+     "maxAmp": 1.45,
+     "n": 2,
+     "depths": [
+      21,
+      22
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 13,
+     "pos": "J7",
+     "state": "WAR",
+     "maxDepth": 44,
+     "maxAmp": 3.57,
+     "n": 2,
+     "depths": [
+      44,
+      35
+     ],
+     "locs": [
+      "P1",
+      "P1+41mm"
+     ]
+    },
+    {
+     "ch": 14,
+     "pos": "L5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 15,
+     "pos": "N5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 16,
+     "pos": "L8",
+     "state": "WAR",
+     "maxDepth": 43,
+     "maxAmp": 3.46,
+     "n": 3,
+     "depths": [
+      43,
+      38,
+      22
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm",
+      "P1+84mm"
+     ]
+    },
+    {
+     "ch": 17,
+     "pos": "N8",
+     "state": "WAR",
+     "maxDepth": 23,
+     "maxAmp": 1.36,
+     "n": 1,
+     "depths": [
+      23
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 18,
+     "pos": "L6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 19,
+     "pos": "J10",
+     "state": "WAR",
+     "maxDepth": 52,
+     "maxAmp": 5.77,
+     "n": 5,
+     "depths": [
+      47,
+      44,
+      46,
+      40,
+      52
+     ],
+     "locs": [
+      "P1+41mm",
+      "P1+82mm",
+      "P4",
+      "P4+41mm",
+      "P4+82mm"
+     ]
+    },
+    {
+     "ch": 20,
+     "pos": "L9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 21,
+     "pos": "F9",
+     "state": "WAR",
+     "maxDepth": 24,
+     "maxAmp": 1.61,
+     "n": 1,
+     "depths": [
+      24
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 22,
+     "pos": "C12",
+     "state": "WAR",
+     "maxDepth": 23,
+     "maxAmp": 1.5,
+     "n": 1,
+     "depths": [
+      23
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 23,
+     "pos": "G7",
+     "state": "WAR",
+     "maxDepth": 41,
+     "maxAmp": 3.08,
+     "n": 2,
+     "depths": [
+      37,
+      41
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 24,
+     "pos": "L4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 25,
+     "pos": "J5",
+     "state": "WAR",
+     "maxDepth": 45,
+     "maxAmp": 3.79,
+     "n": 2,
+     "depths": [
+      45,
+      41
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm"
+     ]
+    },
+    {
+     "ch": 26,
+     "pos": "M3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 27,
+     "pos": "G9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 28,
+     "pos": "E11",
+     "state": "WAR",
+     "maxDepth": 43,
+     "maxAmp": 3.39,
+     "n": 1,
+     "depths": [
+      43
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 29,
+     "pos": "F11",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 30,
+     "pos": "D12",
+     "state": "WAR",
+     "maxDepth": 36,
+     "maxAmp": 2.73,
+     "n": 1,
+     "depths": [
+      36
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 31,
+     "pos": "F6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 32,
+     "pos": "B10",
+     "state": "WAR",
+     "maxDepth": 41,
+     "maxAmp": 3.4,
+     "n": 2,
+     "depths": [
+      41,
+      21
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm"
+     ]
+    },
+    {
+     "ch": 33,
+     "pos": "D7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 34,
+     "pos": "E5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 35,
+     "pos": "H3",
+     "state": "WAR",
+     "maxDepth": 33,
+     "maxAmp": 2.05,
+     "n": 3,
+     "depths": [
+      33,
+      32,
+      20
+     ],
+     "locs": [
+      "P1",
+      "P4",
+      "P5"
+     ]
+    },
+    {
+     "ch": 36,
+     "pos": "J3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 37,
+     "pos": "H6",
+     "state": "WAR",
+     "maxDepth": 47,
+     "maxAmp": 4.11,
+     "n": 3,
+     "depths": [
+      26,
+      47,
+      27
+     ],
+     "locs": [
+      "P1",
+      "P1+43mm",
+      "P4+43mm"
+     ]
+    },
+    {
+     "ch": 38,
+     "pos": "H4",
+     "state": "WAR",
+     "maxDepth": 35,
+     "maxAmp": 2.3,
+     "n": 1,
+     "depths": [
+      35
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 39,
+     "pos": "F8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 40,
+     "pos": "D10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 41,
+     "pos": "B7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 42,
+     "pos": "B5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 43,
+     "pos": "D3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 44,
+     "pos": "D5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 45,
+     "pos": "F2",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 46,
+     "pos": "H1",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 47,
+     "pos": "B8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 48,
+     "pos": "F4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 49,
+     "pos": "C8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 50,
+     "pos": "A9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    }
+   ]
+  },
+  {
+   "code": "C4",
+   "tag": "P4/2018",
+   "year": 2018,
+   "mode": "state",
+   "summary": {
+    "tubes": 20,
+    "findings": 42,
+    "ndd": 30,
+    "ge30": 29,
+    "over50": 3,
+    "maxDepth": 55,
+    "avgDepth": 35.6
+   },
+   "channels": [
+    {
+     "ch": 1,
+     "pos": "L11",
+     "state": "WAR",
+     "maxDepth": 47,
+     "maxAmp": 4.37,
+     "n": 5,
+     "depths": [
+      47,
+      26,
+      46,
+      47,
+      45
+     ],
+     "locs": []
+    },
+    {
+     "ch": 2,
+     "pos": "G14",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.2,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": []
+    },
+    {
+     "ch": 3,
+     "pos": "N7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 4,
+     "pos": "H13",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 5,
+     "pos": "J12",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 6,
+     "pos": "R8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 7,
+     "pos": "N12",
+     "state": "WAR",
+     "maxDepth": 24,
+     "maxAmp": 1.35,
+     "n": 1,
+     "depths": [
+      24
+     ],
+     "locs": []
+    },
+    {
+     "ch": 8,
+     "pos": "N10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 9,
+     "pos": "L14",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 10,
+     "pos": "J15",
+     "state": "WAR",
+     "maxDepth": 31,
+     "maxAmp": 2.03,
+     "n": 1,
+     "depths": [
+      31
+     ],
+     "locs": []
+    },
+    {
+     "ch": 11,
+     "pos": "H11",
+     "state": "WAR",
+     "maxDepth": 26,
+     "maxAmp": 1.6,
+     "n": 1,
+     "depths": [
+      26
+     ],
+     "locs": []
+    },
+    {
+     "ch": 12,
+     "pos": "F13",
+     "state": "WAR",
+     "maxDepth": 26,
+     "maxAmp": 1.53,
+     "n": 2,
+     "depths": [
+      21,
+      26
+     ],
+     "locs": []
+    },
+    {
+     "ch": 13,
+     "pos": "J7",
+     "state": "WAR",
+     "maxDepth": 42,
+     "maxAmp": 3.35,
+     "n": 2,
+     "depths": [
+      42,
+      34
+     ],
+     "locs": []
+    },
+    {
+     "ch": 14,
+     "pos": "L5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 15,
+     "pos": "N5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 16,
+     "pos": "L8",
+     "state": "WAR",
+     "maxDepth": 41,
+     "maxAmp": 3.1,
+     "n": 4,
+     "depths": [
+      35,
+      41,
+      34,
+      21
+     ],
+     "locs": []
+    },
+    {
+     "ch": 17,
+     "pos": "N8",
+     "state": "WAR",
+     "maxDepth": 25,
+     "maxAmp": 1.41,
+     "n": 1,
+     "depths": [
+      25
+     ],
+     "locs": []
+    },
+    {
+     "ch": 18,
+     "pos": "L6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 19,
+     "pos": "J10",
+     "state": "WAR",
+     "maxDepth": 55,
+     "maxAmp": 6.44,
+     "n": 6,
+     "depths": [
+      37,
+      52,
+      55,
+      54,
+      41,
+      45
+     ],
+     "locs": []
+    },
+    {
+     "ch": 20,
+     "pos": "L9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 21,
+     "pos": "F9",
+     "state": "WAR",
+     "maxDepth": 26,
+     "maxAmp": 1.57,
+     "n": 1,
+     "depths": [
+      26
+     ],
+     "locs": []
+    },
+    {
+     "ch": 22,
+     "pos": "C12",
+     "state": "WAR",
+     "maxDepth": 26,
+     "maxAmp": 1.57,
+     "n": 1,
+     "depths": [
+      26
+     ],
+     "locs": []
+    },
+    {
+     "ch": 23,
+     "pos": "G7",
+     "state": "WAR",
+     "maxDepth": 42,
+     "maxAmp": 3.35,
+     "n": 2,
+     "depths": [
+      35,
+      42
+     ],
+     "locs": []
+    },
+    {
+     "ch": 24,
+     "pos": "L4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 25,
+     "pos": "J5",
+     "state": "WAR",
+     "maxDepth": 49,
+     "maxAmp": 4.6,
+     "n": 2,
+     "depths": [
+      37,
+      49
+     ],
+     "locs": []
+    },
+    {
+     "ch": 26,
+     "pos": "M3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 27,
+     "pos": "G9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 28,
+     "pos": "E11",
+     "state": "WAR",
+     "maxDepth": 47,
+     "maxAmp": 4.23,
+     "n": 1,
+     "depths": [
+      47
+     ],
+     "locs": []
+    },
+    {
+     "ch": 29,
+     "pos": "F11",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 30,
+     "pos": "D12",
+     "state": "WAR",
+     "maxDepth": 36,
+     "maxAmp": 2.54,
+     "n": 1,
+     "depths": [
+      36
+     ],
+     "locs": []
+    },
+    {
+     "ch": 31,
+     "pos": "F6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 32,
+     "pos": "B10",
+     "state": "WAR",
+     "maxDepth": 41,
+     "maxAmp": 3.23,
+     "n": 2,
+     "depths": [
+      25,
+      41
+     ],
+     "locs": []
+    },
+    {
+     "ch": 33,
+     "pos": "D7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 34,
+     "pos": "E5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 35,
+     "pos": "H3",
+     "state": "WAR",
+     "maxDepth": 32,
+     "maxAmp": 2.08,
+     "n": 3,
+     "depths": [
+      31,
+      32,
+      20
+     ],
+     "locs": []
+    },
+    {
+     "ch": 36,
+     "pos": "J3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 37,
+     "pos": "H6",
+     "state": "WAR",
+     "maxDepth": 45,
+     "maxAmp": 3.89,
+     "n": 4,
+     "depths": [
+      45,
+      36,
+      27,
+      33
+     ],
+     "locs": []
+    },
+    {
+     "ch": 38,
+     "pos": "H4",
+     "state": "WAR",
+     "maxDepth": 32,
+     "maxAmp": 2.17,
+     "n": 1,
+     "depths": [
+      32
+     ],
+     "locs": []
+    },
+    {
+     "ch": 39,
+     "pos": "F8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 40,
+     "pos": "D10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 41,
+     "pos": "B7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 42,
+     "pos": "B5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 43,
+     "pos": "D3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 44,
+     "pos": "D5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 45,
+     "pos": "F2",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 46,
+     "pos": "H1",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 47,
+     "pos": "B8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 48,
+     "pos": "F4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 49,
+     "pos": "C8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 50,
+     "pos": "A9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    }
+   ]
+  },
+  {
+   "code": "C5",
+   "tag": "P5/2020",
+   "year": 2020,
+   "mode": "state",
+   "summary": {
+    "tubes": 26,
+    "findings": 54,
+    "ndd": 24,
+    "ge30": 31,
+    "over50": 5,
+    "maxDepth": 55,
+    "avgDepth": 35.0
+   },
+   "channels": [
+    {
+     "ch": 1,
+     "pos": "L11",
+     "state": "WAR",
+     "maxDepth": 48,
+     "maxAmp": 5.1,
+     "n": 6,
+     "depths": [
+      27,
+      48,
+      39,
+      46,
+      47,
+      46
+     ],
+     "locs": [
+      "P1+125mm",
+      "P1+84mm",
+      "P4",
+      "P4+125mm",
+      "P4+42mm",
+      "P4+84mm"
+     ]
+    },
+    {
+     "ch": 2,
+     "pos": "G14",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.43,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 3,
+     "pos": "N7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 4,
+     "pos": "H13",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.29,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 5,
+     "pos": "J12",
+     "state": "WAR",
+     "maxDepth": 25,
+     "maxAmp": 1.58,
+     "n": 1,
+     "depths": [
+      25
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 6,
+     "pos": "R8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 7,
+     "pos": "N12",
+     "state": "WAR",
+     "maxDepth": 28,
+     "maxAmp": 1.94,
+     "n": 1,
+     "depths": [
+      28
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 8,
+     "pos": "N10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 9,
+     "pos": "L14",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 10,
+     "pos": "J15",
+     "state": "WAR",
+     "maxDepth": 36,
+     "maxAmp": 2.98,
+     "n": 1,
+     "depths": [
+      36
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 11,
+     "pos": "H11",
+     "state": "WAR",
+     "maxDepth": 27,
+     "maxAmp": 1.97,
+     "n": 1,
+     "depths": [
+      27
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 12,
+     "pos": "F13",
+     "state": "WAR",
+     "maxDepth": 29,
+     "maxAmp": 2.17,
+     "n": 2,
+     "depths": [
+      23,
+      29
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 13,
+     "pos": "J7",
+     "state": "WAR",
+     "maxDepth": 42,
+     "maxAmp": 3.92,
+     "n": 2,
+     "depths": [
+      39,
+      42
+     ],
+     "locs": [
+      "P1",
+      "P1+41mm"
+     ]
+    },
+    {
+     "ch": 14,
+     "pos": "L5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 15,
+     "pos": "N5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 16,
+     "pos": "L8",
+     "state": "WAR",
+     "maxDepth": 43,
+     "maxAmp": 4.06,
+     "n": 5,
+     "depths": [
+      37,
+      43,
+      37,
+      29,
+      22
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm",
+      "P1+84mm",
+      "P4",
+      "P4+42mm"
+     ]
+    },
+    {
+     "ch": 17,
+     "pos": "N8",
+     "state": "WAR",
+     "maxDepth": 29,
+     "maxAmp": 2.05,
+     "n": 1,
+     "depths": [
+      29
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 18,
+     "pos": "L6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 19,
+     "pos": "J10",
+     "state": "WAR",
+     "maxDepth": 55,
+     "maxAmp": 7.75,
+     "n": 7,
+     "depths": [
+      46,
+      41,
+      55,
+      55,
+      55,
+      52,
+      38
+     ],
+     "locs": [
+      "P1+124mm",
+      "P1+165mm",
+      "P4",
+      "P4+124mm",
+      "P4+165mm",
+      "P4+42mm",
+      "P4+83mm"
+     ]
+    },
+    {
+     "ch": 20,
+     "pos": "L9",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.39,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 21,
+     "pos": "F9",
+     "state": "WAR",
+     "maxDepth": 26,
+     "maxAmp": 1.84,
+     "n": 1,
+     "depths": [
+      26
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 22,
+     "pos": "C12",
+     "state": "WAR",
+     "maxDepth": 28,
+     "maxAmp": 2.1,
+     "n": 1,
+     "depths": [
+      28
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 23,
+     "pos": "G7",
+     "state": "WAR",
+     "maxDepth": 44,
+     "maxAmp": 4.16,
+     "n": 2,
+     "depths": [
+      35,
+      44
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 24,
+     "pos": "L4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 25,
+     "pos": "J5",
+     "state": "WAR",
+     "maxDepth": 52,
+     "maxAmp": 6.51,
+     "n": 3,
+     "depths": [
+      52,
+      39,
+      21
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm",
+      "P4"
+     ]
+    },
+    {
+     "ch": 26,
+     "pos": "M3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 27,
+     "pos": "G9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 28,
+     "pos": "E11",
+     "state": "WAR",
+     "maxDepth": 47,
+     "maxAmp": 5.06,
+     "n": 1,
+     "depths": [
+      47
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 29,
+     "pos": "F11",
+     "state": "WAR",
+     "maxDepth": 22,
+     "maxAmp": 1.39,
+     "n": 1,
+     "depths": [
+      22
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 30,
+     "pos": "D12",
+     "state": "WAR",
+     "maxDepth": 36,
+     "maxAmp": 2.98,
+     "n": 1,
+     "depths": [
+      36
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 31,
+     "pos": "F6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 32,
+     "pos": "B10",
+     "state": "WAR",
+     "maxDepth": 39,
+     "maxAmp": 3.53,
+     "n": 2,
+     "depths": [
+      24,
+      39
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm"
+     ]
+    },
+    {
+     "ch": 33,
+     "pos": "D7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 34,
+     "pos": "E5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 35,
+     "pos": "H3",
+     "state": "WAR",
+     "maxDepth": 37,
+     "maxAmp": 3.08,
+     "n": 3,
+     "depths": [
+      34,
+      37,
+      25
+     ],
+     "locs": [
+      "P1",
+      "P4",
+      "P5"
+     ]
+    },
+    {
+     "ch": 36,
+     "pos": "J3",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.29,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 37,
+     "pos": "H6",
+     "state": "WAR",
+     "maxDepth": 45,
+     "maxAmp": 4.38,
+     "n": 4,
+     "depths": [
+      40,
+      45,
+      40,
+      26
+     ],
+     "locs": [
+      "P1",
+      "P1+43mm",
+      "P4",
+      "P4+43mm"
+     ]
+    },
+    {
+     "ch": 38,
+     "pos": "H4",
+     "state": "WAR",
+     "maxDepth": 37,
+     "maxAmp": 2.96,
+     "n": 3,
+     "depths": [
+      37,
+      23,
+      23
+     ],
+     "locs": [
+      "P1",
+      "P4",
+      "P5"
+     ]
+    },
+    {
+     "ch": 39,
+     "pos": "F8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 40,
+     "pos": "D10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 41,
+     "pos": "B7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 42,
+     "pos": "B5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 43,
+     "pos": "D3",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.24,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 44,
+     "pos": "D5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 45,
+     "pos": "F2",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 46,
+     "pos": "H1",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 47,
+     "pos": "B8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 48,
+     "pos": "F4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 49,
+     "pos": "C8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 50,
+     "pos": "A9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    }
+   ]
+  },
+  {
+   "code": "C6",
+   "tag": "P6/2021",
+   "year": 2021,
+   "mode": "state",
+   "summary": {
+    "tubes": 28,
+    "findings": 63,
+    "ndd": 22,
+    "ge30": 38,
+    "over50": 6,
+    "maxDepth": 58,
+    "avgDepth": 34.7
+   },
+   "channels": [
+    {
+     "ch": 1,
+     "pos": "L11",
+     "state": "WAR",
+     "maxDepth": 49,
+     "maxAmp": 4.83,
+     "n": 7,
+     "depths": [
+      29,
+      49,
+      30,
+      41,
+      47,
+      48,
+      46
+     ],
+     "locs": [
+      "P1+127mm",
+      "P1+168mm",
+      "P4",
+      "P4+127mm",
+      "P4+168mm",
+      "P4+43mm",
+      "P4+85mm"
+     ]
+    },
+    {
+     "ch": 2,
+     "pos": "G14",
+     "state": "WAR",
+     "maxDepth": 25,
+     "maxAmp": 1.49,
+     "n": 2,
+     "depths": [
+      25,
+      21
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 3,
+     "pos": "N7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 4,
+     "pos": "H13",
+     "state": "WAR",
+     "maxDepth": 20,
+     "maxAmp": 1.22,
+     "n": 2,
+     "depths": [
+      20,
+      20
+     ],
+     "locs": [
+      "P1",
+      "P5"
+     ]
+    },
+    {
+     "ch": 5,
+     "pos": "J12",
+     "state": "WAR",
+     "maxDepth": 24,
+     "maxAmp": 1.51,
+     "n": 1,
+     "depths": [
+      24
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 6,
+     "pos": "R8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 7,
+     "pos": "N12",
+     "state": "WAR",
+     "maxDepth": 28,
+     "maxAmp": 1.88,
+     "n": 1,
+     "depths": [
+      28
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 8,
+     "pos": "N10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 9,
+     "pos": "L14",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 10,
+     "pos": "J15",
+     "state": "WAR",
+     "maxDepth": 39,
+     "maxAmp": 2.97,
+     "n": 1,
+     "depths": [
+      39
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 11,
+     "pos": "H11",
+     "state": "WAR",
+     "maxDepth": 30,
+     "maxAmp": 1.9,
+     "n": 1,
+     "depths": [
+      30
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 12,
+     "pos": "F13",
+     "state": "WAR",
+     "maxDepth": 32,
+     "maxAmp": 2.14,
+     "n": 2,
+     "depths": [
+      24,
+      32
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 13,
+     "pos": "J7",
+     "state": "WAR",
+     "maxDepth": 47,
+     "maxAmp": 4.99,
+     "n": 2,
+     "depths": [
+      47,
+      42
+     ],
+     "locs": [
+      "P1",
+      "P1+41mm"
+     ]
+    },
+    {
+     "ch": 14,
+     "pos": "L5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 15,
+     "pos": "N5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 16,
+     "pos": "L8",
+     "state": "WAR",
+     "maxDepth": 42,
+     "maxAmp": 3.89,
+     "n": 5,
+     "depths": [
+      37,
+      42,
+      37,
+      30,
+      21
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm",
+      "P1+84mm",
+      "P4",
+      "P4+42mm"
+     ]
+    },
+    {
+     "ch": 17,
+     "pos": "N8",
+     "state": "WAR",
+     "maxDepth": 31,
+     "maxAmp": 2.22,
+     "n": 1,
+     "depths": [
+      31
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 18,
+     "pos": "L6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 19,
+     "pos": "J10",
+     "state": "WAR",
+     "maxDepth": 58,
+     "maxAmp": 8.77,
+     "n": 8,
+     "depths": [
+      47,
+      41,
+      55,
+      58,
+      57,
+      56,
+      53,
+      39
+     ],
+     "locs": [
+      "P1+165mm",
+      "P1+206mm",
+      "P4",
+      "P4+124mm",
+      "P4+165mm",
+      "P4+206mm",
+      "P4+41mm",
+      "P4+83mm"
+     ]
+    },
+    {
+     "ch": 20,
+     "pos": "L9",
+     "state": "WAR",
+     "maxDepth": 22,
+     "maxAmp": 1.23,
+     "n": 1,
+     "depths": [
+      22
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 21,
+     "pos": "F9",
+     "state": "WAR",
+     "maxDepth": 29,
+     "maxAmp": 1.98,
+     "n": 1,
+     "depths": [
+      29
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 22,
+     "pos": "C12",
+     "state": "WAR",
+     "maxDepth": 31,
+     "maxAmp": 2.26,
+     "n": 1,
+     "depths": [
+      31
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 23,
+     "pos": "G7",
+     "state": "WAR",
+     "maxDepth": 46,
+     "maxAmp": 4.68,
+     "n": 2,
+     "depths": [
+      36,
+      46
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 24,
+     "pos": "L4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 25,
+     "pos": "J5",
+     "state": "WAR",
+     "maxDepth": 51,
+     "maxAmp": 5.89,
+     "n": 5,
+     "depths": [
+      24,
+      51,
+      38,
+      22,
+      21
+     ],
+     "locs": [
+      "P1",
+      "P1+41mm",
+      "P1+83mm",
+      "P4",
+      "P4+41mm"
+     ]
+    },
+    {
+     "ch": 26,
+     "pos": "M3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 27,
+     "pos": "G9",
+     "state": "WAR",
+     "maxDepth": 20,
+     "maxAmp": 1.16,
+     "n": 1,
+     "depths": [
+      20
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 28,
+     "pos": "E11",
+     "state": "WAR",
+     "maxDepth": 49,
+     "maxAmp": 5.34,
+     "n": 1,
+     "depths": [
+      49
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 29,
+     "pos": "F11",
+     "state": "WAR",
+     "maxDepth": 22,
+     "maxAmp": 1.26,
+     "n": 1,
+     "depths": [
+      22
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 30,
+     "pos": "D12",
+     "state": "WAR",
+     "maxDepth": 38,
+     "maxAmp": 3.18,
+     "n": 1,
+     "depths": [
+      38
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 31,
+     "pos": "F6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 32,
+     "pos": "B10",
+     "state": "WAR",
+     "maxDepth": 42,
+     "maxAmp": 3.81,
+     "n": 3,
+     "depths": [
+      27,
+      42,
+      20
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm",
+      "P3"
+     ]
+    },
+    {
+     "ch": 33,
+     "pos": "D7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 34,
+     "pos": "E5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 35,
+     "pos": "H3",
+     "state": "WAR",
+     "maxDepth": 38,
+     "maxAmp": 3.2,
+     "n": 3,
+     "depths": [
+      34,
+      38,
+      26
+     ],
+     "locs": [
+      "P1",
+      "P4",
+      "P5"
+     ]
+    },
+    {
+     "ch": 36,
+     "pos": "J3",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.25,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 37,
+     "pos": "H6",
+     "state": "WAR",
+     "maxDepth": 46,
+     "maxAmp": 4.61,
+     "n": 4,
+     "depths": [
+      41,
+      46,
+      45,
+      27
+     ],
+     "locs": [
+      "P1",
+      "P1+43mm",
+      "P4",
+      "P4+43mm"
+     ]
+    },
+    {
+     "ch": 38,
+     "pos": "H4",
+     "state": "WAR",
+     "maxDepth": 37,
+     "maxAmp": 3.02,
+     "n": 3,
+     "depths": [
+      37,
+      24,
+      22
+     ],
+     "locs": [
+      "P1",
+      "P4",
+      "P5"
+     ]
+    },
+    {
+     "ch": 39,
+     "pos": "F8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 40,
+     "pos": "D10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 41,
+     "pos": "B7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 42,
+     "pos": "B5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 43,
+     "pos": "D3",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.25,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 44,
+     "pos": "D5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 45,
+     "pos": "F2",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 46,
+     "pos": "H1",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 47,
+     "pos": "B8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 48,
+     "pos": "F4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 49,
+     "pos": "C8",
+     "state": "WAR",
+     "maxDepth": 20,
+     "maxAmp": 1.21,
+     "n": 1,
+     "depths": [
+      20
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 50,
+     "pos": "A9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    }
+   ]
+  },
+  {
+   "code": "C7",
+   "tag": "C7/2023",
+   "year": 2023,
+   "mode": "state",
+   "summary": {
+    "tubes": 28,
+    "findings": 64,
+    "ndd": 22,
+    "ge30": 39,
+    "over50": 6,
+    "maxDepth": 58,
+    "avgDepth": 35.1
+   },
+   "channels": [
+    {
+     "ch": 1,
+     "pos": "L11",
+     "state": "WAR",
+     "maxDepth": 48,
+     "maxAmp": 5.35,
+     "n": 7,
+     "depths": [
+      29,
+      48,
+      39,
+      42,
+      47,
+      48,
+      46
+     ],
+     "locs": [
+      "P1+127mm",
+      "P1+168mm",
+      "P4",
+      "P4+127mm",
+      "P4+168mm",
+      "P4+43mm",
+      "P4+85mm"
+     ]
+    },
+    {
+     "ch": 2,
+     "pos": "G14",
+     "state": "WAR",
+     "maxDepth": 23,
+     "maxAmp": 1.58,
+     "n": 2,
+     "depths": [
+      23,
+      22
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 3,
+     "pos": "N7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 4,
+     "pos": "H13",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.29,
+     "n": 2,
+     "depths": [
+      20,
+      21
+     ],
+     "locs": [
+      "P1",
+      "P5"
+     ]
+    },
+    {
+     "ch": 5,
+     "pos": "J12",
+     "state": "WAR",
+     "maxDepth": 24,
+     "maxAmp": 1.59,
+     "n": 1,
+     "depths": [
+      24
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 6,
+     "pos": "R8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 7,
+     "pos": "N12",
+     "state": "WAR",
+     "maxDepth": 28,
+     "maxAmp": 2.01,
+     "n": 1,
+     "depths": [
+      28
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 8,
+     "pos": "N10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 9,
+     "pos": "L14",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 10,
+     "pos": "J15",
+     "state": "WAR",
+     "maxDepth": 42,
+     "maxAmp": 4.07,
+     "n": 1,
+     "depths": [
+      42
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 11,
+     "pos": "H11",
+     "state": "WAR",
+     "maxDepth": 30,
+     "maxAmp": 2.23,
+     "n": 1,
+     "depths": [
+      30
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 12,
+     "pos": "F13",
+     "state": "WAR",
+     "maxDepth": 33,
+     "maxAmp": 2.63,
+     "n": 2,
+     "depths": [
+      24,
+      33
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 13,
+     "pos": "J7",
+     "state": "WAR",
+     "maxDepth": 50,
+     "maxAmp": 6.08,
+     "n": 2,
+     "depths": [
+      50,
+      42
+     ],
+     "locs": [
+      "P1",
+      "P1+41mm"
+     ]
+    },
+    {
+     "ch": 14,
+     "pos": "L5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 15,
+     "pos": "N5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 16,
+     "pos": "L8",
+     "state": "WAR",
+     "maxDepth": 40,
+     "maxAmp": 3.74,
+     "n": 5,
+     "depths": [
+      38,
+      40,
+      35,
+      31,
+      21
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm",
+      "P1+84mm",
+      "P4",
+      "P4+42mm"
+     ]
+    },
+    {
+     "ch": 17,
+     "pos": "N8",
+     "state": "WAR",
+     "maxDepth": 33,
+     "maxAmp": 2.69,
+     "n": 1,
+     "depths": [
+      33
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 18,
+     "pos": "L6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 19,
+     "pos": "J10",
+     "state": "WAR",
+     "maxDepth": 58,
+     "maxAmp": 9.33,
+     "n": 9,
+     "depths": [
+      47,
+      41,
+      22,
+      55,
+      58,
+      57,
+      56,
+      53,
+      39
+     ],
+     "locs": [
+      "P1+280mm",
+      "P1+321mm",
+      "P4",
+      "P4+115mm",
+      "P4+156mm",
+      "P4+198mm",
+      "P4+239mm",
+      "P4+280mm",
+      "P4+321mm"
+     ]
+    },
+    {
+     "ch": 20,
+     "pos": "L9",
+     "state": "WAR",
+     "maxDepth": 22,
+     "maxAmp": 1.47,
+     "n": 1,
+     "depths": [
+      22
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 21,
+     "pos": "F9",
+     "state": "WAR",
+     "maxDepth": 29,
+     "maxAmp": 2.11,
+     "n": 1,
+     "depths": [
+      29
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 22,
+     "pos": "C12",
+     "state": "WAR",
+     "maxDepth": 30,
+     "maxAmp": 2.27,
+     "n": 1,
+     "depths": [
+      30
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 23,
+     "pos": "G7",
+     "state": "WAR",
+     "maxDepth": 46,
+     "maxAmp": 4.97,
+     "n": 2,
+     "depths": [
+      36,
+      46
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 24,
+     "pos": "L4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 25,
+     "pos": "J5",
+     "state": "WAR",
+     "maxDepth": 51,
+     "maxAmp": 6.27,
+     "n": 5,
+     "depths": [
+      37,
+      51,
+      38,
+      24,
+      22
+     ],
+     "locs": [
+      "P1",
+      "P1+41mm",
+      "P1+83mm",
+      "P4",
+      "P4+41mm"
+     ]
+    },
+    {
+     "ch": 26,
+     "pos": "M3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 27,
+     "pos": "G9",
+     "state": "WAR",
+     "maxDepth": 20,
+     "maxAmp": 1.29,
+     "n": 1,
+     "depths": [
+      20
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 28,
+     "pos": "E11",
+     "state": "WAR",
+     "maxDepth": 48,
+     "maxAmp": 5.38,
+     "n": 1,
+     "depths": [
+      48
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 29,
+     "pos": "F11",
+     "state": "WAR",
+     "maxDepth": 22,
+     "maxAmp": 1.42,
+     "n": 1,
+     "depths": [
+      22
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 30,
+     "pos": "D12",
+     "state": "WAR",
+     "maxDepth": 38,
+     "maxAmp": 3.35,
+     "n": 1,
+     "depths": [
+      38
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 31,
+     "pos": "F6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 32,
+     "pos": "B10",
+     "state": "WAR",
+     "maxDepth": 42,
+     "maxAmp": 4.01,
+     "n": 3,
+     "depths": [
+      26,
+      42,
+      21
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm",
+      "P3"
+     ]
+    },
+    {
+     "ch": 33,
+     "pos": "D7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 34,
+     "pos": "E5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 35,
+     "pos": "H3",
+     "state": "WAR",
+     "maxDepth": 39,
+     "maxAmp": 3.48,
+     "n": 3,
+     "depths": [
+      34,
+      39,
+      25
+     ],
+     "locs": [
+      "P1",
+      "P4",
+      "P5"
+     ]
+    },
+    {
+     "ch": 36,
+     "pos": "J3",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.33,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 37,
+     "pos": "H6",
+     "state": "WAR",
+     "maxDepth": 47,
+     "maxAmp": 5.3,
+     "n": 4,
+     "depths": [
+      41,
+      45,
+      47,
+      28
+     ],
+     "locs": [
+      "P1",
+      "P1+43mm",
+      "P4",
+      "P4+43mm"
+     ]
+    },
+    {
+     "ch": 38,
+     "pos": "H4",
+     "state": "WAR",
+     "maxDepth": 41,
+     "maxAmp": 3.92,
+     "n": 3,
+     "depths": [
+      41,
+      25,
+      25
+     ],
+     "locs": [
+      "P1",
+      "P4",
+      "P5"
+     ]
+    },
+    {
+     "ch": 39,
+     "pos": "F8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 40,
+     "pos": "D10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 41,
+     "pos": "B7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 42,
+     "pos": "B5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 43,
+     "pos": "D3",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.34,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 44,
+     "pos": "D5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 45,
+     "pos": "F2",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 46,
+     "pos": "H1",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 47,
+     "pos": "B8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 48,
+     "pos": "F4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 49,
+     "pos": "C8",
+     "state": "WAR",
+     "maxDepth": 20,
+     "maxAmp": 1.24,
+     "n": 1,
+     "depths": [
+      20
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 50,
+     "pos": "A9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    }
+   ]
+  },
+  {
+   "code": "C8",
+   "tag": "P8/2024",
+   "year": 2024,
+   "mode": "state",
+   "summary": {
+    "tubes": 28,
+    "findings": 64,
+    "ndd": 22,
+    "ge30": 39,
+    "over50": 7,
+    "maxDepth": 57,
+    "avgDepth": 35.4
+   },
+   "channels": [
+    {
+     "ch": 1,
+     "pos": "L11",
+     "state": "WAR",
+     "maxDepth": 48,
+     "maxAmp": 4.85,
+     "n": 7,
+     "depths": [
+      28,
+      48,
+      42,
+      42,
+      47,
+      48,
+      46
+     ],
+     "locs": [
+      "P1+127mm",
+      "P1+168mm",
+      "P4",
+      "P4+127mm",
+      "P4+168mm",
+      "P4+43mm",
+      "P4+85mm"
+     ]
+    },
+    {
+     "ch": 2,
+     "pos": "G14",
+     "state": "WAR",
+     "maxDepth": 24,
+     "maxAmp": 1.5,
+     "n": 2,
+     "depths": [
+      24,
+      21
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 3,
+     "pos": "N7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 4,
+     "pos": "H13",
+     "state": "WAR",
+     "maxDepth": 22,
+     "maxAmp": 1.31,
+     "n": 2,
+     "depths": [
+      21,
+      22
+     ],
+     "locs": [
+      "P1",
+      "P5"
+     ]
+    },
+    {
+     "ch": 5,
+     "pos": "J12",
+     "state": "WAR",
+     "maxDepth": 24,
+     "maxAmp": 1.42,
+     "n": 1,
+     "depths": [
+      24
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 6,
+     "pos": "R8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 7,
+     "pos": "N12",
+     "state": "WAR",
+     "maxDepth": 28,
+     "maxAmp": 1.8,
+     "n": 1,
+     "depths": [
+      28
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 8,
+     "pos": "N10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 9,
+     "pos": "L14",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 10,
+     "pos": "J15",
+     "state": "WAR",
+     "maxDepth": 41,
+     "maxAmp": 3.49,
+     "n": 1,
+     "depths": [
+      41
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 11,
+     "pos": "H11",
+     "state": "WAR",
+     "maxDepth": 31,
+     "maxAmp": 2.13,
+     "n": 1,
+     "depths": [
+      31
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 12,
+     "pos": "F13",
+     "state": "WAR",
+     "maxDepth": 33,
+     "maxAmp": 2.33,
+     "n": 2,
+     "depths": [
+      24,
+      33
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 13,
+     "pos": "J7",
+     "state": "WAR",
+     "maxDepth": 52,
+     "maxAmp": 6.04,
+     "n": 2,
+     "depths": [
+      52,
+      41
+     ],
+     "locs": [
+      "P1",
+      "P1+41mm"
+     ]
+    },
+    {
+     "ch": 14,
+     "pos": "L5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 15,
+     "pos": "N5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 16,
+     "pos": "L8",
+     "state": "WAR",
+     "maxDepth": 42,
+     "maxAmp": 3.71,
+     "n": 5,
+     "depths": [
+      39,
+      42,
+      36,
+      36,
+      21
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm",
+      "P1+84mm",
+      "P4",
+      "P4+42mm"
+     ]
+    },
+    {
+     "ch": 17,
+     "pos": "N8",
+     "state": "WAR",
+     "maxDepth": 34,
+     "maxAmp": 2.49,
+     "n": 1,
+     "depths": [
+      34
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 18,
+     "pos": "L6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 19,
+     "pos": "J10",
+     "state": "WAR",
+     "maxDepth": 57,
+     "maxAmp": 8.03,
+     "n": 9,
+     "depths": [
+      45,
+      40,
+      27,
+      56,
+      57,
+      56,
+      55,
+      51,
+      38
+     ],
+     "locs": [
+      "P1+280mm",
+      "P1+321mm",
+      "P4",
+      "P4+115mm",
+      "P4+156mm",
+      "P4+198mm",
+      "P4+239mm",
+      "P4+280mm",
+      "P4+321mm"
+     ]
+    },
+    {
+     "ch": 20,
+     "pos": "L9",
+     "state": "WAR",
+     "maxDepth": 22,
+     "maxAmp": 1.27,
+     "n": 1,
+     "depths": [
+      22
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 21,
+     "pos": "F9",
+     "state": "WAR",
+     "maxDepth": 28,
+     "maxAmp": 1.85,
+     "n": 1,
+     "depths": [
+      28
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 22,
+     "pos": "C12",
+     "state": "WAR",
+     "maxDepth": 31,
+     "maxAmp": 2.13,
+     "n": 1,
+     "depths": [
+      31
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 23,
+     "pos": "G7",
+     "state": "WAR",
+     "maxDepth": 46,
+     "maxAmp": 4.4,
+     "n": 2,
+     "depths": [
+      36,
+      46
+     ],
+     "locs": [
+      "P1",
+      "P4"
+     ]
+    },
+    {
+     "ch": 24,
+     "pos": "L4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 25,
+     "pos": "J5",
+     "state": "WAR",
+     "maxDepth": 51,
+     "maxAmp": 5.74,
+     "n": 5,
+     "depths": [
+      38,
+      51,
+      39,
+      26,
+      23
+     ],
+     "locs": [
+      "P1",
+      "P1+41mm",
+      "P1+83mm",
+      "P4",
+      "P4+41mm"
+     ]
+    },
+    {
+     "ch": 26,
+     "pos": "M3",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 27,
+     "pos": "G9",
+     "state": "WAR",
+     "maxDepth": 20,
+     "maxAmp": 1.12,
+     "n": 1,
+     "depths": [
+      20
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 28,
+     "pos": "E11",
+     "state": "WAR",
+     "maxDepth": 49,
+     "maxAmp": 5.12,
+     "n": 1,
+     "depths": [
+      49
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 29,
+     "pos": "F11",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.19,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 30,
+     "pos": "D12",
+     "state": "WAR",
+     "maxDepth": 38,
+     "maxAmp": 3.04,
+     "n": 1,
+     "depths": [
+      38
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 31,
+     "pos": "F6",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 32,
+     "pos": "B10",
+     "state": "WAR",
+     "maxDepth": 42,
+     "maxAmp": 3.65,
+     "n": 3,
+     "depths": [
+      28,
+      42,
+      20
+     ],
+     "locs": [
+      "P1",
+      "P1+42mm",
+      "P3"
+     ]
+    },
+    {
+     "ch": 33,
+     "pos": "D7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 34,
+     "pos": "E5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 35,
+     "pos": "H3",
+     "state": "WAR",
+     "maxDepth": 39,
+     "maxAmp": 3.13,
+     "n": 3,
+     "depths": [
+      34,
+      39,
+      25
+     ],
+     "locs": [
+      "P1",
+      "P4",
+      "P5"
+     ]
+    },
+    {
+     "ch": 36,
+     "pos": "J3",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.2,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P1"
+     ]
+    },
+    {
+     "ch": 37,
+     "pos": "H6",
+     "state": "WAR",
+     "maxDepth": 49,
+     "maxAmp": 5.33,
+     "n": 4,
+     "depths": [
+      41,
+      45,
+      49,
+      27
+     ],
+     "locs": [
+      "P1",
+      "P1+43mm",
+      "P4",
+      "P4+43mm"
+     ]
+    },
+    {
+     "ch": 38,
+     "pos": "H4",
+     "state": "WAR",
+     "maxDepth": 41,
+     "maxAmp": 3.43,
+     "n": 3,
+     "depths": [
+      41,
+      24,
+      25
+     ],
+     "locs": [
+      "P1",
+      "P4",
+      "P5"
+     ]
+    },
+    {
+     "ch": 39,
+     "pos": "F8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 40,
+     "pos": "D10",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 41,
+     "pos": "B7",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 42,
+     "pos": "B5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 43,
+     "pos": "D3",
+     "state": "WAR",
+     "maxDepth": 21,
+     "maxAmp": 1.19,
+     "n": 1,
+     "depths": [
+      21
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 44,
+     "pos": "D5",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 45,
+     "pos": "F2",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 46,
+     "pos": "H1",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 47,
+     "pos": "B8",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 48,
+     "pos": "F4",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    },
+    {
+     "ch": 49,
+     "pos": "C8",
+     "state": "WAR",
+     "maxDepth": 20,
+     "maxAmp": 1.11,
+     "n": 1,
+     "depths": [
+      20
+     ],
+     "locs": [
+      "P4"
+     ]
+    },
+    {
+     "ch": 50,
+     "pos": "A9",
+     "state": "NDD",
+     "maxDepth": 0,
+     "maxAmp": 0.0,
+     "n": 0,
+     "depths": [],
+     "locs": []
+    }
+   ]
+  }
+ ]
+}

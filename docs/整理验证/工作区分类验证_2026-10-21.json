@@ -1,0 +1,134 @@
+{
+  "created_at": "2026-10-21T22:55:37.357146",
+  "ok": true,
+  "physical_relocation_complete": false,
+  "checked_entries": 22,
+  "pending_physical_moves": [
+    "孔姐发的",
+    "指套管模型工程",
+    "指套管三维模型_完整工程",
+    "导入台账_全量72次大修.xlsx",
+    "~$导入台账_全量72次大修.xlsx",
+    "软件部分0828"
+  ],
+  "small_file_sha256_checks": 9,
+  "baseline_sources_and_copies_locatable": 3753,
+  "database_integrity": "ok",
+  "database_rows": {
+    "findings": 6116,
+    "tube_states": 485
+  },
+  "current_launcher": "D:\\work-projects\\在役检查系统-指套管数据管理工具\\启动软件正式版_20261021.cmd",
+  "items": [
+    {
+      "old": "记忆",
+      "new": "02_项目原始资料\\01_需求与记忆\\记忆",
+      "status": "already_organized"
+    },
+    {
+      "old": "对话记录与记忆导出_2026-08-26.md",
+      "new": "02_项目原始资料\\01_需求与记忆\\对话记录与记忆导出_2026-08-26.md",
+      "status": "already_organized"
+    },
+    {
+      "old": "孔姐发的",
+      "new": "02_项目原始资料\\02_业务参考资料\\孔姐发的",
+      "status": "classified_in_use"
+    },
+    {
+      "old": "测试数据",
+      "new": "02_项目原始资料\\03_原始检测数据\\测试数据",
+      "status": "already_organized"
+    },
+    {
+      "old": "指套管模型工程",
+      "new": "02_项目原始资料\\04_三维模型工程\\指套管模型工程",
+      "status": "classified_in_use"
+    },
+    {
+      "old": "指套管三维模型_完整工程",
+      "new": "02_项目原始资料\\04_三维模型工程\\指套管三维模型_完整工程",
+      "status": "classified_in_use"
+    },
+    {
+      "old": "导入台账_全量72次大修.xlsx",
+      "new": "02_项目原始资料\\05_台账与计划\\导入台账_全量72次大修.xlsx",
+      "status": "classified_in_use"
+    },
+    {
+      "old": "~$导入台账_全量72次大修.xlsx",
+      "new": "02_项目原始资料\\05_台账与计划\\~$导入台账_全量72次大修.xlsx",
+      "status": "classified_in_use"
+    },
+    {
+      "old": "指套管数据管理工具_年度计划表.xlsx",
+      "new": "02_项目原始资料\\05_台账与计划\\指套管数据管理工具_年度计划表.xlsx",
+      "status": "already_organized"
+    },
+    {
+      "old": "岭澳核电厂_报告表头设置.json",
+      "new": "02_项目原始资料\\05_台账与计划\\岭澳核电厂_报告表头设置.json",
+      "status": "already_organized"
+    },
+    {
+      "old": "软件版本历史",
+      "new": "03_历史版本备份\\整理前版本与完整备份",
+      "status": "already_organized"
+    },
+    {
+      "old": "软件部分0828",
+      "new": "03_历史版本备份\\软件部分0828_归档原件_20261021",
+      "status": "classified_in_use"
+    },
+    {
+      "old": "启动本地指套管软件.cmd",
+      "new": "03_历史版本备份\\旧启动入口\\启动本地指套管软件.cmd",
+      "status": "already_organized"
+    },
+    {
+      "old": "wy",
+      "new": "04_开发归档\\01_网页原型与采集\\wy",
+      "status": "already_organized"
+    },
+    {
+      "old": "新建 文本文档.html",
+      "new": "04_开发归档\\01_网页原型与采集\\新建 文本文档.html",
+      "status": "already_organized"
+    },
+    {
+      "old": "tmp_pylibs",
+      "new": "04_开发归档\\02_调试脚本与临时依赖\\tmp_pylibs",
+      "status": "already_organized"
+    },
+    {
+      "old": "_check.mjs",
+      "new": "04_开发归档\\02_调试脚本与临时依赖\\_check.mjs",
+      "status": "already_organized"
+    },
+    {
+      "old": "tmp_check.mjs",
+      "new": "04_开发归档\\02_调试脚本与临时依赖\\tmp_check.mjs",
+      "status": "already_organized"
+    },
+    {
+      "old": "--full-page",
+      "new": "04_开发归档\\03_历史导出与截图\\历史界面截图.png",
+      "status": "already_organized"
+    },
+    {
+      "old": "TH_三字符缺失记录_20261016_101108.xlsx",
+      "new": "04_开发归档\\03_历史导出与截图\\TH_三字符缺失记录_20261016_101108.xlsx",
+      "status": "already_organized"
+    },
+    {
+      "old": ".workbuddy",
+      "new": "04_开发归档\\04_开发过程记录\\.workbuddy",
+      "status": "already_organized"
+    },
+    {
+      "old": "软件正式版_20261021",
+      "new": "01_当前软件\\软件正式版_20261021",
+      "status": "already_organized"
+    }
+  ]
+}

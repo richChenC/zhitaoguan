@@ -1,0 +1,44 @@
+.vw-popout {
+  display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:32px;padding:6px;border-radius:4px;flex:none;
+}
+.dcs-chart-box>h3 .vw-popout {margin-left:auto}
+body[data-visualization-window] {visibility:hidden;overflow:hidden}
+body[data-visualization-window] .viz-window-path {display:block!important;overflow:visible!important}
+body[data-visualization-window] #vizWindowBar {
+  visibility:visible;position:fixed;inset:0 0 auto;z-index:2000;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  height:64px;padding:8px 16px;box-sizing:border-box;
+  background:var(--paper,#fff);color:var(--ink,#25313a);border-bottom:1px solid var(--line,#dce2e6);
+}
+#vizWindowBar>div {min-width:0;display:grid;gap:4px}
+#vizWindowTitle {font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#vizWindowScope {font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#vizWindowRefresh {flex:none}
+body[data-visualization-window] #analytics .viz-detached-panel {
+  visibility:visible;position:fixed!important;inset:76px 12px 12px!important;
+  margin:0!important;width:auto!important;height:auto!important;max-height:none!important;
+  min-width:0!important;overflow:auto!important;z-index:1000;
+  display:block!important;background:var(--paper,#fff);box-sizing:border-box;
+}
+body[data-visualization-window] .viz-detached-panel * {visibility:visible}
+body[data-visualization-window] #analytics .viz-detached-panel>.panel-title .vw-expand,
+body[data-visualization-window] #analytics .viz-detached-panel>.panel-title .vw-collapse,
+body[data-visualization-window] #analytics .viz-detached-panel>h3 .vw-collapse,
+body[data-visualization-window] #analytics .viz-detached-panel>.vw-position-share-head .vw-collapse {display:none!important}
+body[data-visualization-window] #analytics .viz-detached-panel>.panel-title,
+body[data-visualization-window] #analytics .viz-detached-panel>h3,
+body[data-visualization-window] #analytics .viz-detached-panel>.vw-position-share-head {
+  position:sticky;top:0;z-index:20;background:var(--paper,#fff);
+}
+body[data-visualization-window] .viz-detached-panel .viz-window-controls {padding:0 12px}
+body[data-visualization-window] #analysisAlerts.viz-state {
+  visibility:visible;position:fixed;inset:76px 12px auto;z-index:3000;
+}
+body[data-visualization-window] #analysisAlerts.viz-state * {visibility:visible}
+body[data-visualization-window] #toast,
+body[data-visualization-window] #toast * {visibility:visible}
+html[data-theme=dark] body[data-visualization-window] #vizWindowBar,
+html[data-theme=dark] body[data-visualization-window] #analytics .viz-detached-panel {background:#202629;color:#e3e8eb}
+html[data-theme=dark] .vw-popout img {filter:invert(1)}
+html[data-theme=dark] #analytics #chartDistHistogram>svg>rect:first-child {fill:var(--paper,#1c2527)!important}

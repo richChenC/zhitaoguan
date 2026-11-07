@@ -1,0 +1,36 @@
+html[data-reduce-motion="true"] *,
+html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+body[data-ui-density="compact"] #workspace .table-panel td,
+body[data-ui-density="compact"] #workspace .table-panel th,
+body[data-ui-density="compact"] #states .state-table-panel td,
+body[data-ui-density="compact"] #states .state-table-panel th,
+body[data-ui-density="compact"] #analytics .official-viz table td,
+body[data-ui-density="compact"] #analytics .official-viz table th {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+body[data-ui-density="compact"] .state-table-toolbar,
+body[data-ui-density="compact"] #analytics .an-filter-group {
+  gap: 6px;
+}
+
+body[data-ui-density="compact"] #workspace .table-panel td {
+  height: 32px;
+}
+
+/* Tube fill is a business display setting in both themes and all plate modes. */
+#workspace .core-map .path-marker.mode-combined {
+  background: var(--severity-none) !important;
+}
+#workspace .core-map .path-marker.mode-odd,
+#workspace .core-map .path-marker.mode-even {
+  background: var(--tube-color, var(--severity-none)) !important;
+}

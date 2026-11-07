@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>本地账户 · 指套管数据管理工具</title>
+  <link rel="icon" type="image/png" href="/assets/app-icon.png?v=20261106">
+  <script src="/appearance.js"></script>
+  <link rel="stylesheet" href="/tokens.css"><link rel="stylesheet" href="/local-auth.css?v=20261106-login">
+  <script src="/login.js" defer></script>
+</head>
+<body class="local-login">
+  <main class="login-shell">
+    <header class="login-product">
+      <img class="login-mark" src="/assets/app-icon.png?v=20261106" alt="">
+      <div><strong>在役检查系统</strong><span>指套管数据管理工具</span></div>
+    </header>
+    <section class="login-card" aria-labelledby="loginTitle">
+      <div class="login-card-heading">
+        <span class="login-step" id="loginMode">正在检查账户状态</span>
+        <h1 id="loginTitle">登录本地工作区</h1>
+        <p id="loginHint">请稍候…</p>
+      </div>
+      <form id="localLoginForm">
+        <label>用户名<input id="loginUsername" name="username" autocomplete="username" minlength="2" maxlength="64" pattern="[a-zA-Z0-9][a-zA-Z0-9_.\-]{1,63}" required></label>
+        <label>密码<input id="loginPassword" name="password" type="password" autocomplete="current-password" maxlength="128" required></label>
+        <label id="confirmPasswordField" hidden>确认密码<input id="loginConfirmPassword" type="password" autocomplete="new-password" maxlength="128"></label>
+        <p class="auth-message" id="loginMessage" role="status" aria-live="polite"></p>
+        <button id="loginSubmit" class="login-submit" type="submit" disabled>登录</button>
+      </form>
+      <footer class="login-card-footer"><span><i aria-hidden="true"></i><span id="loginSecurityState">本地服务连接中</span></span><span>本机账户</span></footer>
+    </section>
+    <footer class="login-footnote"><span>本地数据工作区</span><span>在役检查系统</span></footer>
+  </main>
+</body>
+</html>

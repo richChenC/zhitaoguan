@@ -1,0 +1,432 @@
+/* ====== 统计分析视图（作用域限定 #analytics，避免污染既有页面） ======
+   配色统一说明（2026-08-30）：本页原先自成一套「CGN 深蓝」体系（蓝色渐变标题栏、
+   蓝色描边、蓝色页面底），与其余页面（数据工作台 / 结果中心 / 状态处理）的
+   中性浅色体系割裂。现将「框架色」全部对齐到全站 design tokens
+   （--line / --ink / --muted / #f3f5f6 页底 / 白卡片），
+   CGN 蓝仅保留为图表与数据强调色，不再用于面板外框与标题栏。
+   改变量即可全页生效，无需逐条替换几十处 var(--panel-bd)。          */
+#analytics {
+  /* 框架色 —— 对齐 ux-polish.css :root（它在 styles.css 之后加载，是全站实际生效的调色板：
+     --ink:#1e3038 / --muted:#657780 / --line:#d3dfe3 / --bg:#edf2f4） */
+  --bg-1:#edf2f4; --bg-2:#edf2f4; --panel:#ffffff; --panel-bd:#d3dfe3;
+  --ink:#1e3038; --ink-2:#41545e; --ink-dim:#657780;
+  --shadow:0 4px 18px rgba(30,55,63,0.06);
+  /* 数据强调色 —— 仅用于图表/KPI 数值/风险标识 */
+  --cgn-deep:#003c8f; --cgn-blue:#0066cc; --cgn-blue-2:#1e88e5; --cgn-blue-3:#4d9fff;
+  --red:#e84545; --red-bg:#fdecec; --orange:#ff8c42; --orange-bg:#fff1e6;
+  --amber:#f5a623; --amber-bg:#fff6e0; --green:#22a06b; --green-bg:#e8f7f0;
+}
+#analytics{font-size:13px;color:var(--ink);line-height:1.6}
+#analytics .an-wrap{padding:16px 22px 28px;max-width:1500px;margin:0 auto;display:flex;flex-direction:column;gap:14px;background:var(--bg-1)}
+
+/* 顶部标题条 */
+#analytics .an-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+#analytics .an-head h2{font-size:18px;letter-spacing:.5px;color:var(--ink);font-weight:700;margin:0}
+#analytics .an-head .sub{font-size:11.5px;color:var(--ink-dim);background:#fff;border:1px solid var(--panel-bd);padding:4px 12px;border-radius:14px}
+
+/* 风险预警横幅 */
+#analytics .alertbar{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+#analytics .alert{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:3px;background:#fff;border:1px solid var(--panel-bd);box-shadow:var(--shadow);position:relative;overflow:hidden}
+#analytics .alert::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
+#analytics .alert.danger::before{background:var(--red)}
+#analytics .alert.warn::before{background:var(--orange)}
+#analytics .alert.info::before{background:var(--amber)}
+/* 预警圆点由 CSS 绘制（原为 🔴🟠🟡 emoji，已按用户要求移除，避免跨平台字形差异） */
+#analytics .alert .ic{position:relative;width:32px;height:32px;border-radius:50%;flex-shrink:0}
+#analytics .alert .ic::after{content:"";position:absolute;left:10px;top:10px;width:12px;height:12px;border-radius:50%}
+#analytics .alert.danger .ic{background:var(--red-bg)}
+#analytics .alert.danger .ic::after{background:var(--red)}
+#analytics .alert.warn .ic{background:var(--orange-bg)}
+#analytics .alert.warn .ic::after{background:var(--orange)}
+#analytics .alert.info .ic{background:var(--amber-bg)}
+#analytics .alert.info .ic::after{background:var(--amber)}
+#analytics .alert .txt{min-width:0}
+#analytics .alert .t{font-size:12px;color:var(--ink-dim);font-weight:600;letter-spacing:.5px}
+#analytics .alert .v{font-size:15px;font-weight:800;color:var(--ink);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#analytics .alert.danger .v{color:var(--red)}
+#analytics .alert.warn .v{color:var(--orange)}
+#analytics .alert .s{font-size:11px;color:var(--ink-dim);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* KPI */
+#analytics .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+#analytics .kpi{position:relative;background:#fff;border:1px solid var(--panel-bd);border-radius:3px;padding:12px 16px;box-shadow:var(--shadow);display:flex;align-items:center;gap:12px;overflow:hidden}
+#analytics .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--cgn-blue-2),var(--cgn-deep))}
+#analytics .kpi .n{font-size:28px;font-weight:800;color:var(--ink);min-width:58px;text-align:center;line-height:1}
+#analytics .kpi .t{font-size:12.5px;font-weight:700;color:var(--ink)}
+#analytics .kpi .s{font-size:10.5px;color:var(--ink-dim);margin-top:3px;line-height:1.4}
+/* .kpi .ico（emoji 水印）已按用户要求移除，不再生成 */
+
+/* 筛选器 */
+#analytics .filter{background:var(--panel);border:1px solid var(--panel-bd);border-radius:3px;padding:11px 16px;box-shadow:var(--shadow);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+#analytics .filter .lbl{font-size:12px;color:var(--ink-dim);font-weight:700;display:flex;align-items:center;gap:4px}
+#analytics .filter .pills{display:flex;gap:6px;flex-wrap:wrap}
+#analytics .pill{font-size:12px;padding:5px 12px;border-radius:16px;background:#eef1f3;border:1px solid transparent;color:var(--ink-2);cursor:pointer;user-select:none;transition:all .16s;font-weight:600}
+#analytics .pill:hover{border-color:#b9c5cd;background:#e6eaed}
+#analytics .pill.active{background:#20343c;color:#fff;border-color:transparent}
+#analytics .filter .sep{width:1px;height:24px;background:var(--panel-bd)}
+#analytics .filter .stat{font-size:11.5px;color:var(--ink-dim);margin-left:auto;background:#f3f5f6;padding:4px 12px;border-radius:14px}
+#analytics .filter .stat b{color:var(--cgn-deep);font-size:13px;font-weight:800}
+#analytics .filter-sep{width:1px;height:24px;background:var(--panel-bd)}
+#analytics .an-unit-picker{display:flex;align-items:center;gap:8px}
+#analytics .an-unit-picker .lbl{white-space:nowrap}
+#analytics #anUnitPicker{height:34px;min-width:210px;padding:0 10px;border:1px solid var(--panel-bd);border-radius:6px;background:#fff;color:var(--ink);font-size:12px}
+#analytics #anUnitPicker:focus{outline:2px solid rgba(0,102,204,.14);border-color:var(--cgn-blue)}
+
+/* 面板 */
+#analytics .row{display:grid;gap:14px}
+#analytics .row.r2{grid-template-columns:1fr 1fr}
+#analytics .row.r3{grid-template-columns:repeat(3,1fr)}
+#analytics .row.r12{grid-template-columns:1.4fr 1fr}
+#analytics .panel{background:var(--panel);border:1px solid var(--panel-bd);border-radius:3px;box-shadow:var(--shadow);overflow:hidden}
+/* 面板头完全沿用全站 .panel-title（白→#f8fbfb 渐变、52px 高、底部 1px 分隔线、标题+说明上下堆叠），
+   不再使用本页原有的蓝色渐变 .panel-hd；图标已按用户要求全部移除。
+   这里只放宽高度（分析页标题较长、副标题会换行），其余全部继承全局，不覆写字号/颜色。 */
+#analytics .panel-title{height:auto;min-height:52px;padding:8px 14px;align-items:center}
+#analytics .panel-title h2{letter-spacing:.2px;margin:0}
+#analytics .panel-title span{line-height:1.45}
+#analytics .panel-bd{padding:12px 14px}
+#analytics .panel-bd.tight{padding:8px 12px}
+
+/* 图表 */
+#analytics svg.chart{width:100%;height:auto;display:block}
+#analytics .grid-line{stroke:rgba(30,55,63,0.08);stroke-width:1}
+#analytics .axis-val{fill:var(--ink-dim);font-size:10px;text-anchor:end}
+#analytics .bar-lab{fill:var(--ink-2);font-size:11px;text-anchor:middle;font-weight:600}
+#analytics .bar-val{fill:var(--ink);font-size:10px;text-anchor:middle;font-weight:700}
+#analytics .line-path{fill:none;stroke-width:2.4}
+#analytics .line-dot{stroke:#fff;stroke-width:1.8}
+#analytics .leg{display:inline-flex;align-items:center;gap:5px;margin:0 12px 0 0;color:var(--ink-2);font-size:12px}
+#analytics .leg i{width:11px;height:11px;border-radius:3px;display:inline-block}
+#analytics .note{font-size:11.5px;color:var(--ink-dim);line-height:1.65}
+#analytics .note b{color:var(--cgn-deep)}
+
+/* 排行表 */
+#analytics .rank-table{width:100%;font-size:12px;border-collapse:collapse}
+#analytics .rank-table th{background:#f7f9fa;color:var(--ink-dim);padding:8px 9px;font-weight:700;text-align:left;border-bottom:1px solid var(--panel-bd);white-space:nowrap}
+#analytics .rank-table td{padding:7px 9px;border-bottom:1px dashed rgba(30,55,63,0.10);cursor:pointer;vertical-align:middle}
+#analytics .rank-table tbody tr{transition:background .12s}
+#analytics .rank-table tbody tr:hover{background:#f6fbff}
+#analytics .rank-table td b{color:var(--cgn-deep);font-weight:800;font-size:12.5px}
+#analytics .rank-badge{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;font-size:11px;font-weight:800;color:#fff}
+#analytics .rank-badge.gold{background:linear-gradient(135deg,#f7b733,#f57f17)}
+#analytics .rank-badge.silver{background:linear-gradient(135deg,#a9b8c7,#7d8ea0)}
+#analytics .rank-badge.bronze{background:linear-gradient(135deg,#e08a4e,#c46a32)}
+#analytics .rank-badge.n{background:#e8eff8;color:var(--ink-2)}
+#analytics .rank-bar{display:inline-block;height:8px;border-radius:4px;vertical-align:middle;background:linear-gradient(90deg,#1e88e5,#003c8f)}
+#analytics .rank-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+
+/* 轨迹控制 */
+#analytics .traj-ctrl{margin-bottom:8px;display:flex;gap:5px;flex-wrap:wrap}
+#analytics .traj-ctrl .ch{font-size:10.5px;padding:3px 8px;border-radius:12px;background:#f3f5f6;color:var(--ink-2);cursor:pointer;border:1px solid transparent;font-weight:600}
+#analytics .traj-ctrl .ch.on{background:var(--cgn-blue);color:#fff;border-color:transparent}
+#analytics .traj-ctrl .ch.off{opacity:.32;text-decoration:line-through}
+
+/* 四态 */
+#analytics .state-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+#analytics .state-card{text-align:center;padding:14px 8px;border-radius:3px;background:#fff;border:1px solid var(--panel-bd);position:relative;overflow:hidden}
+#analytics .state-card .ic{font-size:20px;margin-bottom:4px}
+#analytics .state-card .n{font-size:26px;font-weight:900;line-height:1.1}
+#analytics .state-card .lbl{font-size:12px;color:var(--ink-2);font-weight:700;margin-top:5px}
+#analytics .state-card .pct{font-size:11px;color:var(--ink-dim);margin-top:2px}
+#analytics .state-card .pct b{font-weight:800}
+
+/* 热力 */
+#analytics .heat{display:grid;grid-template-columns:repeat(7,1fr);gap:9px;align-items:center}
+#analytics .heat .heat-cell{aspect-ratio:1;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800;cursor:pointer;position:relative;transition:transform .16s,box-shadow .16s;box-shadow:inset 0 -6px 12px rgba(0,0,0,0.12)}
+#analytics .heat .heat-cell:hover{transform:scale(1.1);box-shadow:0 6px 16px rgba(0,60,143,0.28);z-index:2}
+#analytics .heat .heat-cell .pos{font-size:9px;opacity:.9}
+#analytics .heat .heat-cell .wear{font-size:15px;font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,0.25)}
+#analytics .heat .heat-cell .ch{position:absolute;top:3px;right:5px;font-size:9px;opacity:.75}
+#analytics .heat .heat-cell .inc{position:absolute;bottom:3px;left:4px;font-size:8px;opacity:.9}
+
+/* 关键发现（图标已移除，改用左侧强调条区分条目） */
+#analytics .findings{padding:6px 16px 14px}
+#analytics .finding{position:relative;padding:9px 0 9px 12px;border-bottom:1px dashed rgba(30,55,63,0.10)}
+#analytics .finding::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:2px;background:var(--amber)}
+#analytics .finding:last-child{border-bottom:0}
+#analytics .finding .text{flex:1;line-height:1.7;color:var(--ink-2)}
+#analytics .finding .text b{color:var(--ink);font-size:12.5px}
+#analytics .finding .text .hl{background:var(--amber-bg);color:#b57e0a;font-weight:800;padding:0 4px;border-radius:4px}
+
+/* 异常清单 */
+#analytics .abn-table{width:100%;font-size:11.5px;border-collapse:collapse}
+#analytics .abn-table th{background:#fdf3f3;color:#a34a4a;font-weight:700;padding:7px 8px;text-align:left;border-bottom:1px solid #f3d9d9;white-space:nowrap}
+#analytics .abn-table td{padding:6px 8px;border-bottom:1px dashed rgba(232,69,69,0.10)}
+#analytics .abn-table tr{cursor:pointer;transition:background .12s}
+#analytics .abn-table tr:hover td{background:#fff7f7}
+#analytics .risk-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:12px;font-size:10.5px;font-weight:800;letter-spacing:.4px}
+/* 等级色点由 CSS 绘制（原为 🔴🟠🟡 emoji） */
+#analytics .risk-chip i{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:currentColor}
+#analytics .risk-chip.cr{background:var(--red-bg);color:var(--red)}
+#analytics .risk-chip.co{background:var(--orange-bg);color:var(--orange)}
+#analytics .risk-chip.ca{background:var(--amber-bg);color:#b57e0a}
+
+/* 图例条 */
+#analytics .legendbar{display:flex;gap:14px;flex-wrap:wrap;padding:7px 14px;background:#f7f9fa;border-top:1px solid var(--panel-bd);font-size:11px;color:var(--ink-2);align-items:center}
+#analytics .legendbar .lb{display:inline-flex;align-items:center;gap:5px}
+#analytics .legendbar .sw{width:11px;height:11px;border-radius:3px;display:inline-block;flex:none}
+
+/* 图例项：可悬浮聚焦 / 点击锁定（用于群厂多线图区分 20 条机组曲线） */
+#analytics .legendbar .lb.c31-lb{cursor:pointer;padding:2px 7px;border-radius:10px;border:1px solid transparent;
+  transition:background .12s,border-color .12s,opacity .12s;user-select:none}
+#analytics .legendbar .lb.c31-lb:hover,
+#analytics .legendbar .lb.c31-lb.focus{background:#eaf2fb;border-color:#bcd7f0}
+#analytics .legendbar .lb.c31-lb.pinned{background:#0066cc;border-color:#0066cc;color:#fff;font-weight:600}
+#analytics .legendbar .lb.c31-lb.pinned .sw{box-shadow:0 0 0 1.5px #fff}
+#analytics .legendbar .lb.c31-lb.dim{opacity:.62}
+#analytics .tt-all-note{display:block;width:100%;font-size:11px;color:var(--ink-dim);padding:4px 0}
+#analytics .tt-anomaly-details{margin-top:10px;border-top:1px solid var(--panel-bd);padding-top:8px}
+#analytics .tt-anomaly-details>summary{cursor:pointer;color:var(--ink-2);font-weight:700;font-size:12px}
+#analytics .tube-history-selector{display:flex;align-items:center;gap:8px;margin:14px 0 8px;font-size:12px}
+#analytics .tube-history-selector select{max-width:180px}
+#analytics .tube-history-view{border-top:1px solid var(--panel-bd);padding-top:10px}
+#analytics .tube-history-view h3{font-size:15px;margin:0 0 6px}
+#analytics .tube-history-view>p{font-size:12px;line-height:1.5;color:var(--ink-2);margin:0 0 10px}
+#analytics .tube-history-timeline{max-height:440px;overflow:auto}
+#analytics .tube-history-gap{padding:8px 10px;border-left:3px solid #b77c29;background:var(--panel-bg);color:var(--ink-2);font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+#analytics .tube-history-round{display:grid;grid-template-columns:130px minmax(0,1fr);border-top:1px solid var(--panel-bd);padding:10px 0;gap:12px}
+#analytics .tube-history-round-title{display:flex;flex-direction:column;gap:4px;font-size:12px}
+#analytics .tube-history-round-title span,#analytics .tube-history-round-meta,#analytics .tube-history-maintenance,#analytics .tube-history-empty{font-size:12px;color:var(--ink-2)}
+#analytics .tube-history-findings{display:flex;flex-wrap:wrap;gap:6px;margin:7px 0}
+#analytics .tube-history-finding{display:inline-flex;flex-direction:column;gap:3px;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;border:1px solid var(--panel-bd);border-left:3px solid #b86b43;border-radius:4px;padding:5px 8px;font-size:12px}
+#analytics .tube-history-maintenance{line-height:1.5;margin:4px 0;overflow-wrap:anywhere}
+@media(max-width:600px){#analytics .tube-history-round{grid-template-columns:1fr;gap:6px}#analytics .tube-history-round-title{flex-direction:row}}
+#analytics .dcs-chart-box h3 small{font-size:11px;font-weight:500;color:var(--ink-dim);margin-left:6px}
+#analytics .vw-compact-action{border:1px solid var(--panel-bd);background:#fff;color:var(--cgn-deep);border-radius:5px;padding:4px 9px;cursor:pointer;font-size:11px}
+#analytics .vw-compact-action:hover{border-color:var(--cgn-blue);background:#f2f8ff}
+
+/* 地图容器：强制铺满面板全部宽度，不留白 */
+#analytics #analysisMap{width:100%!important;max-width:680px!important;margin:0 auto;display:block}
+#analytics #analysisMap .map-shell{width:100%!important;max-width:680px!important;margin:0 auto}
+#analytics #analysisMap svg{width:100%!important;height:auto!important;display:block;max-width:none!important}
+#analytics #analysisMap .map-shell{background:#f7fafc;border:1px solid #d5e0e8;border-radius:6px;overflow:hidden}
+#analytics #analysisMap .map-zoom button{box-shadow:0 1px 4px rgba(25,55,80,.12)}
+#analytics .chart-legend-note{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0 0;padding:7px 10px;background:#f7f9fa;border:1px solid var(--panel-bd);font-size:11px;color:var(--ink-2)}
+#analytics .chart-legend-note b{color:var(--ink)}
+#analytics .chart-legend-note .sw{width:11px;height:11px;border-radius:2px;display:inline-block;margin-right:4px;vertical-align:-1px}
+#analytics #mapNote{font-size:11.5px;color:var(--ink-dim);margin-top:6px;padding:6px 10px;background:#f7f9fa;border-radius:8px}
+
+/* ============ 历次大修演变（C1–C8） ============ */
+#analytics .oe-wrap .panel-bd{padding:12px 14px}
+#analytics .oe-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px}
+/* KPI 卡统一规范：与页面原生 .kpi 一致 —— 左侧 4px 蓝渐变强调条 + 统一阴影 */
+#analytics .oe-kpi{position:relative;overflow:hidden;background:#fff;border:1px solid var(--panel-bd);
+  border-radius:3px;padding:9px 11px;box-shadow:var(--shadow)}
+#analytics .oe-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+  background:linear-gradient(180deg,var(--cgn-blue-2),var(--cgn-deep))}
+#analytics .oe-k{font-size:11px;color:var(--ink-dim);letter-spacing:.3px}
+#analytics .oe-v{font-size:21px;font-weight:800;line-height:1.25;margin:2px 0}
+#analytics .oe-v small{font-size:11px;font-weight:600;margin-left:3px;color:var(--ink-dim)}
+#analytics .oe-s{font-size:10.5px;color:var(--ink-dim);line-height:1.5}
+#analytics .oe-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+#analytics .oe-box{border:1px solid var(--panel-bd);border-radius:3px;background:#fff;overflow:hidden}
+#analytics .oe-box .chart{width:100%;height:auto;display:block}
+#analytics .oe-hd{font-size:12.5px;font-weight:700;color:var(--ink);padding:8px 12px;background:var(--bg-2);border-bottom:1px solid var(--panel-bd);display:flex;align-items:baseline;gap:8px}
+#analytics .oe-sub{font-size:11px;font-weight:500;color:var(--ink-dim);margin-left:auto}
+#analytics .oe-box .note{margin:0 10px 10px}
+#analytics .oe-mx-wrap{border:1px solid var(--panel-bd);border-radius:3px;background:#fff;overflow:hidden}
+#analytics .oe-matrix{max-height:330px;overflow:auto;padding:6px 10px}
+#analytics .oe-mx-row{display:flex;align-items:center;gap:8px;padding:1px 0;border-radius:4px}
+#analytics .oe-mx-row[data-ch]{cursor:pointer}
+#analytics .oe-mx-row[data-ch]:hover{background:#f3f5f6}
+#analytics .oe-mx-row.active{background:#e8f1fc;box-shadow:inset 0 0 0 1px #bcd6f5}
+#analytics .oe-mx-lab{width:52px;flex:none;font-size:10.5px;color:var(--ink-dim);display:flex;gap:4px;align-items:baseline}
+#analytics .oe-mx-lab b{font-size:11px;color:var(--ink);min-width:16px;text-align:right;display:inline-block}
+#analytics .oe-mx-cells{flex:1;display:grid;grid-template-columns:repeat(8,1fr);gap:3px}
+#analytics .oe-cell{height:15px;border-radius:3px;display:block;box-shadow:inset 0 0 0 1px rgba(16,42,74,.05)}
+#analytics .oe-cell.over{box-shadow:inset 0 0 0 1px rgba(232,69,69,.55)}
+#analytics .oe-cell.sel{box-shadow:inset 0 0 0 1.5px #0066cc}
+#analytics .oe-mx-head .oe-mx-cells i{height:auto;background:none;font-style:normal;font-size:10px;font-weight:700;color:var(--ink-dim);text-align:center}
+#analytics .oe-mx-sum{width:38px;flex:none;text-align:right;font-size:10.5px;color:var(--ink-dim)}
+#analytics .oe-mx-head{padding-bottom:4px;border-bottom:1px solid var(--panel-bd);margin-bottom:2px}
+@media (max-width:1200px){
+  #analytics .oe-kpis{grid-template-columns:repeat(3,1fr)}
+  #analytics .oe-grid{grid-template-columns:1fr}
+}
+
+/* ==================================================================
+   机组台账面板（#ledger）—— 6 基地 20 机组 72 次大修真实台账
+   嵌在「统计分析」页内（不是独立导航视图），外框/内边距沿用 .panel .panel-bd，
+   此处只定义面板内部构件。
+   配色沿用 design-tokens.css：CGN 工业深蓝 #0066cc / 超标红 #e84545 /
+   关注琥珀 #f5b400 / 正常绿 #22a06b（禁止 teal 青绿）
+   ================================================================== */
+
+/* 三级选择器 */
+#ledger .lg-selector{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;
+  padding:12px 14px;margin-bottom:16px;background:var(--bg-2);border:1px solid var(--panel-bd);border-radius:3px}
+#ledger .lg-selector label{display:flex;flex-direction:column;gap:5px;font-size:12px;
+  color:var(--ink-dim);font-weight:600}
+#ledger .lg-selector select{min-width:190px;padding:8px 10px;font-size:13px;color:var(--ink);
+  background:#fff;border:1px solid var(--panel-bd);border-radius:7px;cursor:pointer}
+#ledger .lg-selector select:focus{outline:none;border-color:var(--cgn-blue);
+  box-shadow:0 0 0 3px rgba(0,102,204,.16)}
+
+/* KPI 卡片 */
+#ledger .lg-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:18px}
+#ledger .lg-kpi{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:5px;
+  padding:12px 14px;background:#fff;border:1px solid var(--panel-bd);border-radius:3px;
+  box-shadow:var(--shadow)}
+#ledger .lg-kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+  background:linear-gradient(180deg,var(--cgn-blue-2),var(--cgn-deep))}
+#ledger .lg-kpi.warn{background:#fffafa}
+#ledger .lg-kpi.warn::before{background:linear-gradient(180deg,#ff7b7b,var(--red))}
+#ledger .lg-kpi span{font-size:12px;color:var(--ink-dim)}
+#ledger .lg-kpi b{font-size:22px;font-weight:800;color:var(--ink);line-height:1.15}
+#ledger .lg-kpi small{font-size:11.5px;color:var(--ink-dim)}
+#ledger .lg-kpi small i{font-style:normal;font-weight:600}
+#ledger .lg-kpi small i.up{color:var(--red)}
+#ledger .lg-kpi small i.down{color:#22a06b}
+#ledger .lg-kpi small i.flat{color:var(--ink-dim)}
+
+/* 图表容器 */
+#ledger .lg-charts{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin-bottom:16px}
+/* 图表盒与 .oe-box 完全同构：浅色头部条 + 统一边框圆角 */
+#ledger .lg-box{border:1px solid var(--panel-bd);border-radius:3px;background:#fff;
+  overflow:hidden;margin-bottom:12px}
+#ledger .lg-charts .lg-box{margin-bottom:0}
+#ledger .lg-hd{margin:0;font-size:12.5px;font-weight:700;color:var(--ink);padding:8px 12px;
+  background:var(--bg-2);border-bottom:1px solid var(--panel-bd);
+  display:flex;align-items:baseline;gap:8px}
+#ledger .lg-sub{font-size:11px;font-weight:500;color:var(--ink-dim);margin-left:auto}
+#ledger .lg-svg{width:100%;height:auto;display:block}
+#ledger .lg-ax{font-size:10.5px;fill:var(--ink-dim)}
+#ledger .lg-legend{font-size:11px;fill:var(--ink-dim)}
+#ledger .lg-th{font-size:10px;font-weight:600}
+
+/* 管板 */
+#ledger .lg-plate{display:flex;justify-content:center}
+#ledger .lg-cell{cursor:pointer;transition:opacity .12s}
+#ledger .lg-cell:hover{opacity:.78}
+#ledger .lg-cell-t{font-size:10px;fill:var(--ink-2);font-weight:600;pointer-events:none}
+#ledger .lg-cell.active .lg-cell-t{fill:#fff}
+
+/* 单通道明细小表 */
+#ledger .lg-mini{width:100%;margin-top:12px;border-collapse:collapse;font-size:12.5px}
+#ledger .lg-mini th{padding:7px 9px;text-align:left;background:var(--bg-2);color:var(--ink-dim);
+  font-weight:600;border-bottom:1px solid var(--panel-bd)}
+#ledger .lg-mini td{padding:7px 9px;border-bottom:1px solid var(--panel-bd);color:var(--ink-2)}
+#ledger .lg-empty{padding:10px;color:var(--ink-dim);font-size:12.5px}
+
+/* 通道 × 大修 矩阵 */
+#ledger .lg-matrix{overflow-x:auto}
+#ledger .lg-mx{display:grid;grid-template-columns:78px repeat(var(--cols),minmax(46px,1fr));
+  gap:2px;font-size:11.5px;min-width:min-content}
+#ledger .lg-mx-row{display:contents}
+#ledger .lg-mx-row.head span{background:var(--bg-2);color:var(--ink-dim);font-weight:700;
+  padding:6px 4px;text-align:center;border-radius:4px}
+#ledger .lg-mx-row:not(.head){cursor:pointer}
+#ledger .lg-mx-row:not(.head):hover span{background:var(--bg-1)}
+#ledger .lg-mx-row.active span{box-shadow:inset 0 0 0 9999px rgba(0,102,204,.09)}
+#ledger .lg-mx-ch{display:flex;align-items:baseline;gap:5px;padding:4px 8px;background:#fff;
+  color:var(--ink-2);font-weight:600;border-radius:4px;white-space:nowrap}
+#ledger .lg-mx-ch i{font-style:normal;font-size:10px;color:var(--ink-dim);font-weight:500}
+#ledger .lg-mx-c{padding:4px;text-align:center;border-radius:4px;background:#fff;
+  color:var(--ink);font-variant-numeric:tabular-nums}
+#ledger .lg-mx-c.z{background:var(--bg-2);color:#cbd5e1}
+#ledger .lg-mx-c.g{background:var(--green-bg);color:#177a4f}
+#ledger .lg-mx-c.a{background:var(--amber-bg);color:#96690a}
+#ledger .lg-mx-c.r{background:var(--red-bg);color:#b52b2b;font-weight:700}
+
+/* 数据质量提示 —— 与页面原生 .alert 同构：左侧 4px 强调条 + 统一圆角阴影 */
+#ledger .lg-alert{position:relative;overflow:hidden;padding:11px 15px;margin-bottom:12px;
+  background:var(--amber-bg);border:1px solid var(--panel-bd);border-radius:3px;
+  box-shadow:var(--shadow);font-size:12.5px;color:#7a5b0d;
+  display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#ledger .lg-alert::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+  background:var(--amber)}
+#ledger .lg-alert b{font-weight:700}
+#ledger .lg-chip{padding:2px 8px;background:#fff;border:1px solid var(--panel-bd);border-radius:11px;
+  font-size:11.5px;color:#7a5b0d}
+
+/* 结论摘要 */
+#ledger .lg-summary{padding:13px 16px;background:var(--bg-2);border:1px solid var(--panel-bd);
+  border-radius:3px;font-size:13px;line-height:1.75;color:var(--ink-2)}
+#ledger .lg-summary p{margin:0}
+#ledger .lg-summary b{color:var(--ink)}
+#ledger .lg-summary .warn{display:inline-flex;align-items:center;gap:6px;color:var(--red);font-weight:600}
+#ledger .lg-summary .warn i{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:currentColor}
+
+@media (max-width:1400px){
+  #ledger .lg-kpis{grid-template-columns:repeat(3,1fr)}
+}
+@media (max-width:1100px){
+  #ledger .lg-charts{grid-template-columns:1fr}
+  #ledger .lg-kpis{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ==================================================================
+   数据可视化三图（群厂磨损趋势 / P1-P5 分层趋势 / 管板更换分布）
+   ================================================================== */
+
+/* 通用图表容器 */
+#analytics .viz-chart{width:100%;overflow-x:auto;padding:4px 0}
+#analytics .viz-chart svg{display:block;margin:0 auto;max-width:100%}
+#analytics .chart-toolbar{padding:6px 0}
+
+/* 群厂磨损趋势 — 宽幅全面板 */
+#chart31{min-height:250px}
+#c31Legend .lb{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-2)}
+
+/* P1-P5 分层趋势 + 管板更换分布（并排 row.r2 内） */
+#chart32,#chart34{min-height:230px}
+#c34Toolbar select{font-size:12px;padding:4px 6px;border:1px solid var(--panel-bd);border-radius:4px;background:#fff;color:var(--ink);cursor:pointer}
+#c32Toolbar select{font-size:12px;padding:4px 6px;border:1px solid var(--panel-bd);border-radius:4px;background:#fff;color:var(--ink);cursor:pointer}
+
+/* 折线图交互：hover 高亮数据点 */
+#analytics .series:hover path{stroke-width:3;filter:brightness(0.92)}
+#analytics .series circle{transition:r .15s,fill .15s}
+#analytics .series circle:hover{r:5;filter:brightness(0.85)}
+#analytics #chart31 .series path,
+#analytics #chart31 .series circle{opacity:1}
+
+/* ==================================================================
+   数据可视化三图通用组件样式（cft-* 前缀由 chart-factory.js 使用）
+   ================================================================== */
+
+/* 筛选条：chip 多选 + 下拉 + 按钮 */
+#analytics .cft-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:6px 14px;
+  background:var(--bg-2);border-bottom:1px solid var(--panel-bd);
+  font-size:12.5px;color:var(--ink-2)}
+#analytics .cft-lbl{font-size:11.5px;color:var(--ink-dim);font-weight:700;letter-spacing:.3px}
+#analytics .cft-sep{width:1px;height:18px;background:var(--panel-bd)}
+#analytics .cft-chips{display:flex;gap:5px;flex-wrap:wrap}
+#analytics .cft-chip{font-size:11.5px;padding:3px 11px;border-radius:14px;background:#fff;
+  border:1px solid var(--panel-bd);color:var(--ink-2);cursor:pointer;user-select:none;
+  transition:all .15s;font-weight:600}
+#analytics .cft-chip:hover{border-color:#9ca8b2;background:#f3f5f6}
+#analytics .cft-chip.active{background:var(--cgn-blue);color:#fff;border-color:var(--cgn-blue);
+  box-shadow:0 2px 4px rgba(0,102,204,.25)}
+#analytics .cft-sel{font-size:12px;padding:4px 8px;border:1px solid var(--panel-bd);
+  border-radius:4px;background:#fff;color:var(--ink);cursor:pointer;min-width:140px}
+#analytics .cft-btn{font-size:12px;padding:4px 14px;border:1px solid var(--panel-bd);
+  background:#fff;color:var(--ink-2);border-radius:4px;cursor:pointer;font-weight:600;
+  transition:all .12s}
+#analytics .cft-btn:hover{border-color:#9ca8b2;background:#f3f5f6}
+#analytics .cft-btn.primary{background:var(--cgn-blue);color:#fff;border-color:var(--cgn-blue)}
+#analytics .cft-btn.primary:hover{background:var(--cgn-deep);border-color:var(--cgn-deep)}
+
+/* 图表下方统计/趋势/筛选说明（chart-factory 注入了 .cft-* 节点） */
+#analytics .cft-stats{display:flex;gap:18px;flex-wrap:wrap;padding:8px 14px;
+  background:linear-gradient(90deg,#f7fbff,#fff);border-bottom:1px solid var(--panel-bd);
+  font-size:12.5px;color:var(--ink-2);align-items:center}
+#analytics .cft-stats b{color:var(--ink);font-weight:800;font-size:13.5px;margin:0 2px}
+#analytics .cft-trend{padding:7px 14px;font-size:12.5px;color:var(--ink-2);
+  background:#fbfcfd;border-bottom:1px solid var(--panel-bd);line-height:1.65}
+#analytics .cft-trend b{font-weight:700}
+#analytics .cft-filter{padding:6px 14px;font-size:11.5px;color:var(--ink-dim);
+  background:#f7f9fa;letter-spacing:.2px}
+#analytics .cft-filter b{color:var(--cgn-deep);font-weight:700}
+
+#analytics .cft-empty{padding:60px 20px;text-align:center;color:var(--ink-dim);font-size:13px}
+#analytics .cft-loading{min-height:150px;display:flex;align-items:center;justify-content:center;gap:9px;color:var(--ink-dim);font-size:12px}
+#analytics .cft-loading i{width:13px;height:13px;border:2px solid #c9d7e3;border-top-color:var(--cgn-blue);border-radius:50%;animation:cft-spin .75s linear infinite}
+@keyframes cft-spin{to{transform:rotate(360deg)}}
+#analytics .cft-load-progress{display:flex;align-items:center;gap:10px;padding:5px 0;color:var(--ink-dim);font-size:11px}
+#analytics .cft-load-progress[hidden]{display:none}
+#analytics .cft-load-track{width:120px;height:5px;overflow:hidden;border-radius:3px;background:#e6edf1}
+#analytics .cft-load-fill{display:block;width:0;height:100%;border-radius:3px;background:#16838b;transition:width .18s ease}
+
+/* 折线图 SVG 默认尺寸与字体 */
+#analytics .cft-svg{width:100%;height:auto;display:block;
+  font-family:'Microsoft YaHei','PingFang SC',-apple-system,sans-serif}

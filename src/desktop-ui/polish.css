@@ -1,0 +1,360 @@
+/* ============================================================
+   polish.css —— 2026-08-30 精简：多个小样式文件按原 <link> 顺序合并
+   合并顺序与级联完全等价；无 @import/@charset/url()，可安全合并。
+   原文件：workspace-polish.css → ux-polish.css → buttons.css
+   ============================================================ */
+
+/* ---------- workspace-polish.css ---------- */
+.page-size{display:flex;align-items:center;gap:6px;color:#65717e;font-size:12px}.page-size select,.pager-left select{height:30px;min-width:62px;border:1px solid #cbd4da;border-radius:4px;background:#fff;padding:0 6px;color:#18212b}.pager{justify-content:space-between}.pager-left,.pager-right{display:flex;align-items:center;gap:8px}.pager-left{color:#65717e;font-size:12px}.table-panel .panel-title{gap:16px}.table-panel .panel-title>div{display:flex;align-items:baseline;gap:9px}.heading-actions{margin-left:auto}.metrics{display:none}
+.toolbar-spacer{flex:1;min-width:12px}.toolbar #openImportFlow,.toolbar #clearRecordsBtn{flex:0 0 auto;white-space:nowrap}
+@media(max-width:900px){.toolbar-spacer{display:none}.toolbar #openImportFlow,.toolbar #clearRecordsBtn{margin-top:4px}}
+.workspace-heading{display:none!important}
+.selection-tools{display:flex;align-items:center;gap:8px;margin-left:auto}.selection-tools button{height:30px;min-width:92px;padding:0 10px;white-space:nowrap}.selection-tools #clearPageSelection{border-color:#c7d5d8;color:#3d5960;background:#fff}.selection-tools #clearPageSelection:hover{border-color:#0055a4;color:#0055a4;background:#eef4fb}
+.table-panel th:first-child,.table-panel td:first-child{width:52px;text-align:center}.table-panel th:nth-child(2),.table-panel td:nth-child(2){width:42px;text-align:center}.table-panel td.row-number{color:#6a7b82;font-variant-numeric:tabular-nums}
+#workspace .split{grid-template-columns:minmax(760px,1.8fr) minmax(390px,.8fr)}#workspace .table-panel table{min-width:875px;table-layout:fixed}#workspace .table-panel th,#workspace .table-panel td{padding-left:5px;padding-right:5px;overflow:hidden;text-overflow:ellipsis}#workspace .table-panel th:nth-child(1){width:42px}#workspace .table-panel th:nth-child(2){width:38px}#workspace .table-panel th:nth-child(3){width:55px}#workspace .table-panel th:nth-child(4){width:42px}#workspace .table-panel th:nth-child(5){width:68px}#workspace .table-panel th:nth-child(6){width:70px}#workspace .table-panel th:nth-child(7){width:58px}#workspace .table-panel th:nth-child(8){width:62px}#workspace .table-panel th:nth-child(9){width:80px;line-height:1.35}#workspace .table-panel th:nth-child(10){width:96px}#workspace .table-panel th:nth-child(11){width:86px}#workspace .table-panel th:nth-child(12){width:70px}@media(max-width:1100px){#workspace .split{grid-template-columns:1fr}}
+.compare-outages{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%}
+.compare-outage-item{display:flex;align-items:center;gap:6px}
+.compare-outage-item select{min-width:130px}
+.compare-outage-item button{padding:0 8px;min-width:30px}
+#addCompareOutage{white-space:nowrap}
+.selection-scope-warning{margin:0;padding:9px 12px;border-bottom:1px solid #e4c77b;background:#fff8e5;color:#765716;font-size:12px;line-height:1.5}
+
+/* ---------- ux-polish.css ---------- */
+#networkProgress{position:fixed;z-index:9999;left:224px;right:0;top:0;height:3px;pointer-events:none;overflow:hidden}#networkProgress:before{content:"";display:block;width:32%;height:100%;background:#d1943b;transform:translateX(-110%)}body.network-busy #networkProgress:before{animation:network-progress 1s ease-in-out infinite}@keyframes network-progress{50%{transform:translateX(150%)}100%{transform:translateX(340%)}}
+body{background:var(--bg);color:var(--ink)}main{padding-top:18px}
+.app-nav>strong{display:block!important;min-width:30px;width:30px;margin-right:14px}
+.app-nav>strong b,.app-nav>strong small{display:none!important}
+.panel,.metrics article{border-color:var(--line);box-shadow:0 4px 18px rgba(30,55,63,.06)}.panel-title{background:linear-gradient(180deg,#fff,#f8fbfb)}.panel-title h2{color:#20343c}.toolbar input,.toolbar select,label input,label select,label textarea{border-color:#c6d5da;background:#fff}.toolbar input:focus,.toolbar select:focus,label input:focus,label select:focus,label textarea:focus{border-color:#4a90d9;box-shadow:0 0 0 3px rgba(0,102,204,.14);outline:0}.primary{background:var(--primary);border-color:var(--primary)}.primary:hover{background:var(--primary-dark);border-color:var(--primary-dark)}
+th{background:#edf2f7;color:#3f5c78;border-bottom-color:#cfdee1}td{border-bottom-color:#e7eef0}tbody tr:hover{background:#f3f7fb}tbody tr.selected{background:#e2eef8;box-shadow:inset 3px 0 #0b5cad}.selection-action-bar{border-color:#c9dadd;background:#f5f9f9;box-shadow:0 3px 12px rgba(30,55,63,.04)}.selection-action-bar span{color:#21434a}.selection-actions button{border-color:#bfd0d4}.selection-actions button.primary{color:#fff}.danger-outline{border-color:#d8b1b4;color:#a63f47}.danger-outline:hover{background:#fff4f4}
+.core-panel{background:#f8fbfb}.core-map{background-color:#f5f9fa;background-image:linear-gradient(#dce7e9 1px,transparent 1px),linear-gradient(90deg,#dce7e9 1px,transparent 1px);border-color:#c3d4d8;box-shadow:inset 0 0 0 1px #fff}.core-switch{border-color:#c4d5d8!important;background:#fff}.core-switch button.active{background:#147f78!important;color:#fff!important}.legend{color:#587078}.detail{border-top-color:#d7e3e5}.summary-box.r{border-color:#3d8a70}.summary-box.ni{border-color:#bd6267}.summary-box.pending{border-color:#c58b18}.tag.r{background:#e2f1eb;color:#286b56}.tag.ni{background:#fae8e8;color:#a63f47}.tag.待确认{background:#fff4d6;color:#8b6500}
+@media(max-width:760px){#networkProgress{left:0}.selection-action-bar{align-items:flex-start;flex-direction:column}.selection-action-bar>div:first-child{display:grid;gap:2px}.selection-actions{width:100%}.selection-actions button{flex:1}}
+
+/* Final workstation layout pass: compact controls, stable panels and clear action hierarchy. */
+main{padding-left:clamp(14px,2.2vw,32px);padding-right:clamp(14px,2.2vw,32px)}
+#workspace .toolbar{margin:0 0 14px;padding:10px 12px;border:1px solid #cbdadd;border-radius:8px;background:#f8fbfb;box-shadow:0 3px 12px rgba(27,56,64,.06);gap:8px}
+#workspace .toolbar select,#workspace .toolbar input{min-width:138px;border-radius:5px;background:#fff}
+#workspace .toolbar #analyst{min-width:150px}#workspace .toolbar #thimble{min-width:116px;width:116px}
+#workspace .toolbar #searchBtn,#workspace .toolbar #resetBtn,#workspace .toolbar #openImportFlow,#workspace .toolbar #clearRecordsBtn{height:34px;border-radius:5px;font-weight:600}
+#workspace .toolbar #openImportFlow{background:#0055a4;border-color:#0055a4;color:#fff}
+#workspace .toolbar #clearRecordsBtn{background:#fff7f7}
+.toolbar-spacer{min-width:18px}
+#workspace .split{gap:16px;align-items:start}
+#workspace .table-panel,#workspace .core-panel{border-radius:8px;overflow:hidden}
+#workspace .table-panel .panel-title,#workspace .core-panel .panel-title{height:54px;padding:0 16px}
+#workspace .table-panel .panel-title h2,#workspace .core-panel .panel-title h2{font-size:14px;font-weight:700}
+#workspace .table-wrap{background:#fff}
+#workspace th{height:38px;padding:8px 11px;font-size:11px;letter-spacing:.02em}
+#workspace td{height:38px;padding:8px 11px;font-size:12px}
+#workspace .pager{height:50px;background:#fbfcfc;border-top:1px solid #e1eaec}
+#workspace .pager button{min-width:68px;border-radius:5px}
+#workspace .core-map{margin-top:12px;margin-bottom:10px;border-radius:6px}
+#workspace .legend{padding:3px 14px 10px;flex-wrap:wrap;line-height:20px}
+#workspace .detail{margin:8px 16px 0;padding-top:12px}
+.core-switch{margin:0 16px 8px!important;border-radius:6px;overflow:hidden}
+.core-switch button{height:34px;font-size:12px;font-weight:600}
+.compare-panel,.state-panel,.server-panel,.report-settings,.export-catalog{border-radius:8px;overflow:hidden}
+.compare-filters{padding:12px 14px!important;background:#f7fbfb}.compare-filters select{min-width:140px;border-radius:5px}
+.compare-summary{background:#fbfcfc;border-bottom:1px solid #e1eaec}
+.dialog-actions button{border-radius:5px}.dialog-actions .primary{min-width:128px}
+button:disabled{filter:saturate(.55);opacity:.55}
+@media(max-width:1080px){#workspace .toolbar-spacer{display:none}#workspace .toolbar #openImportFlow{margin-left:auto}}
+@media(max-width:760px){main{padding:10px 9px 20px}#workspace .toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:9px}#workspace .toolbar>*{width:100%;min-width:0!important}#workspace .toolbar .toolbar-spacer{display:none}#workspace .toolbar #openImportFlow{margin-left:0}.core-switch{margin-left:10px!important;margin-right:10px!important}}
+.pager .page-size-label{font-size:12px;color:#64777e;margin-right:2px}.pager #pageSize{height:30px;min-width:58px;border:1px solid #c6d5da;border-radius:5px;background:#fff;padding:0 6px;color:#1e3038;margin-right:auto}
+html,body{width:100%;min-width:0;min-height:100%;overflow:hidden}.app-nav{width:100vw}main{width:100%;max-width:none;height:calc(100dvh - 58px);min-height:0;overflow:auto;padding:14px clamp(12px,2vw,30px) 24px}.view.active{min-height:calc(100dvh - 86px)}#workspace .split{min-height:calc(100dvh - 230px)}#workspace .table-panel,#workspace .core-panel{min-height:0}.table-wrap{max-height:calc(100dvh - 300px)}
+@media(max-width:1080px){main{height:calc(100dvh - 58px)}#workspace .split{min-height:0}.table-wrap{max-height:calc(100dvh - 470px)}}
+#coreMap .orientation.left::after,
+#coreMap .orientation.right::before{border-top:6px solid transparent!important;border-bottom:6px solid transparent!important;border-left:10px solid #fff!important;border-right:0!important}
+#coreMap .orientation.right::before{border-left:10px solid #fff!important;border-right:0!important}
+#coreMap .orientation.top::after,#coreMap .orientation.bottom::before{content:none!important;border:0!important}
+.path-marker.mode-combined .odd-path,.path-marker.mode-combined .even-path{display:none!important}
+.path-marker.mode-odd .combined-path,.path-marker.mode-even .combined-path{display:none!important}
+.path-marker.mode-combined .combined-path{display:flex;width:100%;border:0!important;background:var(--tube-color,#fff)!important;color:#26343c!important;font-size:8px;font-weight:800}
+.path-marker.mode-combined{grid-template-columns:1fr;background:#fff}
+.path-marker.mode-odd .odd-path,.path-marker.mode-even .even-path{background:var(--tube-color,#fff)!important;color:#26343c!important}
+.nav-settings{margin-left:auto!important}
+#states .settings-grid:empty{display:none}
+.state-maintenance-layout{display:grid;grid-template-columns:minmax(420px,.8fr) minmax(520px,1.2fr);gap:16px;align-items:start}
+.state-table-panel{min-width:0}.state-table-panel .table-wrap{max-height:calc(100dvh - 260px);overflow:auto}
+.report-compare-panel{margin-top:16px}.report-compare-panel .table-wrap{max-height:360px;overflow:auto}
+@media(max-width:980px){.state-maintenance-layout{grid-template-columns:1fr}.nav-settings{margin-left:0!important}}
+
+.state-table-toolbar{display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;background:#f7fbfb;border-bottom:1px solid #dfe9eb}.state-table-toolbar input,.state-table-toolbar select{height:32px;min-width:120px;border:1px solid #cbdadd;border-radius:4px;padding:0 8px;background:#fff}.state-table-toolbar button{height:32px}.state-table-panel table{min-width:760px}.state-table-panel td input,.state-table-panel td select{height:30px;min-width:72px;border:1px solid #cbdadd;border-radius:3px;padding:0 6px;background:#fff}.state-table-panel td .inline-note{min-width:160px}.state-table-panel td:last-child{display:flex;gap:5px}.state-table-panel .state-save,.state-table-panel .state-delete{height:28px;padding:0 8px;font-size:11px}.state-table-panel .state-delete{color:#a63f47}
+
+/* Flow marks reproduce the source tube-board drawing: horizontal 90/270
+   arrows, a diagonal INLET, three matching corner arrows and bottom 0 deg. */
+#coreMap .flow-mark{position:absolute;z-index:9;color:#263a43;font-size:10px;font-weight:800;white-space:nowrap;pointer-events:none}
+#coreMap .flow-mark b,#coreMap .flow-mark span{position:absolute;display:block;text-align:center}
+#coreMap .flow-mark i{position:absolute;display:block;width:46px;height:2px;background:#263a43;transform-origin:center}
+#coreMap .flow-mark i::after{content:'';position:absolute;right:-1px;top:-5px;width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-left:10px solid #263a43}
+#coreMap .side-left,#coreMap .side-right{top:calc(7 * var(--cell));width:64px;height:46px;transform:translateY(-18px)}
+#coreMap .side-left{left:-72px}
+#coreMap .side-right{right:-72px}
+#coreMap .side-left i,#coreMap .side-right i{left:8px;top:18px}
+#coreMap .side-left span,#coreMap .side-right span{top:31px;left:0;width:64px}
+#coreMap .side-right b{top:-2px;left:0;width:64px;letter-spacing:.4px}
+#coreMap .corner{width:54px;height:54px}
+#coreMap .corner i{left:10px;top:26px;width:34px}
+#coreMap .corner i::after{top:-4px;border-top-width:5px;border-bottom-width:5px;border-left-width:8px}
+#coreMap .top-left{left:13%;top:-10px}
+#coreMap .top-left i{transform:rotate(-126deg)}
+#coreMap .top-right{right:13%;top:-10px}
+#coreMap .top-right i{transform:rotate(124deg)}
+#coreMap .top-right b{left:44px;top:6px;letter-spacing:.4px}
+#coreMap .bottom-left{left:13%;bottom:-10px}
+#coreMap .bottom-left i{transform:rotate(110deg)}
+#coreMap .bottom-right{right:13%;bottom:-10px}
+#coreMap .bottom-right i{transform:rotate(-117deg)}
+#coreMap .one-eighty{left:50%;top:-42px;transform:translateX(-50%);font-size:11px}
+#coreMap .zero{left:50%;bottom:-34px;transform:translateX(-50%);font-size:11px}
+
+/* Combined mode is a real split tube marker: odd on the left, even on the right.
+   Each half receives its own severity colour; an unselected half remains white. */
+#workspace .path-marker.mode-combined{
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  background:#fff!important;
+}
+#workspace .path-marker.mode-combined .combined-path{display:none!important}
+#workspace .path-marker.mode-combined .odd-path,
+#workspace .path-marker.mode-combined .even-path{
+  display:flex!important;
+  width:100%!important;
+  height:100%!important;
+  border:0!important;
+  background:var(--odd-color,#fff)!important;
+  color:#26343c!important;
+}
+#workspace .path-marker.mode-combined .even-path{
+  border-left:1px solid #34434c!important;
+  background:var(--even-color,#fff)!important;
+}
+#workspace .path-marker.mode-combined.selected{
+  outline:none!important;
+  box-shadow:0 1px 2px #0002!important;
+}
+#workspace .path-marker.mode-odd .combined-path,
+#workspace .path-marker.mode-even .combined-path{display:none!important}
+#workspace .path-marker.mode-odd .odd-path,
+#workspace .path-marker.mode-even .even-path{
+  display:flex!important;
+  width:100%!important;
+  background:var(--tube-color,#fff)!important;
+  color:#26343c!important;
+}
+#workspace .path-marker.mode-odd .even-path,
+#workspace .path-marker.mode-even .odd-path{display:none!important}
+
+/* A selected tube uses only its fill colour; avoid oversized red focus rings
+   that obscure neighbouring fixed tube positions. */
+#workspace .path-marker.selected,
+#workspace .path-marker.focused{outline:none!important;box-shadow:0 1px 3px #0003!important;transform:translate(-50%,-50%)!important}
+#workspace .path-marker:hover{z-index:5;transform:translate(-50%,-50%) scale(1.08)!important}
+.danger-outline{border-color:#cf858a!important;color:#9f2933!important;background:#fff3f3!important;font-weight:600}.danger-outline:hover{background:#b52d35!important;border-color:#b52d35!important;color:#fff!important}
+
+/* Single-number tube board: keep each marker inside its reference cell. */
+#workspace .split{grid-template-columns:minmax(620px,2.05fr) minmax(560px,.95fr);gap:16px}
+#workspace .core-panel{min-width:560px}
+#workspace .core-map{padding:36px 40px 36px 68px!important}
+#workspace .path-marker{width:26px;height:26px}
+#workspace .path-half{font-size:8px}
+#workspace .flow-mark.side-left{left:-64px}
+#workspace .flow-mark.side-right{right:-64px}
+#workspace .flow-mark.side-left i,
+#workspace .flow-mark.side-right i{width:22px}
+#workspace .flow-mark.side-left span{left:0;width:54px}
+#workspace .flow-mark.side-right b,
+#workspace .flow-mark.side-right span{left:-20px;width:54px}
+@media(max-width:1280px){#workspace .split{grid-template-columns:1fr}#workspace .core-panel{min-width:0;order:-1}}
+@media(max-width:560px){#workspace .core-map{padding:28px!important}.path-marker{width:19px;height:19px}.path-half{font-size:8px}}
+
+/* Reference-board arrow layout: keep the grid centered and reserve equal
+   gutters for the four direction marks instead of letting them collide with
+   the edge cells or coordinate labels. */
+#workspace .core-map{
+  --board-gutter-x:68px;
+  padding:36px var(--board-gutter-x)!important;
+}
+#workspace #coreMap .side-left,
+#workspace #coreMap .side-right{
+  top:calc(7 * var(--cell));
+  width:64px;
+  height:46px;
+  transform:translateY(-18px);
+}
+#workspace #coreMap .side-left{left:-64px}
+#workspace #coreMap .side-right{right:-64px}
+#workspace #coreMap .side-left i{
+  left:0;
+  top:18px;
+  width:46px;
+}
+#workspace #coreMap .side-right i{
+  left:17px;
+  top:18px;
+  width:46px;
+}
+#workspace #coreMap .side-left span{
+  top:31px;
+  left:0;
+  width:46px;
+}
+#workspace #coreMap .side-right b{
+  top:-2px;
+  left:0;
+  width:64px;
+}
+#workspace #coreMap .side-right span{
+  top:31px;
+  left:17px;
+  width:46px;
+}
+#workspace #coreMap .corner{width:54px;height:54px}
+#workspace #coreMap .top-left,
+#workspace #coreMap .top-right{top:-10px}
+#workspace #coreMap .bottom-left,
+#workspace #coreMap .bottom-right{bottom:-10px}
+#workspace #coreMap .one-eighty{top:-42px}
+#workspace #coreMap .zero{bottom:-34px}
+@media(max-width:560px){
+  #workspace .core-map{padding:28px!important}
+  #workspace #coreMap .side-left{left:-52px}
+  #workspace #coreMap .side-right{right:-52px}
+  #workspace #coreMap .side-left i,
+  #workspace #coreMap .side-right i{width:34px}
+  #workspace #coreMap .side-right i,
+  #workspace #coreMap .side-right span{left:18px}
+}
+
+/* ---------- buttons.css ---------- */
+/* Consistent, compact action hierarchy for the desktop workstation. */
+button,.button{border-color:#cbd4da;box-shadow:0 1px 0 #00000008;transition:transform .15s ease,background .15s,border-color .15s,color .15s,box-shadow .15s}
+button:hover,.button:hover{border-color:#7ca5c8;background:#f4f8fc;box-shadow:0 4px 10px #173c5a18;transform:translateY(-1px)}
+button:active,.button:active{transform:translateY(1px) scale(.985);box-shadow:none}
+.primary{background:#0055a4;border-color:#0055a4;color:#fff;font-weight:700}
+.primary:hover{background:#00407d;border-color:#00407d;color:#fff}
+.danger-outline{border-color:#cf858a;color:#9f2933;background:#fff3f3;font-weight:600}
+.danger-outline:hover{background:#b52d35;border-color:#b52d35;color:#fff}
+button:focus-visible,.button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #5ba7d1;outline-offset:2px}
+nav button,nav button:hover{background:transparent;box-shadow:none}
+
+/* Empty results and recovery actions stay within the record table. */
+#workspace .workspace-feedback{display:flex;flex-direction:column;align-items:center;gap:10px;padding:32px 16px;white-space:normal;cursor:default}
+#workspace .workspace-feedback strong{font-size:15px;color:var(--ink)}
+#workspace .workspace-feedback p{max-width:360px;margin:0;line-height:1.7;color:var(--muted)}
+#workspace .workspace-feedback button{margin-top:6px}
+#workspace .table-panel>.table-wrap{position:relative}
+#workspace .workspace-feedback{position:absolute;inset:0;justify-content:center;min-height:200px;text-align:center}
+#workspace .workspace-notice #rows .empty{visibility:hidden}
+#workspace .selection-tools button:disabled,#workspace .pager button:disabled{opacity:.45;cursor:default;transform:none;box-shadow:none}
+@media(max-width:1120px){#workspace .workspace-notice .core-panel{order:0}}
+
+/* Keep desktop controls stable and reserve scrolling for the content area. */
+html,body{height:100%;min-height:0;overflow:hidden}
+.app-nav{overflow:hidden;min-height:0}
+.app-nav .nav-group{height:100%;min-height:0}
+.app-nav .nav-group button{height:100%;transform:none!important}
+.app-nav [aria-current=page]{box-shadow:inset 0 -3px var(--primary)}
+button:disabled:hover{transform:none;box-shadow:none}
+#networkProgress{left:0}
+.software-settings-panel .setting-switch{justify-self:end;width:auto;white-space:nowrap;gap:8px}
+.software-settings-panel .setting-switch input[type=checkbox]{display:inline-block;flex:0 0 18px;width:18px;height:18px;padding:0;margin:0;box-shadow:none}
+.software-settings-panel .setting-switch span{white-space:nowrap}
+.panel-title{height:auto;min-height:54px;padding-top:10px;padding-bottom:10px}
+.panel-title>div{min-width:0}
+.panel-title span{line-height:1.6}
+.state-maintenance-layout{grid-template-columns:minmax(320px,.65fr) minmax(0,1.35fr)}
+.state-maintenance-layout .state-panel{width:100%;margin:0}
+#stateForm{grid-template-columns:repeat(2,minmax(0,1fr));padding:16px;gap:14px}
+#stateForm label{min-width:0}
+.state-table-toolbar select{min-width:100px;flex:1 1 100px}
+.state-table-panel th:last-child,.state-table-panel td:last-child{position:sticky;right:0;z-index:2;background:#fff;box-shadow:-2px 0 4px #20343c12}
+.state-table-panel th:last-child{z-index:3;background:#edf2f7}
+.state-table-panel td:last-child{display:table-cell;white-space:nowrap}
+.state-table-panel td:last-child button+button{margin-left:5px}
+.state-load-error{padding:20px;white-space:normal}
+.state-load-error span{display:block;margin-bottom:12px;color:#9f2933}
+@media(max-width:980px){.state-maintenance-layout{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){
+  button,.button,input,select,textarea{transition:none!important}
+}
+
+/* Shared desktop density: restrained surfaces and stable action targets. */
+.panel{box-shadow:0 1px 3px #20343c0a}
+.panel-title{background:#fafcfd}
+.panel-title h2{font-size:14px;line-height:1.5}
+.toolbar button,.pager button,.state-table-toolbar button,.rc-downloads button,
+.dialog-actions button,.server-actions button,.software-settings-panel button{
+  transform:none!important;box-shadow:none;
+}
+input[type=checkbox],input[type=radio]{accent-color:#0055a4}
+th,td{font-variant-numeric:tabular-nums}
+#stateForm input,#stateForm select{height:36px;padding:6px 9px}
+#stateForm textarea{resize:vertical;min-height:76px;max-height:180px}
+#states .panel-title{min-height:62px}
+#states .state-table-panel .empty{padding:22px 14px}
+#settings{padding-top:0!important}
+#settings .settings-sections{width:100%!important;max-width:1680px!important;gap:16px!important}
+#settings .setting-row{grid-template-columns:minmax(0,1fr) 220px;gap:16px}
+#settings .setting-row small{line-height:1.65}
+#settings .setting-row select{width:100%;border-radius:4px}
+#settings .software-settings-panel{border-radius:6px;overflow:hidden}
+#settings .severity-control{grid-template-columns:minmax(0,1fr) 120px;gap:12px;padding:10px 0;min-height:51px}
+#settings .severity-control input[type=color]{justify-self:end;margin:0;width:48px;height:30px}
+#settings .severity-control input[type=number]{justify-self:end;width:100%;height:32px;margin:0}
+#settings .server-panel,#settings #databaseDedup{grid-column:1/-1}
+@media(min-width:1280px){
+  #settings .settings-sections{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
+  #settings .server-panel{order:2}
+  #settings #databaseDedup{order:3}
+}
+@media(max-width:1279px){#settings .settings-sections{grid-template-columns:1fr}}
+@media(max-width:1180px){#settings .setting-row{grid-template-columns:minmax(0,1fr) 210px}}
+
+/* 对比规则版本面板 */
+#analysisRulesPanel .ar-active{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;padding:12px 16px;border:1px solid var(--line);border-left:3px solid var(--primary);background:rgba(38,115,140,.06);border-radius:6px;margin-bottom:12px}
+#analysisRulesPanel .ar-active b{font-size:13px;color:var(--primary)}
+#analysisRulesPanel .ar-active span{font-size:13px;color:#26383e}
+#analysisRulesPanel .ar-active small{font-size:11px;color:var(--muted);width:100%}
+#analysisRulesPanel .ar-list-head{display:flex;justify-content:space-between;align-items:center;margin:6px 0}
+#analysisRulesPanel .ar-list-head b{font-size:12px}
+#analysisRulesPanel .ar-list-head button{font-size:12px;padding:3px 10px}
+#analysisRulesPanel .ar-list{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;max-height:220px;overflow:auto}
+.ar-rule-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.ar-rule-row b{font-size:13px}
+.ar-rule-row span{font-size:12px;color:var(--primary);text-align:right}
+.ar-rule-row small{grid-column:1/-1;font-size:11px;color:var(--muted)}
+.ar-rule-row.active{border-color:var(--primary);background:rgba(38,115,140,.05)}
+#analysisRulesPanel .ar-new{padding-top:10px;border-top:1px dashed var(--line)}
+#analysisRulesPanel .ar-new .setting-row{margin-bottom:8px}
+#analysisRulesPanel .ar-new #arError{color:var(--red);margin:4px 0}
+
+/* 备份与恢复面板 */
+#backupPanel .backup-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
+#backupPanel .backup-summary div{display:flex;flex-direction:column;gap:3px;min-width:0}
+#backupPanel .backup-summary span{color:var(--muted);font-size:10px}
+#backupPanel .backup-summary strong{font-size:18px;color:#26383e}
+#backupPanel .backup-summary .backup-dir{font-size:11px;color:var(--muted);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#backupPanel .backup-actions{display:flex;gap:10px;flex-wrap:wrap;padding:14px 16px}
+#backupPanel .backup-list-head{display:flex;justify-content:space-between;align-items:center;padding:0 16px;margin-bottom:6px}
+#backupPanel .backup-list-head b{font-size:12px}
+#backupPanel .backup-list-head span{font-size:11px;color:var(--muted)}
+#backupPanel .backup-list{display:flex;flex-direction:column;gap:6px;padding:0 16px 8px}
+.backup-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.backup-row .backup-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.backup-row .backup-info b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.backup-row .backup-info small{font-size:11px;color:var(--muted)}
+.backup-row .backup-meta{display:flex;flex-direction:column;gap:2px;text-align:right}
+.backup-row .backup-meta span{font-size:11px;color:var(--muted)}
+
+/* 恢复确认对话框 */
+.restore-dialog{max-width:520px}
+.restore-dialog .restore-danger{border:1px solid #f0b4ad;background:#fdf1ef;border-radius:6px;padding:12px 14px;margin:12px 0}
+.restore-dialog .restore-danger b{color:var(--red);font-size:13px}
+.restore-dialog .restore-danger p{margin:6px 0 0;font-size:12px;line-height:1.7;color:#5a3a36}
+.restore-dialog .restore-compare{display:flex;flex-direction:column;gap:8px;margin:0 0 12px}
+.restore-dialog .restore-compare div{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;align-items:baseline}
+.restore-dialog .restore-compare dt{font-size:12px;color:var(--muted)}
+.restore-dialog .restore-compare dd{margin:0;font-size:13px;color:#26383e}
+.restore-dialog .restore-check{display:flex;align-items:center;gap:8px;font-size:12px;color:#5a3a36;margin-bottom:12px}
+.restore-dialog #restoreConfirm.danger{background:var(--red);border-color:var(--red)}
+.restore-dialog .wizard-actions span{color:var(--red);font-size:12px}

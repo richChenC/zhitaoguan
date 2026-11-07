@@ -1,0 +1,548 @@
+/* Enterprise desktop UI layer.
+   Layout first, then hierarchy, then restrained color. Keep data and behavior
+   in the existing modules; this file only establishes a consistent surface. */
+:root{
+  --ent-bg:#f3f6f7;
+  --ent-surface:#fff;
+  --ent-surface-soft:#f8fafb;
+  --ent-line:#d9e3e7;
+  --ent-line-strong:#c6d4d9;
+  --ent-ink:#20363e;
+  --ent-muted:#6a7d86;
+  --ent-primary:#087d79;
+  --ent-primary-dark:#075d60;
+  --ent-focus:#e8f5f3;
+  --ent-shadow:0 4px 18px rgba(24,50,58,.06);
+}
+html,body{background:var(--ent-bg);color:var(--ent-ink)}
+body{font-size:13px}
+
+/* Application shell */
+.app-nav{
+  min-height:64px;height:64px;padding:0 20px;gap:20px;
+  background:rgba(255,255,255,.98);border-bottom:1px solid var(--ent-line);
+  box-shadow:0 2px 14px rgba(24,50,58,.06);position:sticky;top:0;z-index:40;
+}
+.app-nav>strong{min-width:218px;gap:9px}
+.app-nav>strong>b{font-size:13px;color:var(--ent-ink)}
+.app-nav>strong small{font-size:10px;color:var(--ent-muted)}
+.app-nav>strong>span{width:30px;height:30px;font-size:11px;background:var(--ent-primary);border-radius:6px}
+.nav-group{gap:4px;align-items:center}
+.nav-group button{
+  height:36px;min-width:92px;padding:0 13px;border:1px solid transparent;
+  border-radius:6px;background:transparent;color:#56707a;font-size:12px;font-weight:600;
+}
+.nav-group button:hover{background:#f1f6f7;border-color:var(--ent-line)}
+.nav-group button.active{color:var(--ent-primary-dark);background:var(--ent-focus);border-color:#b8dcd8;box-shadow:none}
+.app-nav .nav-icon{
+  width:34px;min-width:34px;height:34px;margin-left:auto;border:1px solid var(--ent-line);
+  border-radius:6px;background:var(--ent-surface-soft);color:#58717a;
+}
+.app-nav footer{font-size:10px;color:var(--ent-muted);white-space:nowrap}
+
+main{max-width:1920px;margin:0 auto;padding:20px 24px 34px}
+.workspace-heading,.an-head{margin-bottom:16px}
+.workspace-heading h1,.an-head h2{color:var(--ent-ink);letter-spacing:0}
+.workspace-heading p,.an-head .sub{color:var(--ent-muted);font-size:12px}
+
+/* Common surfaces and controls */
+.panel,.ac-panel,.settings-card,.workspace-card{
+  border:1px solid var(--ent-line);border-radius:8px;background:var(--ent-surface);
+  box-shadow:var(--ent-shadow);
+}
+.panel-title{min-height:56px;padding:11px 16px;border-bottom:1px solid #e5ecef}
+.panel-title h2{font-size:14px;color:var(--ent-ink)}
+.panel-title span{color:var(--ent-muted);font-size:11px}
+button,.button,select,input,textarea{border-radius:6px}
+button,.button{min-height:34px;border-color:var(--ent-line-strong);font-size:12px}
+button:hover,.button:hover{border-color:#8db2b6;background:#f4f9f9}
+button.primary,.primary{background:var(--ent-primary);border-color:var(--ent-primary);color:#fff}
+button.primary:hover,.primary:hover{background:var(--ent-primary-dark);border-color:var(--ent-primary-dark)}
+select,input,textarea{border-color:var(--ent-line-strong);background:#fff;color:var(--ent-ink)}
+select:focus,input:focus,textarea:focus,button:focus-visible{
+  outline:2px solid rgba(8,125,121,.22);outline-offset:1px;border-color:var(--ent-primary)
+}
+.toolbar{
+  padding:10px 12px;gap:8px;border:1px solid var(--ent-line);border-radius:8px;
+  background:var(--ent-surface);box-shadow:var(--ent-shadow)
+}
+
+/* Data workbench */
+#workspace .split{grid-template-columns:minmax(0,1.7fr) minmax(340px,.8fr);gap:16px}
+#workspace .table-panel .table-wrap{min-height:420px;max-height:calc(100dvh - 330px)}
+#workspace .table-panel table{font-size:12px}
+#workspace .table-panel th{background:#f3f7f8;color:#526a74;padding:10px 9px}
+#workspace .table-panel td{padding:9px}
+#workspace .table-panel tbody tr:hover{background:#f3f9f8}
+#workspace .core-panel{overflow:hidden}
+#workspace .core-map{width:min(100%,560px);margin:18px auto 14px}
+#workspace .core-stats{margin:0 16px;padding:12px;border:1px solid #e1eaec;border-radius:6px;background:var(--ent-surface-soft)}
+
+/* Visualization is the primary analytical surface. */
+#analytics .official-viz{gap:16px}
+#analytics .official-viz .panel{box-shadow:var(--ent-shadow);border-radius:8px}
+#analytics .official-viz .panel-title{min-height:58px;padding:12px 16px}
+#analytics .official-viz .panel-title h2{font-size:15px;color:var(--ent-ink)}
+#analytics .official-viz .panel-title span{color:var(--ent-muted);font-size:11px}
+#analytics .official-viz .panel-bd{padding:14px 16px 16px}
+#analytics .official-viz #anFilter{
+  border:1px solid var(--ent-line);border-top:3px solid var(--ent-primary);
+  border-radius:8px;background:var(--ent-surface);box-shadow:var(--ent-shadow)
+}
+#analytics .official-viz .vw-tabs{
+  border:1px solid var(--ent-line);border-radius:8px;background:var(--ent-surface);
+  box-shadow:var(--ent-shadow);padding:4px
+}
+#analytics .official-viz .vw-tabs button{min-height:36px;border-radius:5px;color:#5e747d}
+#analytics .official-viz .vw-tabs button[aria-selected=true]{
+  color:var(--ent-primary-dark);background:var(--ent-focus);box-shadow:none
+}
+#analytics .official-viz #anKpis{border:1px solid var(--ent-line);border-radius:8px;box-shadow:var(--ent-shadow)}
+#analytics .official-viz .vw-kpi{min-height:70px;padding:12px 16px}
+#analytics .official-viz .vw-kpi strong{font-size:23px;color:var(--ent-ink)}
+#analytics .official-viz .vw-kpi span{color:var(--ent-muted)}
+#analytics .official-viz .an-primary-detail{gap:16px}
+#analytics .official-viz .legendbar{padding:10px 4px;color:#5b727c}
+#analytics .official-viz .chart-toolbar{min-height:40px;align-items:center}
+#analytics .official-viz .chart-toolbar select{min-height:34px}
+#analytics .official-viz .note{
+  border-left:3px solid #8cbab7!important;background:#f5faf9!important;color:#617780
+}
+#analytics .official-viz .vw-panel-actions{gap:5px}
+#analytics .official-viz .vw-panel-actions button{min-height:30px}
+
+/* Reports */
+#reports .report-workspace{gap:16px}
+#reports .report-settings form{padding:16px;gap:12px}
+#reports .report-settings form label{color:var(--ent-muted)}
+#reports .report-settings form input,#reports .report-settings form select{min-height:36px}
+#reports .export-list{gap:12px;padding:14px}
+#reports .export-list article{
+  border:1px solid var(--ent-line);border-radius:7px;background:var(--ent-surface-soft);padding:14px
+}
+#reports .export-list article b{color:var(--ent-ink);font-size:13px}
+#reports .export-list article p{color:var(--ent-muted);line-height:1.6}
+#reports .report-compare-panel .table-wrap{max-height:calc(100dvh - 360px)}
+
+/* State maintenance */
+#states .state-maintenance-layout{grid-template-columns:minmax(360px,.72fr) minmax(0,1.28fr);gap:16px}
+#states #stateForm{padding:16px;gap:12px}
+#states #stateForm label{color:var(--ent-muted)}
+#states #stateForm input,#states #stateForm select,#states #stateForm textarea{min-height:36px}
+#states .state-table-panel .table-wrap{max-height:calc(100dvh - 330px);min-height:380px}
+#states .state-table-panel th{background:#f3f7f8;color:#526a74}
+
+/* Narrow desktop windows remain usable without shrinking typography. */
+@media (max-width:1100px){
+  .app-nav{gap:10px;padding:0 12px}
+  .app-nav>strong{min-width:168px}
+  .app-nav>strong>b{font-size:12px}
+  .nav-group button{min-width:78px;padding:0 8px}
+  main{padding:16px}
+  #workspace .split,#states .state-maintenance-layout{grid-template-columns:1fr}
+  #workspace .core-panel{order:-1}
+}
+@media (max-width:720px){
+  .app-nav{height:auto;min-height:58px;flex-wrap:wrap;padding:8px 10px}
+  .app-nav>strong{min-width:0;flex:1}
+  .app-nav>strong>b{display:none}
+  .app-nav footer{display:none}
+  .nav-group{order:3;width:100%;overflow:auto}
+  .nav-group button{flex:0 0 auto}
+  main{padding:12px 10px 24px}
+  .workspace-heading,.an-head{margin-bottom:12px}
+  #analytics .official-viz .vw-tabs{overflow:auto}
+  #analytics .official-viz .vw-tabs button{flex:0 0 auto}
+}
+
+/* Dark mode */
+html[data-theme="dark"]{
+  --ent-bg:#11191b;--ent-surface:#1c2628;--ent-surface-soft:#232f31;
+  --ent-line:#3b4c4d;--ent-line-strong:#566b69;--ent-ink:#e5eeec;
+  --ent-muted:#a8b8b5;--ent-focus:#294744;--ent-shadow:0 4px 18px rgba(0,0,0,.22)
+}
+html[data-theme="dark"] body{background:var(--ent-bg);color:var(--ent-ink)}
+html[data-theme="dark"] .app-nav,
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .toolbar,
+html[data-theme="dark"] .ac-panel,
+html[data-theme="dark"] .settings-card,
+html[data-theme="dark"] .workspace-card,
+html[data-theme="dark"] #analytics .official-viz .vw-tabs,
+html[data-theme="dark"] #analytics .official-viz #anFilter,
+html[data-theme="dark"] #analytics .official-viz #anKpis{
+  background:var(--ent-surface);border-color:var(--ent-line);color:var(--ent-ink)
+}
+html[data-theme="dark"] .nav-group button{color:#bdcfcb}
+html[data-theme="dark"] .nav-group button:hover{background:#263436}
+html[data-theme="dark"] .nav-group button.active{background:var(--ent-focus);color:#91e2d6;border-color:#4e817a}
+html[data-theme="dark"] .panel-title{border-color:var(--ent-line)}
+html[data-theme="dark"] select,
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea{background:#202c2e;color:var(--ent-ink);border-color:var(--ent-line-strong)}
+html[data-theme="dark"] #workspace .table-panel th,
+html[data-theme="dark"] #states .state-table-panel th{background:#293638;color:#dce8e5}
+html[data-theme="dark"] #workspace .table-panel tbody tr:hover{background:#2a3c3b}
+html[data-theme="dark"] .rank-table{background:var(--ent-surface);color:var(--ent-ink)}
+html[data-theme="dark"] .rank-table th{background:#293638!important;color:#dce8e5!important;border-color:var(--ent-line)!important}
+html[data-theme="dark"] .rank-table td{background:var(--ent-surface)!important;color:var(--ent-ink)!important;border-color:var(--ent-line)!important}
+html[data-theme="dark"] .rank-table tbody tr:nth-child(even) td{background:var(--ent-surface-soft)!important}
+html[data-theme="dark"] .rank-table tbody tr:hover td{background:#2a3c3b!important}
+html[data-theme="dark"] #analytics .official-viz .tt-up{color:#ffaaa8!important}
+html[data-theme="dark"] #analytics .official-viz .tt-down{color:#7bd6c9!important}
+html[data-theme="dark"] #analytics .official-viz .dcs-chip{
+  background:var(--ent-surface-soft)!important;
+  border-color:var(--ent-line)!important;
+  color:var(--ent-ink)!important;
+}
+html[data-theme="dark"] #analytics .official-viz .dcs-chip span,
+html[data-theme="dark"] #analytics .official-viz .dcs-chip small{color:var(--ent-muted)!important}
+html[data-theme="dark"] #analytics .official-viz .dcs-chip b{color:var(--ent-ink)!important}
+html[data-theme="dark"] #analytics .official-viz .dcs-chart-box h3{color:#c7d8d5!important}
+html[data-theme="dark"] #workspace .core-stats,
+html[data-theme="dark"] #reports .export-list article{background:var(--ent-surface-soft);border-color:var(--ent-line)}
+html[data-theme="dark"] #analytics .official-viz .vw-tabs button{color:#b7c8c5}
+html[data-theme="dark"] #analytics .official-viz .vw-tabs button[aria-selected=true]{background:var(--ent-focus);color:#91e2d6}
+html[data-theme="dark"] #analytics .official-viz .note{background:var(--ent-surface-soft)!important;color:var(--ent-muted)}
+html[data-theme="dark"] #analytics .official-viz .vw-panel-actions button{
+  background:#202c2e;border-color:var(--ent-line-strong);color:#c7d8d5
+}
+html[data-theme="dark"] #analytics .official-viz .vw-panel-actions button:hover{background:#294744;border-color:#6ca9a2}
+
+/* State maintenance: give the tube picker enough room to be the primary
+   operation while keeping the editor and history readable beside it. */
+#states .state-maintenance-layout{
+  grid-template-columns:minmax(560px,.96fr) minmax(620px,1.04fr);
+  gap:18px;
+  align-items:start;
+}
+#states .state-tube-panel,
+#states .state-panel{
+  min-width:0;
+  overflow:hidden;
+}
+#states .state-tube-panel .panel-title,
+#states .state-panel .panel-title{
+  min-height:64px;
+  padding:13px 18px;
+}
+#states .state-tube-panel .panel-title h2,
+#states .state-panel .panel-title h2{
+  font-size:15px;
+}
+#states .state-tube-panel .panel-title span,
+#states .state-panel .panel-title span{
+  margin-top:3px;
+  display:block;
+  font-size:11px;
+}
+#states .state-tube-grid{
+  grid-template-columns:repeat(10,minmax(42px,1fr));
+  gap:8px;
+  padding:16px 18px;
+}
+#states .state-tube-grid button{
+  min-height:64px;
+  height:64px;
+  padding:5px 4px;
+  border-radius:7px;
+}
+#states .state-tube-grid button b{
+  font-size:15px;
+  line-height:1.1;
+}
+#states .state-tube-grid button small{
+  font-size:10px;
+  line-height:1.25;
+  white-space:nowrap;
+}
+#states .state-grid-legend{
+  padding:0 18px 16px;
+  gap:16px;
+  font-size:11px;
+}
+#states .state-grid-legend span::before{
+  width:13px;
+  height:13px;
+}
+#states .state-table-panel .state-table-toolbar{
+  display:grid;
+  grid-template-columns:minmax(150px,1fr) minmax(150px,1fr) minmax(150px,1fr) minmax(180px,1.25fr) auto auto;
+  gap:8px;
+  align-items:center;
+  padding:12px 14px;
+}
+#states .state-table-panel .state-table-toolbar select,
+#states .state-table-panel .state-table-toolbar input{
+  width:100%;
+  min-width:0;
+  height:36px;
+}
+#states .state-table-panel .state-table-toolbar button{
+  min-height:36px;
+  white-space:nowrap;
+}
+#states .state-table-panel .state-table-toolbar #stateSelectionCount{
+  grid-column:1/-1;
+  color:var(--ent-muted);
+  font-size:11px;
+}
+@media (max-width:1320px){
+  #states .state-maintenance-layout{
+    grid-template-columns:minmax(500px,.92fr) minmax(560px,1.08fr);
+  }
+  #states .state-tube-grid{
+    grid-template-columns:repeat(5,minmax(58px,1fr));
+  }
+}
+@media (max-width:1100px){
+  #states .state-maintenance-layout{
+    grid-template-columns:1fr;
+  }
+  #states .state-tube-grid{
+    grid-template-columns:repeat(10,minmax(42px,1fr));
+  }
+}
+@media (max-width:900px){
+  #states .state-tube-grid{
+    grid-template-columns:repeat(5,minmax(48px,1fr));
+    gap:7px;
+    padding:14px;
+  }
+  #states .state-tube-grid button{
+    min-height:58px;
+    height:58px;
+  }
+  #states .state-table-panel .state-table-toolbar{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  #states .state-table-panel .state-table-toolbar #stateSelectionCount{
+    grid-column:1/-1;
+  }
+}
+
+/* Dark mode keeps the enlarged picker and its cascading toolbar legible. */
+html[data-theme="dark"] #states .state-table-panel .state-table-toolbar{
+  background:var(--ent-surface-soft);
+  border-color:var(--ent-line);
+}
+
+#states .state-tube-grid button.batch-selected{
+  outline:3px solid #087d79!important;
+  outline-offset:2px;
+  box-shadow:0 0 0 5px #087d7926,0 2px 8px #087d7945!important;
+  z-index:3;
+}
+html[data-theme="dark"] #states .state-tube-grid button.batch-selected{
+  outline-color:#55d6c5!important;
+  box-shadow:0 0 0 5px #101718,0 0 18px #55c2b488!important;
+  filter:brightness(1.12);
+}
+
+/* Compact action dock beside the editor; keep the editor visible below it. */
+#states .state-panel .state-bulk-actions.state-action-dock{
+  container:state-actions / inline-size;
+}
+#states .state-panel .state-bulk-actions.state-action-dock .state-bulk-buttons{
+  display:grid!important;
+  grid-template-columns:minmax(105px,1fr) minmax(82px,.8fr) minmax(142px,1.3fr) minmax(170px,1.7fr) minmax(92px,.9fr)!important;
+  align-items:center;
+  justify-content:stretch;
+  width:100%;
+  gap:7px;
+}
+#states .state-panel .state-bulk-actions.state-action-dock .state-bulk-buttons>button,
+#states .state-panel .state-bulk-actions.state-action-dock .state-bulk-buttons>select,
+#states .state-panel .state-bulk-actions.state-action-dock .state-bulk-buttons>.state-default-direction{
+  width:100%!important;
+  min-width:0!important;
+  grid-column:auto;
+  justify-content:center;
+}
+#states .state-panel .state-bulk-actions.state-action-dock .state-export-result{
+  grid-column:1/-1;
+  margin:0;
+}
+@media(max-width:1100px){
+  #states .state-panel .state-bulk-actions.state-action-dock .state-bulk-buttons{
+    grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr) minmax(0,1.25fr)!important;
+  }
+  #states .state-panel .state-bulk-actions.state-action-dock #stateExportFormat{grid-column:1/3}
+}
+@media(max-width:780px){
+  #states .state-panel .state-bulk-actions.state-action-dock .state-bulk-buttons{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+  #states .state-panel .state-bulk-actions.state-action-dock #stateExportFormat{grid-column:auto}
+  #states .state-panel .state-bulk-actions.state-action-dock .state-export-result{grid-column:1/-1}
+}
+@container state-actions (max-width:650px){
+  #states .state-panel .state-bulk-actions.state-action-dock .state-bulk-buttons{
+    grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr) minmax(0,1.25fr)!important;
+  }
+  #states .state-panel .state-bulk-actions.state-action-dock #stateExportFormat{grid-column:1/3}
+}
+@container state-actions (max-width:430px){
+  #states .state-panel .state-bulk-actions.state-action-dock .state-bulk-buttons{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+  #states .state-panel .state-bulk-actions.state-action-dock #stateExportFormat{grid-column:auto}
+}
+
+/* State actions: keep import/export together as the primary operation row,
+   while secondary maintenance helpers stay below it. */
+#states .state-panel .state-bulk-actions.state-action-dock{
+  padding:8px 10px;
+  gap:6px;
+}
+#states .state-panel .state-bulk-actions.state-action-dock .state-bulk-buttons{
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:6px;
+}
+#states .state-action-group{min-width:0;padding:9px 10px;border:1px solid #d9e5e8;border-radius:5px;background:#fbfdfd}
+#states .state-action-group h3{margin:0 0 8px;font-size:11px;font-weight:700;color:#435d66}
+#states .state-action-row{display:flex;align-items:center;justify-content:flex-start;gap:10px;min-width:0}
+#states .state-panel .state-bulk-actions.state-action-dock .state-action-primary{
+  display:block;
+  gap:6px;
+  align-items:center;
+  min-width:0;
+}
+#states .state-panel .state-file-actions{align-items:stretch;flex-wrap:nowrap}
+#states .state-panel .state-import-group{display:grid;flex:0 0 150px;grid-template-rows:14px 34px 14px;align-content:center;gap:5px;min-width:0}
+#states .state-panel .state-import-group>label,
+#states .state-panel .state-export-group>label{color:#71838a;font-size:10px;line-height:14px}
+#states .state-panel .state-export-group{display:grid;flex:1 1 auto;grid-template-columns:1fr;gap:5px;align-content:center;min-width:0}
+#states .state-panel .state-export-group{grid-template-rows:14px 34px 14px}
+#states .state-panel .state-import-group small,
+#states .state-panel .state-export-group small{color:#71838a;font-size:10px;line-height:14px;white-space:nowrap}
+#states .state-panel .state-export-group>div{display:flex;min-width:0;gap:6px}
+#states .state-panel .state-export-group select{flex:1 1 auto;min-width:0;width:100%}
+#states .state-panel .state-export-group button{flex:0 0 72px}
+#states .state-panel .state-bulk-actions.state-action-dock .state-action-primary #stateExportResult{display:block;margin:7px 0 0}
+#states .state-panel #stateAllNormal[data-complete="true"]{background:#e7f3ec;color:#236842;border-color:#a9cdb7}
+#states .state-category-tabs{display:flex;flex-wrap:wrap;gap:4px;padding:4px 8px 6px}
+#states .state-category-tabs button{min-height:28px;padding:3px 12px;border:1px solid transparent;background:transparent;color:inherit}
+#states .state-category-tabs button[aria-pressed="true"]{border-color:#91bcb8;background:#e2f2ef;color:#135e59}
+#states .state-meaning-guide .state-operation-steps{margin:0 0 8px;padding-left:20px}
+#states .state-meaning-guide .state-operation-steps li{margin:3px 0}
+#states .state-meaning-guide .state-meaning-lines p{margin:3px 0}
+#states .state-bulk-hint{line-height:1.45}
+#states .state-panel .state-bulk-actions.state-action-dock .state-action-primary > #stateExportFormat{
+  grid-column:auto!important;
+  grid-row:auto!important;
+}
+#states .state-panel .state-bulk-actions.state-action-dock .state-action-secondary{
+  display:block;
+  gap:6px;
+  align-items:center;
+  min-width:0;
+}
+#states .state-panel .state-bulk-actions.state-action-dock .state-action-primary > *,
+#states .state-panel .state-bulk-actions.state-action-dock .state-action-secondary > *{
+  width:100%;
+  min-width:0;
+}
+#states .state-panel .state-bulk-actions.state-action-dock .state-action-group .state-action-row>*{width:auto}
+#states .state-panel .state-bulk-actions.state-action-dock .state-action-group .state-export-group{width:100%}
+#states .state-panel .state-bulk-actions.state-action-dock .state-action-secondary .state-default-direction{
+  flex:0 0 auto;
+  white-space:nowrap;
+}
+#states .state-panel .state-bulk-actions.state-action-dock .state-default-direction select{
+  width:auto;
+  min-width:142px;
+}
+#states .state-panel .state-bulk-actions.state-action-dock #stateAllNormal{
+  flex:0 0 auto;
+  white-space:nowrap;
+}
+#states .state-panel .state-bulk-actions.state-action-dock #stateImport,
+#states .state-panel .state-bulk-actions.state-action-dock #stateExport{
+  white-space:nowrap;
+}
+#states .state-panel .state-bulk-actions.state-action-dock .state-export-result{
+  grid-column:auto;
+  max-width:100%;
+}
+
+/* The maintenance-history filter is a compact utility strip, not a second
+   header-sized panel. */
+#states .state-table-panel .panel-title{
+  min-height:42px!important;
+  height:42px!important;
+  padding:7px 12px!important;
+}
+#states .state-table-panel .panel-title h2{font-size:13px!important}
+#states .state-table-panel .panel-title span{font-size:10px!important}
+#states .state-table-panel .state-table-toolbar{
+  padding:6px 8px!important;
+  gap:5px!important;
+}
+#states .state-table-panel .state-table-toolbar select,
+#states .state-table-panel .state-table-toolbar input,
+#states .state-table-panel .state-table-toolbar button{
+  height:30px!important;
+  min-height:30px!important;
+}
+#states .state-table-panel .state-table-toolbar #stateSelectionCount{
+  grid-column:auto!important;
+  width:auto!important;
+  margin-left:auto;
+  white-space:nowrap;
+}
+
+/* Batch selection uses a hand pointer and a quiet teal selection ring rather
+   than the distracting crosshair cursor. */
+#states .state-tube-grid[data-batch-active="true"] button{cursor:pointer}
+#states .state-tube-grid[data-batch-active="true"] button:active{cursor:grabbing}
+#states .state-tube-grid button.batch-selected{
+  outline:0!important;
+  outline-offset:0!important;
+  box-shadow:inset 0 0 0 2px #087d79,0 0 0 3px #087d7930,0 2px 8px #087d7938!important;
+  filter:none;
+}
+#states .state-tube-grid button.batch-selected::after{
+  content:"✓";
+  position:absolute;
+  right:4px;
+  top:3px;
+  width:15px;
+  height:15px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  background:#087d79;
+  color:#fff;
+  font-size:10px;
+  font-weight:800;
+  line-height:1;
+}
+@media(max-width:560px){
+  #states .state-panel .state-file-actions{flex-direction:column}
+  #states .state-panel .state-import-group{flex:1 1 auto;width:100%}
+  #states .state-panel .state-export-group{width:100%}
+  #states .state-panel .state-export-group>div{align-items:stretch}
+  #states .state-panel .state-export-group button{flex-basis:72px}
+  #states .state-panel .state-bulk-actions.state-action-dock .state-action-primary{
+    grid-template-columns:1fr;
+    gap:4px;
+  }
+  #states .state-panel .state-bulk-actions.state-action-dock #stateExportFormat{
+    grid-column:auto;
+    grid-row:auto;
+    font-size:10px;
+    padding-left:4px;
+    padding-right:4px;
+  }
+  #states .state-panel .state-bulk-actions.state-action-dock .state-action-secondary{
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  #states .state-panel .state-bulk-actions.state-action-dock #stateAllNormal{flex-basis:auto}
+  #states .state-table-panel .state-table-toolbar #stateSelectionCount{
+    grid-column:1/-1!important;
+    margin-left:0;
+  }
+}

@@ -1,0 +1,473 @@
+/* Final desktop detail pass.
+   Keep the existing information architecture, but make repeated controls and
+   panel chrome feel like one product across every native workspace. */
+:where(#workspace,#analytics,#reports,#states,#threeD) {
+  --detail-gap: 12px;
+}
+
+:where(#workspace,#analytics,#reports,#states,#threeD) .panel-title {
+  min-height: 50px;
+  padding-inline: 14px;
+}
+
+:where(#workspace,#analytics,#reports,#states,#threeD) .panel-title h2 {
+  line-height: 1.35;
+}
+
+:where(#workspace,#analytics,#reports,#states,#threeD)
+  :is(button,select,input:not([type="checkbox"]):not([type="radio"]),textarea) {
+  border-radius: 4px;
+}
+
+:where(#workspace,#analytics,#reports,#states,#threeD)
+  :is(select,input:not([type="checkbox"]):not([type="radio"]),textarea) {
+  min-height: 34px;
+}
+
+:where(#workspace,#analytics,#reports,#states,#threeD) :is(.toolbar,.chart-toolbar) {
+  gap: 8px;
+}
+
+:where(#workspace,#reports,#states) :is(.panel-title,.toolbar) {
+  background: color-mix(in srgb, var(--paper) 94%, var(--primary) 6%);
+}
+
+:where(#workspace,#reports,#states) :is(.panel-title,.toolbar) {
+  border-color: color-mix(in srgb, var(--line) 82%, var(--primary) 18%);
+}
+
+:where(#workspace,#reports,#states) :is(.panel-title span,.panel-subtitle,.toolbar small) {
+  line-height: 1.45;
+}
+
+#settings .settings-window-heading {
+  min-height: 48px;
+}
+
+#settingsWindowBar,
+body[data-window="settings"] #networkProgress {
+  display: none !important;
+}
+
+#settings .settings-window-state {
+  align-self: center;
+}
+
+html[data-theme="dark"] :where(#workspace,#analytics,#reports,#states,#threeD)
+  :is(.panel-title,.toolbar) {
+  background: color-mix(in srgb, var(--dark-panel) 90%, var(--dark-accent) 10%);
+  border-color: var(--dark-line);
+}
+
+html[data-theme="dark"] #settings .settings-window-heading {
+  border-color: var(--dark-line);
+}
+
+html[data-theme="dark"] #settings .settings-window-heading h1 {
+  color: var(--dark-ink);
+}
+
+html[data-theme="dark"] #settings .settings-window-heading p {
+  color: var(--dark-muted);
+}
+
+@media (max-width: 700px) {
+  :where(#workspace,#analytics,#reports,#states,#threeD) .panel-title {
+    min-height: 46px;
+    padding-inline: 11px;
+  }
+
+  /* A 150% Windows scale makes an 800px window roughly 533px wide in CSS
+     pixels. Keep the four visualization views inside that narrow viewport. */
+  #analytics .official-viz > .vw-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    max-width: 100%;
+  }
+
+  #analytics .official-viz > .vw-tabs button {
+    min-width: 0 !important;
+    width: 100%;
+    padding-inline: 4px !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  #analytics .official-viz > .vw-tabs button[aria-selected="true"]::after {
+    left: 8px;
+    right: 8px;
+  }
+
+  #settings .settings-window-heading {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  #settings .settings-window-state {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+}
+
+@media (max-width: 780px) {
+  /* The direction preference is a secondary action; give it a full row so
+     the select cannot push the maintenance toolbar outside the window. */
+  #states .state-controls .state-bulk-buttons > .state-default-direction {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+
+  #states #stateDefaultShiftDirection {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+}
+
+/* Visualization information hierarchy: start with a scoped snapshot, then
+   keep the two trend charts together in their own analysis view. */
+#analytics .official-viz #vwOverviewSummary {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper);
+}
+
+#analytics .official-viz .vw-summary-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+#analytics .official-viz .vw-summary-heading strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+#analytics .official-viz .vw-summary-heading span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+#analytics .official-viz .vw-summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+#analytics .official-viz .vw-summary-metrics > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: center;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+  min-height: 76px;
+  padding: 10px 14px;
+  border-right: 1px solid var(--line);
+}
+
+#analytics .official-viz .vw-summary-metrics > div:last-child {
+  border-right: 0;
+}
+
+#analytics .official-viz .vw-summary-metrics span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+#analytics .official-viz .vw-summary-metrics b {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--ink);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+#analytics .official-viz .vw-summary-metrics small {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+#analytics .official-viz .vw-summary-metrics [data-metric="war"] b {
+  color: var(--danger);
+}
+
+#analytics .official-viz .vw-summary-metrics [data-metric="ndd"] b {
+  color: #717d88;
+}
+
+#analytics .official-viz .vw-summary-metrics [data-metric="missing"] b {
+  color: #8c681f;
+}
+
+#analytics .official-viz .vw-insight-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 94%, var(--primary) 6%);
+}
+
+#analytics .official-viz .vw-insight-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: center;
+  gap: 2px 10px;
+  min-width: 0;
+  min-height: 68px;
+  padding: 9px 11px 9px 13px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+  cursor: default;
+  transition: border-color .14s ease, background-color .14s ease, transform .14s ease;
+}
+
+#analytics .official-viz .vw-insight-card[data-insight="peak"] {
+  cursor: pointer;
+}
+
+#analytics .official-viz .vw-insight-card[data-insight="peak"]:hover,
+#analytics .official-viz .vw-insight-card[data-insight="peak"]:focus-visible {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--line));
+  background: color-mix(in srgb, var(--paper) 88%, var(--primary) 12%);
+  transform: translateY(-1px);
+}
+
+#analytics .official-viz .vw-insight-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: 5px 0 0 5px;
+  background: var(--primary);
+}
+
+#analytics .official-viz .vw-insight-card.is-danger::before {
+  background: var(--danger);
+}
+
+#analytics .official-viz .vw-insight-card.is-warn::before {
+  background: #b8862d;
+}
+
+#analytics .official-viz .vw-insight-card.is-state::before {
+  background: #4b9b78;
+}
+
+#analytics .official-viz .vw-insight-card.is-muted::before {
+  background: #aeb9bf;
+}
+
+#analytics .official-viz .vw-insight-card > span,
+#analytics .official-viz .vw-insight-card > small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#analytics .official-viz .vw-insight-card > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+#analytics .official-viz .vw-insight-card > b {
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--ink);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+#analytics .official-viz .vw-insight-card.is-danger > b {
+  color: var(--danger);
+}
+
+#analytics .official-viz .vw-insight-card.is-warn > b {
+  color: #8c681f;
+}
+
+#analytics .official-viz .vw-insight-card.is-state > b {
+  color: #286b56;
+}
+
+#analytics .official-viz .vw-insight-card > small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-insight-strip {
+  border-color: var(--dark-line);
+  background: color-mix(in srgb, var(--dark-panel) 92%, var(--dark-accent) 8%);
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-insight-card {
+  border-color: var(--dark-line);
+  background: var(--dark-panel);
+  color: var(--dark-ink);
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-insight-card[data-insight="peak"]:hover,
+html[data-theme="dark"] #analytics .official-viz .vw-insight-card[data-insight="peak"]:focus-visible {
+  border-color: #5eaaa6;
+  background: color-mix(in srgb, var(--dark-panel) 86%, var(--dark-accent) 14%);
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-insight-card > span,
+html[data-theme="dark"] #analytics .official-viz .vw-insight-card > small {
+  color: var(--dark-muted);
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-insight-card > b {
+  color: var(--dark-ink);
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-insight-card.is-danger > b {
+  color: #ef9c91;
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-insight-card.is-warn > b {
+  color: #edc878;
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-insight-card.is-state > b {
+  color: #8dd2af;
+}
+
+@media (max-width: 1050px) {
+  #analytics .official-viz .vw-insight-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  #analytics .official-viz .vw-insight-strip {
+    grid-template-columns: 1fr;
+    padding-inline: 9px;
+  }
+}
+
+#analytics .official-viz #vwTrends > .an-primary-trend,
+#analytics .official-viz #vwTrends > .panel {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+#analytics .official-viz #vwTrends > .an-primary-trend .panel-title,
+#analytics .official-viz #vwTrends > .panel .panel-title {
+  min-height: 56px;
+}
+
+#analytics .official-viz #vwTrends #chart31,
+#analytics .official-viz #vwTrends #chart32 {
+  min-height: 0;
+  overflow: visible;
+}
+
+#analytics .official-viz #vwTrends #chart31 svg,
+#analytics .official-viz #vwTrends #chart32 svg {
+  display: block;
+  width: 100%;
+  height: clamp(300px, 34vw, 430px);
+  min-height: 0;
+}
+
+html[data-theme="dark"] #analytics .official-viz #vwOverviewSummary {
+  border-color: var(--dark-line);
+  background: var(--dark-panel);
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-summary-heading {
+  border-color: var(--dark-line);
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-summary-heading strong,
+html[data-theme="dark"] #analytics .official-viz .vw-summary-metrics b {
+  color: var(--dark-ink);
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-summary-heading span,
+html[data-theme="dark"] #analytics .official-viz .vw-summary-metrics span,
+html[data-theme="dark"] #analytics .official-viz .vw-summary-metrics small {
+  color: var(--dark-muted);
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-summary-metrics > div {
+  border-color: var(--dark-line);
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-summary-metrics [data-metric="war"] b {
+  color: #ef9c91;
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-summary-metrics [data-metric="ndd"] b {
+  color: #b7c0c8;
+}
+
+html[data-theme="dark"] #analytics .official-viz .vw-summary-metrics [data-metric="missing"] b {
+  color: #edc878;
+}
+
+@media (max-width: 1050px) {
+  #analytics .official-viz .vw-summary-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  #analytics .official-viz .vw-summary-metrics > div:nth-child(3) {
+    border-right: 0;
+  }
+
+  #analytics .official-viz .vw-summary-metrics > div:nth-child(n + 4) {
+    border-top: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 700px) {
+  #analytics .official-viz .vw-summary-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #analytics .official-viz .vw-summary-metrics > div:nth-child(odd) {
+    border-right: 1px solid var(--line);
+  }
+
+  #analytics .official-viz .vw-summary-metrics > div:nth-child(even) {
+    border-right: 0;
+  }
+
+  #analytics .official-viz .vw-summary-metrics > div:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+
+  #analytics .official-viz #vwTrends #chart31 svg,
+  #analytics .official-viz #vwTrends #chart32 svg {
+    height: 300px;
+  }
+
+  html[data-theme="dark"] #analytics .official-viz .vw-summary-metrics > div {
+    border-color: var(--dark-line);
+  }
+}

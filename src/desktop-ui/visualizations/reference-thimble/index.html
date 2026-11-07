@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><script src="/local-auth.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>指套管三维模型 · 指套管模型工程</title>
+<script src="/appearance.js?v=20261029-full-dark"></script>
+<link rel="stylesheet" href="/tokens.css?v=20261023-ui-audit" />
+<link rel="stylesheet" href="./defect-layer.css" />
+<style>
+:root{
+  --bg2:#f8fafc;
+  --panel:#ffffff; --panel-soft:#f6f9fc;
+  --line-soft:#eaf0f6;
+  --ink2:#41546a;
+  --accent:var(--primary); --accent-soft:#eaf5f3;
+  --teal:var(--primary); --warn:var(--amber); --ok:var(--green);
+  --shadow:0 6px 24px rgba(22,40,66,.08), 0 1px 3px rgba(22,40,66,.06);
+  --r:8px;
+}
+*{box-sizing:border-box;-webkit-font-smoothing:antialiased}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+  font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px}
+#stage{position:fixed;inset:0}
+canvas{display:block;outline:none}
+button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+canvas:focus-visible{outline-offset:-3px}
+
+/* ---------- 顶栏 ---------- */
+header{
+  position:fixed;top:0;left:0;right:0;height:52px;z-index:30;
+  display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:linear-gradient(180deg,#ffffff 0%,#fbfdff 100%);
+  border-bottom:1px solid var(--line);
+}
+header .brand{display:none}
+header h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.2px}
+header .sub{font-size:11.5px;color:var(--muted)}
+header .spacer{flex:1}
+.badge{font-size:11px;padding:3px 9px;border-radius:20px;background:var(--accent-soft);
+  color:var(--accent);border:1px solid #cfe1f7;white-space:nowrap}
+.badge.warn{background:#fdf3e7;color:var(--warn);border-color:#f4dfc4}
+.seg{display:flex;background:var(--panel-soft);border:1px solid var(--line);border-radius:8px;padding:2px}
+.seg button{border:0;background:transparent;padding:5px 12px;border-radius:6px;cursor:pointer;
+  font-size:12px;color:var(--ink2);font-family:inherit;transition:.15s}
+.seg button.on{background:#fff;color:var(--accent);box-shadow:0 1px 3px rgba(20,40,70,.12);font-weight:600}
+
+/* ---------- 左栏 ---------- */
+#left{
+  /* 78 → 74：1280×720 下左栏可视图只有 642px，按 78 算差 3px 够不到平面图下限 200px，
+     底部余隙由 14px 收到 10px，面板不会贴到窗口下沿。 */
+  position:fixed;top:64px;left:12px;width:330px;max-height:calc(100vh - 74px);
+  overflow-y:auto;overflow-x:hidden;z-index:15;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);
+  padding:2px 0 3px;
+}
+/* 滚动条：这是左栏最后的兜底（空间实在不够时），必须做得不打扰 ——
+   细窄、半透明、hover 才加深。同时用 scrollbar-gutter 固定槽位，
+   避免出现/消失时 330px 的内容宽度跳动把平面图重新排一遍。 */
+#left::-webkit-scrollbar,#right::-webkit-scrollbar{width:8px}
+#left::-webkit-scrollbar-track,#right::-webkit-scrollbar-track{background:transparent}
+#left::-webkit-scrollbar-thumb,#right::-webkit-scrollbar-thumb{background:#cfd9e5;border-radius:4px;
+  border:2px solid transparent;background-clip:content-box}
+#left:hover::-webkit-scrollbar-thumb,#right:hover::-webkit-scrollbar-thumb{background:#aebecd;background-clip:content-box}
+#left,#right{scrollbar-width:thin;scrollbar-color:#cfd9e5 transparent;overscroll-behavior:contain}
+/* 1280×720 这类矮屏要压出 ~16px 才能让平面图不低于可读下限 200px：
+   「除平面图外」的内容在压缩后约 431px，640 - 431 - 6 = 203 ≥ 200。 */
+.grp{padding:6px 14px 2px;border-bottom:1px solid var(--line-soft)}
+.grp:last-child{border-bottom:0}
+.grp .t{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.9px;margin-bottom:4px}
+/* 左栏分组可折叠：1440×860 下 7 组总高溢出约 582px，核心控件要滚动才够得着。
+   标题行变可点按钮，右侧加折叠指示符（展开 ▾ / 折叠 ▸，纯文本字符非 emoji）；
+   折叠态用 .collapsed 类控制——只隐藏「除 .t 外的直接子节点」，不重新包 DOM，
+   因此不打乱既有 .grp 的内边距与样式（也不用 <details>）。*/
+.grp > .t{cursor:pointer;user-select:none;transition:color .14s}
+.grp > .t:hover{color:var(--accent)}   /* hover 轻微反馈：标题变主题蓝 */
+.grp > .t::after{content:"▾";float:right;margin-left:8px;color:var(--muted);font-weight:400;font-size:11px;line-height:1.5}
+.grp.collapsed > .t::after{content:"▸"}
+.grp.collapsed > .t{margin-bottom:0}   /* 折叠时去掉标题与"无内容"之间的间隙，省出纵向空间 */
+/* 折叠组压到 22px：五条折叠标题并排只占 110px，才能给「整体布置 + 通道选择」腾出整屏。
+   折叠组里没有内容，padding 收窄不会影响任何控件。*/
+.grp.collapsed{padding:2px 14px}
+.grp.collapsed > *:not(.t){display:none}
+.row{display:flex;align-items:center;justify-content:space-between;margin:4px 0;gap:8px}
+.row label{font-size:12.5px;color:var(--ink2)}
+.row .val{font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums;font-weight:600}
+select{font-family:inherit;font-size:12.5px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;
+  background:#fff;color:var(--ink);width:150px}
+input[type=range]{-webkit-appearance:none;width:100%;height:4px;border-radius:3px;background:#dde6ef;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+  background:var(--accent);border:2px solid #fff;box-shadow:0 1px 4px rgba(11,107,203,.4);cursor:pointer}
+.chk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink2);margin:3px 0;cursor:pointer;user-select:none}
+.chk input{width:14px;height:14px;accent-color:var(--accent);cursor:pointer;margin:0}
+/* 整体布置模式下只作用于单件模型的控件置灰（见 setMode 里的说明）：
+   禁用态必须看得出来，否则用户反复点、以为软件没响应。 */
+#left .chk.na{opacity:.42;cursor:not-allowed}
+#left .chk.na input{cursor:not-allowed}
+#left input[type=range]:disabled{opacity:.42;cursor:not-allowed}
+.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:4px 0 8px}
+.btns button{font-family:inherit;font-size:12px;padding:6px 0;border:1px solid var(--line);background:#fff;
+  color:var(--ink2);border-radius:7px;cursor:pointer;transition:.14s}
+.btns button:hover{border-color:#bcd4ef;color:var(--accent);background:var(--accent-soft)}
+
+/* 零件树 */
+.tree .item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;cursor:pointer;
+  font-size:12.5px;color:var(--ink2);transition:.12s;margin:2px 0}
+.tree .item:hover{background:var(--panel-soft)}
+.tree .item.sel{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.tree .dot{width:9px;height:9px;border-radius:3px;flex:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.tree .item .eye{margin-left:auto;font-size:11px;color:var(--muted);opacity:.6}
+.tree .item.off{opacity:.42}
+.tree .item .src{font-size:10px;padding:1px 5px;border-radius:4px;background:#eef3f9;color:#7b8ea6}
+
+/* 通道布局 */
+#planWrap{position:relative;background:#fff;border:1px solid var(--line-soft);border-radius:8px;padding:3px 3px 2px;margin:2px -6px 2px}
+#plan{display:block;width:100%;height:auto;margin:0 auto}   /* 居中：缩到小于栏宽时不靠左歪 */
+/* 官方图 1-1 版式：注意字号一律用 class 给，别在 #plan text 上统一 font-size ——
+   CSS 会盖掉 SVG 的 presentation attribute，格子号/圈内编号就全变成同一个大小了 */
+#plan text{pointer-events:none;font-family:inherit;font-variant-numeric:tabular-nums}
+#plan .pl-row{font-size:5.2px;fill:#93a6ba}
+#plan .pl-col{font-size:6.2px;font-weight:700;fill:#3d5168}
+#plan .pl-num{font-size:2.95px;font-weight:700;letter-spacing:-.04em}
+#plan .pl-odd{fill:#153f63}
+#plan .pl-even{fill:#7a3712}
+#plan .pl-grid{fill:#fff;stroke:#c6d4e3;stroke-width:.45}
+#plan .pl-div{stroke:#6d8298;stroke-width:.38;pointer-events:none}   /* 竖线盖在圆上，不设 none 会挡住点击 */
+#plan circle{cursor:pointer;transition:.12s;stroke-width:.55}
+#plan circle:hover{stroke:#0b6bcb;stroke-width:1.2}
+#plan circle.on{stroke:#0b6bcb;stroke-width:1.15}
+/* .tiny = 平面图被压到 200px 以下（窗口矮到放不下）：圈内编号实到不足 3px 全是糊的，
+   隐掉只留色块与选中描边。通道号仍可 hover 圆圈看到，选通道不受影响。 */
+#plan.tiny .pl-num{display:none}
+/* margin-bottom 2px：默认行高 1.32（12.5px）时与下一行「悬停…」只差 0 间距，
+   1280 宽下两行字几乎贴在一起，看着像叠字。 */
+.plan-note{font-size:9.5px;line-height:1.34;color:var(--muted);margin:2px 0 2px}
+.plan-foot{display:flex;align-items:center;gap:6px;margin-top:0}
+.plan-hover{flex:1 1 auto;min-width:0;font-size:10px;line-height:1.34;color:var(--ink2);min-height:13px;
+  font-variant-numeric:tabular-nums}
+.plan-open{flex:none;font-family:inherit;font-size:9.5px;padding:2px 7px;border:1px solid #cfe1f7;
+  background:#fff;color:var(--accent);border-radius:6px;cursor:pointer;transition:.14s}
+.plan-open:hover{background:var(--accent-soft)}
+.plan-note b{font-weight:700}
+.plan-note .o{color:#17456f}
+.plan-note .e{color:#8a3f1e}
+.legend-mini{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--muted);margin-top:1px}.legend-mini .bar{height:6px;flex:1;border-radius:3px;
+  background:linear-gradient(90deg,#bcd8f5,#4a9be0,#1d6fc4)}
+
+/* 三类支承柱图例 */
+/* 左栏一屏预算紧张：柱图例压成三列一行，腾出纵向空间给型号图例（允许收紧间距） */
+.col-legend{display:grid;grid-template-columns:repeat(2,1fr);gap:1px 8px;margin:1px 0 4px 22px}
+.col-legend span{display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ink2);
+  cursor:pointer;border-radius:3px;padding:0 2px;margin:0 -2px}
+.col-legend i{width:9px;height:9px;border-radius:2px;flex:0 0 auto;display:block}
+.col-legend b{margin-left:auto;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* 型号图例：与柱图例同族，三列两行（6 项），点击筛选；色值与三维着色一致 */
+.model-legend{display:grid;grid-template-columns:repeat(3,1fr);gap:1px 5px;
+  margin:0 0 4px 22px;padding-top:3px;border-top:1px solid var(--line-soft)}
+.model-legend span{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--ink2);
+  cursor:pointer;user-select:none;transition:opacity .12s;
+  border-radius:3px;padding:0 2px;margin:0 -2px}   /* 负 margin 抵消 padding，选中底色不撑宽栅格 */
+.model-legend i{width:9px;height:9px;border-radius:2px;flex:0 0 auto;display:block}
+.model-legend b{margin-left:auto;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+.model-legend span.on{font-weight:700;color:var(--accent);background:rgba(47,111,181,.10)}
+.model-legend span.off{opacity:.4}
+/* 整体布置组内复选框纵向间距收紧，整体让出约 12px 给型号图例，避免左栏溢出 */
+#asmGrp .chk{margin:2px 0}
+/* 两种着色复选框并排一行：既互斥又省出一整行纵向空间 */
+.chk-row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:2px 0}
+
+/* ---------- 右下信息卡 ---------- */
+#right{
+  position:fixed;right:12px;bottom:12px;width:322px;max-height:calc(100vh - 96px);z-index:15;
+  overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:var(--shadow);padding:13px 15px 14px;transition:.2s;transform-origin:bottom right;
+}
+#right.hide{transform:translateY(14px) scale(.97);opacity:0;pointer-events:none}
+#right h3{margin:0 0 3px;font-size:13.5px;font-weight:700}
+#right .tag{font-size:10.5px;padding:2px 7px;border-radius:5px;background:#eef3f9;color:#61758c;margin-right:5px}
+#right .tag.state-tag{background:#fff1df;color:#a65d18;border:1px solid #f0cfaa}
+#right table{width:100%;border-collapse:collapse;margin-top:9px;font-size:11.8px}
+#right td{padding:4px 0;vertical-align:top;border-bottom:1px dashed var(--line-soft);line-height:1.45}
+#right td:first-child{color:var(--muted);width:74px;white-space:nowrap}
+#right td:last-child{color:var(--ink);font-variant-numeric:tabular-nums}
+#right .note{margin-top:9px;font-size:11.5px;color:var(--ink2);line-height:1.6;
+  background:var(--panel-soft);border-left:3px solid #cfe1f7;border-radius:0 6px 6px 0;padding:7px 9px}
+#right .note,#right td:last-child,#infoTags{overflow-wrap:anywhere}
+#right .close{position:absolute;top:9px;right:11px;border:0;background:transparent;color:var(--muted);
+  cursor:pointer;font-size:15px;line-height:1}
+#right .close:hover{color:var(--danger)}
+
+/* ---------- 底部标尺 / 提示 ---------- */
+#hint{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:12;
+  font-size:11.5px;color:#6a7d93;background:rgba(255,255,255,.86);border:1px solid var(--line);
+  padding:6px 14px;border-radius:20px;backdrop-filter:blur(6px)}
+/* 视图浮动条：与 #hint 同一中心线、叠在其上方。胶囊形是为了不抢画面，
+   .94 白底 + 轻微模糊，保证压在深色封头上时文字仍可读。 */
+#viewBar{position:fixed;left:50%;bottom:48px;transform:translateX(-50%);z-index:13;
+  display:flex;gap:3px;padding:4px;background:rgba(255,255,255,.94);
+  border:1px solid var(--line);border-radius:999px;box-shadow:0 3px 14px rgba(20,40,70,.12);
+  backdrop-filter:blur(8px)}
+#viewBar button{font-family:inherit;font-size:11.5px;line-height:1;padding:6px 12px;border:0;
+  background:transparent;color:var(--ink2);border-radius:999px;cursor:pointer;
+  transition:.14s;white-space:nowrap}
+#viewBar button:hover{background:var(--accent-soft);color:var(--accent)}
+#viewBar button.on{background:var(--accent);color:#fff}
+/* XYZ 轴标：右下角小徽标，DOM/SVG 画，随主相机朝向旋转 */
+#axisGizmo{position:fixed;left:14px;bottom:66px;width:96px;height:96px;z-index:13;
+  border-radius:14px;background:rgba(255,255,255,.84);border:1px solid var(--line);
+  box-shadow:0 4px 14px rgba(22,40,66,.10);backdrop-filter:blur(6px);
+  pointer-events:none;opacity:1;transition:opacity .16s;overflow:visible}
+#axisGizmo.off{opacity:0}
+#axisGizmo svg{display:block;width:100%;height:100%;overflow:visible}
+#axisGizmo text{font:700 10.5px/1 "Segoe UI",system-ui,sans-serif;paint-order:stroke}
+
+#toast{position:fixed;left:50%;top:70px;transform:translateX(-50%) translateY(-8px);z-index:40;
+  background:#16212e;color:#fff;font-size:12px;padding:8px 16px;border-radius:8px;opacity:0;
+  transition:.22s;pointer-events:none}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* 3D 标注层 */
+#overlay{position:fixed;inset:0;pointer-events:none;z-index:10}
+.dim{position:absolute;font-size:10.5px;color:#33506e;background:rgba(255,255,255,.94);
+  border:1px solid #cfe0f2;border-radius:4px;padding:1.5px 5px;white-space:nowrap;
+  transform:translate(-50%,-50%);font-variant-numeric:tabular-nums}
+.dim.station{background:#0b6bcb;color:#fff;border-color:#0b6bcb;font-weight:600;letter-spacing:.3px}
+.dim.station.est{background:#fff;color:var(--warn);border-color:#f0cfa8}
+.dim.part{background:#16324c;color:#eaf3ff;border-color:#16324c;font-size:10px}
+#leaders{position:absolute;inset:0;overflow:visible}
+#leaders line{stroke:#9db8d4;stroke-width:.8}
+#leaders line.station{stroke:#0b6bcb;stroke-dasharray:2 2}
+
+/* P1-P6 标尺 */
+#scale{position:fixed;right:348px;top:80px;width:196px;z-index:14;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:10px 12px 8px;
+  transition:.2s}
+#scale.hide{opacity:0;transform:translateX(10px);pointer-events:none}
+#scale .ttl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.8px}
+#scale .body{position:relative;height:330px;margin:8px 0 4px}
+#scale .rail{position:absolute;left:26px;top:0;bottom:0;width:2px;background:linear-gradient(180deg,#bcd8f5,#1d6fc4)}
+#scale .tick{position:absolute;left:0;right:0;height:0;border-top:1px dashed #cfdcea}
+#scale .tick .lab{position:absolute;left:0;top:-7px;font-size:10.5px;font-weight:700;color:var(--accent);
+  background:#fff;padding:0 3px;font-variant-numeric:tabular-nums}
+#scale .tick .dep{position:absolute;left:40px;top:-6.5px;font-size:10px;color:var(--ink2);
+  background:#fff;padding:0 4px;font-variant-numeric:tabular-nums;white-space:nowrap}
+#scale .tick.est .lab{color:var(--warn)}
+#scale .foot{font-size:10px;color:var(--muted);text-align:center}
+
+/* 加载 */
+#loading{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;
+  background:var(--bg);transition:.3s}
+#loading.off{opacity:0;pointer-events:none}
+#loading .box{text-align:center}
+#loading .ring{width:34px;height:34px;margin:0 auto 12px;border:3px solid #dbe6f2;border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading p{margin:0;font-size:12.5px;color:var(--muted)}
+/* 主任务是看模型：设置栏按需打开，不占用默认画布。 */
+#referencePanelToggle,#inspectionToggle{display:grid;place-items:center;height:30px;flex:none;border:1px solid var(--line);
+  background:#fff;color:var(--ink2);border-radius:6px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}
+#referencePanelToggle{width:30px}
+#referencePanelToggle::before{content:"";width:18px;height:18px;background:currentColor;
+  mask:url("/assets/icons/settings.svg") center/contain no-repeat}
+#referencePanelToggle:hover{color:var(--accent);background:var(--accent-soft)}
+#inspectionToggle{width:64px;color:var(--accent);border-color:#cfe1f7;background:#f7fbff}
+#inspectionToggle.on{background:var(--accent);border-color:var(--accent);color:#fff}
+body:not(.reference-controls-open) #left{display:none}
+body.reference-controls-open #left{display:block}
+#left [data-grp="chan"]{display:none!important}
+#right{z-index:24}
+#right{top:64px;bottom:auto;width:min(390px,calc(100vw - 24px));max-height:calc(100vh - 180px);
+  transform-origin:top right;transition:opacity .16s}
+#right.hide{visibility:hidden}
+body.reference-info-open #referenceInspection{display:none}
+body.reference-controls-open #scale,body.reference-info-open #scale,body.reference-inspection-open #scale{visibility:hidden;pointer-events:none}
+#hint{display:none}
+#viewBar{bottom:62px}
+#referenceTubeNavigator{position:fixed;left:50%;bottom:10px;z-index:22;display:flex;align-items:center;gap:7px;
+  width:min(440px,calc(100vw - 24px));min-height:42px;padding:5px 8px;transform:translateX(-50%);
+  border:1px solid var(--line);border-radius:7px;background:rgba(255,255,255,.96);
+  box-shadow:0 3px 14px rgba(20,40,70,.14);backdrop-filter:blur(8px)}
+#referenceTubeNavigator button{height:30px;flex:none;border:1px solid var(--line);border-radius:5px;background:#fff;
+  color:var(--ink2);font-family:inherit;font-size:12px;font-weight:600;line-height:1;cursor:pointer}
+#referenceTubeNavigator button:hover{border-color:#9dbde0;color:var(--accent);background:var(--accent-soft)}
+#referenceTubeNavigator .tube-step{width:30px;font-size:18px}
+#referenceTubeNavigator input[type=number]{width:60px;height:30px;padding:3px 5px;border:1px solid var(--line);
+  border-radius:5px;color:var(--ink);font-family:inherit;font-size:13px;font-weight:600;line-height:1;
+  text-align:center;font-variant-numeric:tabular-nums}
+#referenceTubeNavigator input[type=range]{width:auto;flex:1 1 auto;min-width:40px;margin:0}
+#referenceTubeNavigator .tube-total{flex:none;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+#referenceTubeNavigator .tube-details{padding:0 9px;white-space:nowrap}
+.top-plate-toggle{position:static;height:30px;flex:none;padding:6px 10px;border:1px solid var(--line);
+  border-radius:6px;background:#fff;color:var(--ink2);font-family:inherit;font-size:12px;cursor:pointer}
+.top-plate-toggle.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.top-plate-toggle:disabled{opacity:.45;cursor:default}
+#defaultViewButton{display:flex;align-items:center;gap:6px;height:30px;padding:0 9px;flex:none;
+  border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink2);font-family:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+#defaultViewButton::before{content:"";width:15px;height:15px;background:currentColor;
+  mask:url("/assets/icons/rotate-ccw.svg") center/contain no-repeat}
+#defaultViewButton:hover{background:var(--accent-soft);color:var(--accent)}
+#viewBar{border-radius:7px;max-width:calc(100vw - 24px)}
+#viewBar button{border-radius:4px}
+#axisGizmo{left:12px;bottom:12px;width:76px;height:76px;border-radius:7px}
+#right{transform:none;border-radius:6px}
+#right.hide{transform:none}
+#right h3{padding-right:24px;margin-bottom:8px}
+#infoTags{display:flex;flex-wrap:wrap;gap:5px}
+#right .tag{margin:0}
+#right .note:empty{display:none}
+#right .close{display:grid;place-items:center;top:8px;right:8px;width:28px;height:28px;border-radius:4px}
+#right .close:hover{background:#f1f4f7;color:var(--ink)}
+#toast{max-width:min(420px,calc(100vw - 24px));border:1px solid #dce5ef;background:#fff;color:var(--ink);
+  box-shadow:0 3px 12px #22384e1f;line-height:1.5;transition:opacity .14s,transform .14s}
+#toast[data-error=true]{border-color:#e8b4b0;color:#a33e35}
+#selectionLegend{position:fixed;left:16px;top:66px;z-index:11;display:flex;gap:14px;align-items:center;
+  color:#586d7d;font-size:11px;pointer-events:none}
+#selectionLegend span{display:flex;align-items:center;gap:5px}
+#selectionLegend i{width:8px;height:8px;background:#667c8c;border:1px solid #536875;border-radius:2px}
+#selectionLegend .selected{background:#ffc400;border-color:#a27500}
+/* 检测数据着色图例：色阶与主窗口「磨损分级」设置同一套（低/中/高 + 无记录），随勾选显隐 */
+#depthLegend{position:fixed;left:16px;top:86px;z-index:11;display:flex;gap:12px;align-items:center;
+  color:#586d7d;font-size:11px;pointer-events:none;flex-wrap:wrap;max-width:min(360px,calc(100vw - 32px))}
+#depthLegend span{display:flex;align-items:center;gap:5px}
+#depthLegend i{width:10px;height:10px;border-radius:2px;border:1px solid rgba(15,35,50,.22);flex:none}
+#referenceTubeNavigator .tube-details[aria-expanded=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+#referenceTubeNavigator button:disabled{opacity:.4;cursor:default;background:#f6f8fa;border-color:var(--line);color:var(--muted)}
+#referenceTubeNavigator input:invalid{border-color:#bd4b42}
+header button, #viewBar button, #referenceTubeNavigator button{transition:background-color .12s,color .12s,border-color .12s}
+header button:active,#viewBar button:active,#referenceTubeNavigator button:active{background:#e8eef2}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+}
+@media(max-width:1000px){
+  header{height:84px;gap:8px;flex-wrap:wrap;padding:8px 12px;align-content:center}
+  header .brand{flex:1;min-width:0}
+  header .sub,header .badge,header .spacer{display:none}
+  header h1{font-size:14px;letter-spacing:0}
+  #modeSeg{order:2;width:100%;justify-content:space-between}
+  #modeSeg button{flex:1;padding:6px 4px;font-size:11px;white-space:nowrap}
+  #referencePanelToggle{width:30px;height:28px}
+  #left{top:92px;max-height:calc(100vh - 174px);width:min(330px,calc(100vw - 24px))}
+  body:not(.reference-controls-open) #left{display:none}
+  #right{top:94px;right:10px;bottom:auto;width:min(360px,calc(100vw - 20px));max-height:calc(100vh - 230px);padding:10px 12px}
+  #scale{right:10px;top:94px;width:158px;padding:8px}
+  #scale .body{height:230px}
+  #axisGizmo{left:12px;bottom:12px;width:68px;height:68px;border-radius:7px}
+  #axisGizmo svg{width:100%;height:100%}
+  #hint{bottom:9px;font-size:9.5px;padding:5px 8px;white-space:nowrap;max-width:calc(100vw - 12px)}
+  #viewBar{bottom:38px;max-width:calc(100vw - 12px);gap:0}
+  #viewBar button{font-size:10px;padding:7px 8px}
+  #selectionLegend{top:97px}
+  .top-plate-toggle{margin-left:auto}
+  #referenceTubeNavigator{bottom:8px;gap:5px;padding:5px 6px}
+  #referenceTubeNavigator .tube-details{padding:0 6px;font-size:11px}
+  #viewBar{bottom:58px}
+  #toast{top:94px;max-width:calc(100vw - 24px);width:max-content}
+}
+@media(max-width:600px){
+  #viewBar{bottom:66px;width:calc(100vw - 24px);display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-radius:6px}
+  #viewBar button{border-radius:4px;padding:7px 2px}
+  #axisGizmo{bottom:132px;width:58px;height:58px}
+  header{gap:6px}
+  #inspectionToggle{width:auto;padding:0 8px}
+  .top-plate-toggle{padding:5px 7px;font-size:11px}
+  #defaultViewButton{padding:0 6px;font-size:11px}
+}
+@media(max-width:480px){
+  #right{max-height:calc(100vh - 230px)}
+  #axisGizmo{bottom:132px;width:58px;height:58px}
+}
+</style>
+<link rel="stylesheet" href="./appearance.css?v=20261029-full-dark" />
+<script src="/settings-sync.js?v=20261103-all-settings"></script><link rel="stylesheet" href="/settings-runtime.css?v=20261103"></head>
+<body>
+<div id="stage"></div>
+<div id="overlay"><svg id="leaders"></svg></div>
+
+<header>
+  <button id="referencePanelToggle" type="button" title="模型设置" aria-label="模型设置" aria-expanded="false" aria-controls="left"></button>
+  <div class="seg" id="modeSeg">
+    <button data-mode="assembly" class="on">整体布置</button>
+    <button data-mode="joint">接口详图</button>
+    <button data-mode="full">整管视图</button>
+    <button data-mode="socket">管座剖视</button>
+  </div>
+  <button id="inspectionToggle" type="button" title="打开或收起检测筛选" aria-label="检测筛选" aria-pressed="false">检测筛选</button>
+  <button class="top-plate-toggle" id="topPlateToggle" type="button" aria-pressed="false" title="在三维模型上叠加管板编号">管板图：关</button>
+  <button id="defaultViewButton" type="button" title="恢复初始整体视角并居中">默认视角</button>
+  <div class="spacer"></div>
+</header>
+
+<aside id="left">
+  <div class="grp" id="asmGrp" data-grp="asm">
+    <div class="t">整体布置 <span style="color:var(--muted);font-weight:400;letter-spacing:0">50 指套管 · 真实管长</span></div>
+    <label class="chk"><input type="checkbox" id="optPrv" checked /> PRV 包络（下封头 + 筒体）</label>
+    <label class="chk"><input type="checkbox" id="optDome" checked /> RPV 下封头（半球形封头）</label>
+    <label class="chk"><input type="checkbox" id="optStruct" checked /> 下部支承结构（示意）</label>
+    <label class="chk"><input type="checkbox" id="optPenetrations" checked /> 下部圆柱 / 贯穿管</label>
+    <div class="col-legend" id="asmLegend" hidden>
+      <span><i style="background:#5f87a8"></i>堆芯支承柱<b id="lgCore">–</b></span>
+      <span><i style="background:#5f9490"></i>十字支承柱<b id="lgCross">–</b></span>
+      <span><i style="background:#93a6ba"></i>带延长段<b id="lgExt">–</b></span>
+    </div>
+    <div class="model-legend" id="modelLegend"></div>
+    <label class="chk"><input type="checkbox" id="optAxes" checked /> XYZ 坐标轴</label>
+    <div class="chk-row">
+      <label class="chk"><input type="checkbox" id="optLenColor" /> 按管长着色</label>
+      <label class="chk"><input type="checkbox" id="optTypeColor" /> 按型号着色</label>
+    </div>
+    <label class="chk" id="optDepthColorRow" hidden><input type="checkbox" id="optDepthColor" /> 按检测数据着色（最大磨损）</label>
+    <label class="chk"><input type="checkbox" id="optCutPrv" /> 剖切：切掉 +X 半边看内部</label>
+  </div>
+
+  <div class="grp" data-grp="disp">
+    <div class="t">显示</div>
+    <label class="chk"><input type="checkbox" id="optDims" checked /> 尺寸标注</label>
+    <label class="chk"><input type="checkbox" id="optStations" checked /> P1–P6 轴向标记</label>
+    <label class="chk"><input type="checkbox" id="optGhost" checked /> 环境件半透明</label>
+    <label class="chk"><input type="checkbox" id="optAxis" /> 轴线 / 坐标</label>
+    <label class="chk"><input type="checkbox" id="optFat" /> 管身视觉放大（不改尺寸）</label>
+  </div>
+
+  <div class="grp" data-grp="cut">
+    <div class="t">剖切 <span id="cutVal" style="color:var(--accent);font-weight:700">关</span></div>
+    <label class="chk"><input type="checkbox" id="optCut" /> 启用剖切</label>
+    <input type="range" id="cutSlider" min="-50" max="50" step="0.5" value="0" />
+  </div>
+
+  <div class="grp" data-grp="explode">
+    <div class="t">爆炸</div>
+    <input type="range" id="exSlider" min="0" max="100" step="1" value="0" />
+  </div>
+
+  <div class="grp" data-grp="parts">
+    <div class="t">零件 <span style="color:var(--muted);font-weight:400;letter-spacing:0">（点击查看）</span></div>
+    <div class="tree" id="tree"></div>
+  </div>
+</aside>
+
+<aside id="right" class="hide">
+  <button class="close" id="infoClose" type="button" aria-label="收起管子详情" title="收起详情">×</button>
+  <h3 id="infoName">零件</h3>
+  <div id="infoTags"></div>
+  <table id="infoTable"></table>
+  <div class="note" id="infoNote"></div>
+</aside>
+
+<div id="scale" class="hide">
+  <div class="ttl">P1–P6 轴向标尺</div>
+  <div class="body"><div class="rail"></div><div class="ticks"></div></div>
+  <div class="foot">P1 在管顶 · P6 在管底</div>
+</div>
+<div id="axisGizmo" class="off" title="X 红 / Y 绿 / Z 蓝，随视角旋转"></div>
+<!-- 视图切换从左侧栏搬到画布上：切视图是读图时最高频的动作，放在画面边上随手可点，
+     也顺带把左栏的高度让给「整体布置 + 通道选择」两组主操作（原来三组同展会溢出 78px）。
+     按钮沿用 data-view 属性，JS 的 document.querySelectorAll('[data-view]') 绑定不受位置影响。 -->
+<div id="viewBar" role="toolbar" aria-label="视图切换">
+  <button data-view="iso">等轴</button>
+  <button data-view="front">前视</button>
+  <button data-view="back">后视</button>
+  <button data-view="left">左视</button>
+  <button data-view="side">右视</button>
+  <button data-view="top">俯视</button>
+  <button data-view="bottom">仰视</button>
+  <button data-view="fit">适配</button>
+  <button data-view="spin" title="自动旋转（再点一次停止）">自动旋转</button>
+</div>
+<div id="hint">左键旋转 · 中键拖动 · 滚轮缩放 · 双击复位 · 点击管子查看信息</div>
+<div id="selectionLegend"><span><i></i>普通管</span><span><i class="selected"></i>已选中</span></div>
+<div id="depthLegend" role="img" aria-label="检测数据着色图例" hidden></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="referenceTubeNavigator" aria-label="管号快速浏览"></div>
+<div id="loading"><div class="box"><div class="ring"></div><p>正在装配指套管模型…</p></div></div>
+
+<script>
+/* 双击 index.html 直接打开（file://）时，浏览器会拦掉 ESM 与 fetch，
+   页面只会永远停在"正在装配…"——给一句明确出路，别让人对着转圈猜。 */
+if (location.protocol === 'file:') {
+  var _box = document.querySelector('#loading .box');
+  if (_box) {
+    _box.innerHTML =
+      '<div style="font-size:15px;font-weight:600;color:#c0392b;margin-bottom:10px">不能直接双击打开 index.html</div>' +
+      '<div style="font-size:13px;line-height:1.9;color:#44566c;text-align:left;max-width:420px">' +
+      '浏览器的同源策略不允许在 <code>file://</code> 下加载 ES 模块和 JSON 数据。<br>' +
+      '请回到工程根目录，双击 <b>启动查看器.cmd</b>，它会自动起本地服务再打开本页。</div>';
+  }
+}
+</script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+<script type="module" src="./app.js"></script>
+<script type="module" src="./defect-layer.js"></script>
+<script>
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || document.querySelector('dialog[open]')) return;
+  event.preventDefault();
+  window.parent !== window && window.parent.postMessage({type:'thimble-escape'}, location.origin);
+});
+window.addEventListener('message', event => {
+  if (event.origin !== location.origin || event.data?.type !== 'thimble-theme') return;
+  window.appAppearance?.setTheme(event.data.theme, {persist:false});
+});
+</script>
+</body>
+</html>

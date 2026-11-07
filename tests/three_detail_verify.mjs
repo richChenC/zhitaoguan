@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const source=fs.readFileSync('src/desktop-ui/visualizations/reference-thimble/defect-location.js','utf8');
+const {findingDetails,isDefect}=await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const row={outage:'H209',unit_id:2,thimble_id:42,indication:'WAR',percent:33,location_raw:'P1 - 42 mm',channel:'P1: 4-6',volts:7.39,degrees:0,analyst:'KYY',calgroup:'TH2I09CAL00003',report_path:'Z:\\report\\Report-KYY.rpt',filename:'DIR042.ect'};
+const fields=findingDetails(row,{note:'P1 baseline only; signed offset is uncalibrated'});
+const details=new Map(fields);
+assert.equal(new Set(fields.map(([label])=>label)).size,fields.length,'Detail labels must not duplicate');
+assert.equal(details.get('磨损深度（壁厚%）'),'33%');
+assert.equal(details.get('RPT 报告文件'),'Report-KYY.rpt');
+assert.equal(details.get('磨损位置'),'P1 - 42 mm');
+assert.equal(details.get('模型定位'),'P1 baseline only; signed offset is uncalibrated');
+assert.equal(details.get('相位'),'0°','Zero phase must not be replaced with a missing marker');
+assert.equal(details.has('大修批次'),false);
+assert.equal(details.has('数据文件'),false);
+assert.equal(JSON.stringify(fields).includes('DIR042.ect'),false,'ECT filename must not masquerade as RPT provenance');
+assert.equal(new Map(findingDetails({...row,report_path:''},null)).get('RPT 报告文件'),'/');
+assert.equal(new Map(findingDetails({...row,percent:null},null)).get('磨损深度（壁厚%）'),'/');
+assert.equal(new Map(findingDetails({...row,percent:0},null)).get('磨损深度（壁厚%）'),'0%');
+assert.equal(new Map(findingDetails(row,null)).get('模型定位'),'位置待确认，未生成空间点');
+assert.equal(isDefect({indication:'NDD',percent:100}),false);
+console.log('Reference inspection details retain original locations, numeric zeroes, missing values, and genuine RPT provenance.');

@@ -1,0 +1,152 @@
+/* Shared filter geometry; native selects retain keyboard and group navigation. */
+:root{
+  --filter-height:34px;
+  --filter-border:#c6d4d9;
+  --filter-surface:#fff;
+  --filter-text:#20363e;
+  --filter-muted:#687d86;
+  --filter-accent:#087d79;
+  --filter-focus:rgba(8,125,121,.16);
+}
+html[data-theme="dark"]{
+  --filter-border:#456066;
+  --filter-surface:#192e32;
+  --filter-text:#e0ecee;
+  --filter-muted:#adc1c5;
+  --filter-accent:#65c5ba;
+  --filter-focus:rgba(101,197,186,.2);
+}
+body select:not([multiple]):not([size]){
+  box-sizing:border-box;
+  height:var(--filter-height)!important;
+  min-height:var(--filter-height)!important;
+  max-width:100%;
+  min-width:0;
+  padding:0 10px;
+  border:1px solid var(--filter-border);
+  border-radius:4px!important;
+  background-color:var(--filter-surface);
+  color:var(--filter-text);
+  font-family:inherit;
+  font-size:12px;
+  font-weight:400;
+  line-height:normal;
+  vertical-align:middle;
+  text-overflow:ellipsis;
+  box-shadow:none;
+  color-scheme:light;
+}
+html[data-theme="dark"] body select{color-scheme:dark}
+/* Horizontal filter rows use their own gaps, not stacked form field margins. */
+:is(#workspace .toolbar,#anFilter,.chart-toolbar,.sc-tools,.sc-scope,.state-scope,.state-action-row,.three-scope-controls,.rc-toolbar,.lg-selector,.iq-toolbar)
+  :is(select,input:not([type="checkbox"]):not([type="radio"]):not([type="range"])){
+  margin:0;
+}
+body select option,body select optgroup{
+  background-color:var(--filter-surface);
+  color:var(--filter-text);
+  font-size:12px;
+}
+body select optgroup{font-weight:600}
+body select:not([multiple]):not([size]):hover:not(:disabled){border-color:var(--filter-accent)}
+body select:not([multiple]):not([size]):focus{
+  border-color:var(--filter-accent);
+  outline:2px solid var(--filter-focus);
+  outline-offset:1px;
+  box-shadow:none;
+}
+body select:disabled{opacity:.55;cursor:not-allowed}
+:is(#workspace .toolbar,#anFilter,.chart-toolbar,.sc-scope,.state-scope,.three-scope-controls,.rc-toolbar,.lg-selector,.iq-toolbar){
+  gap:10px;
+  align-items:end;
+}
+:is(#workspace .toolbar,#anFilter,.chart-toolbar,.sc-scope,.state-scope,.three-scope-controls,.rc-toolbar,.lg-selector,.iq-toolbar) label{
+  min-width:0;
+  color:var(--filter-muted);
+  font-size:12px;
+}
+:is(#workspace .toolbar,#anFilter,.chart-toolbar,.sc-scope,.state-scope,.three-scope-controls,.rc-toolbar,.lg-selector,.iq-toolbar) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]){
+  box-sizing:border-box;
+  height:var(--filter-height);
+  min-height:var(--filter-height);
+  min-width:0;
+  max-width:100%;
+  padding:0 10px;
+  border:1px solid var(--filter-border);
+  border-radius:4px;
+  background-color:var(--filter-surface);
+  color:var(--filter-text);
+  font-family:inherit;
+  font-size:12px;
+}
+/* Selection stays within two pixels of the tube instead of a broad halo. */
+#workspace #coreMap .path-marker:is(.focused,.selected){
+  outline:1px solid var(--filter-accent)!important;
+  outline-offset:1px!important;
+  box-shadow:none!important;
+  transform:translate(-50%,-50%)!important;
+}
+#workspace #coreMap .path-marker:focus-visible{
+  outline:2px solid var(--filter-accent)!important;
+  outline-offset:0!important;
+}
+.vw-record-dialog{width:min(1080px,calc(100vw - 24px))!important;max-width:calc(100vw - 24px)!important;max-height:88dvh;box-sizing:border-box;padding:18px;border:1px solid var(--filter-border);border-radius:6px;background:var(--filter-surface);color:var(--filter-text)}
+.vw-record-dialog::backdrop{background:#142c3b66}
+.vw-record-head,.vw-record-tools,.vw-record-pager{display:flex;align-items:center;gap:12px;justify-content:space-between}
+.vw-record-head h2{margin:0;font-size:16px}
+.vw-record-head button{width:auto;min-width:54px;padding:4px 10px;font-size:12px}
+.vw-record-basis{font-size:12px;line-height:1.7;color:var(--filter-muted);margin:12px 0}
+.vw-record-tools{flex-wrap:wrap;margin-bottom:12px}
+.vw-record-tools input{width:260px;max-width:100%;height:34px}
+.vw-record-table{overflow:auto;max-height:56dvh;border:1px solid var(--filter-border)}
+.vw-record-table table{width:100%;border-collapse:collapse;font-size:12px}
+.vw-record-table th{position:sticky;top:0;background:var(--filter-surface);z-index:1;white-space:nowrap}
+.vw-record-table :is(th,td){padding:9px 10px;text-align:left;border-bottom:1px solid var(--filter-border);min-width:44px}
+.vw-record-table td:nth-child(9){max-width:240px;overflow-wrap:anywhere}
+.vw-record-table small{display:block;color:var(--filter-muted);margin-top:4px}
+.vw-position-note{display:block;min-width:140px;max-width:260px;margin-top:4px;white-space:normal;overflow-wrap:anywhere;line-height:1.6;color:var(--filter-muted)}
+.vw-source-location{font-family:Consolas,"Cascadia Mono",monospace;font-variant-ligatures:none;white-space:pre-wrap}
+.vw-record-pager{justify-content:center;margin-top:12px}
+.vw-summary-metrics [data-metric],.vw-analysis-row{cursor:pointer}
+.vw-summary-metrics [data-metric]:is(:hover,:focus-visible){background:var(--filter-focus);outline:1px solid var(--filter-accent);outline-offset:-1px}
+.vw-summary-metrics [data-metric="ndd"] b{color:#717d88}
+.sc-source-records{display:grid;gap:12px}
+.sc-source-records section{padding:10px 0;border-top:1px solid var(--filter-border)}
+.sc-source-records h4{margin:0 0 8px;font-size:12px}
+.sc-source-records section>div{display:grid;gap:4px;padding:8px 0;border-bottom:1px solid var(--filter-border)}
+.sc-source-records :is(span,small){overflow-wrap:anywhere;color:var(--filter-muted);line-height:1.6}
+.sc-source-records button{margin-top:8px}
+#analytics .official-viz #scUnit{text-align:left;padding-left:10px}
+
+/* Shared detail tables keep source content readable without widening the page. */
+.source-record-dialog{width:min(1440px,calc(100vw - 24px))!important}
+.vw-record-dialog .vw-record-head{padding:0;margin:0 0 12px;min-height:34px}
+.source-record-dialog .vw-record-table{min-height:100px}
+.source-record-dialog table{min-width:1500px;font-variant-numeric:tabular-nums}
+.source-record-dialog td{white-space:nowrap;max-width:360px}
+.source-record-dialog td:nth-last-child(-n+3){white-space:pre-wrap;overflow-wrap:anywhere;min-width:180px}
+.source-record-dialog td:last-child{min-width:260px}
+.record-row-actions,.sc-source-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.record-row-actions button{white-space:nowrap}
+.state-summary-dialog .source-note{white-space:pre-wrap;overflow-wrap:anywhere;min-width:150px;max-width:350px}
+.state-summary-dialog .vw-record-table{margin-top:12px}
+#states button.state-summary-item{width:100%;height:auto;text-align:left;font:inherit;cursor:pointer;letter-spacing:0;white-space:normal}
+#states button.state-summary-item:is(:hover,:focus-visible):enabled{outline:1px solid var(--filter-accent);outline-offset:-1px;background:var(--filter-focus)}
+#states button.state-summary-item:disabled{cursor:default}
+#states #stateBulkHint:empty{display:none}
+#analytics .official-viz .vw-insight-card{cursor:pointer;grid-template-columns:minmax(0,1fr);gap:3px;align-content:start;min-height:82px}
+#analytics .official-viz .vw-insight-card>b{grid-row:auto;font-size:16px;white-space:normal;overflow-wrap:anywhere;order:0}
+#analytics .official-viz .vw-insight-card>span{font-size:11px}
+#analytics .official-viz .vw-insight-card>small{white-space:normal;overflow-wrap:anywhere}
+#analytics .official-viz .vw-insight-card>small:empty{display:none}
+#analytics .official-viz .vw-insight-card:is(:hover,:focus-visible):enabled{border-color:var(--filter-accent);background:var(--filter-focus);transform:none}
+#analytics .official-viz .vw-insight-card:disabled{cursor:default}
+#analytics .official-viz .sc-source-actions{display:flex;border:0;padding:0}
+#analytics .official-viz .cft-point[role=button]{cursor:pointer}
+#analytics .official-viz .cft-point[role=button]:focus-visible{outline:2px solid var(--filter-accent);outline-offset:3px}
+@media(max-width:600px){
+  .vw-record-head{align-items:flex-start}
+  .vw-record-head h2{font-size:14px;overflow-wrap:anywhere}
+  .vw-record-head button{flex:0 0 34px}
+  .vw-record-tools label,.vw-record-tools input{min-width:0;width:100%}
+}

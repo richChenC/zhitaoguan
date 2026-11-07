@@ -1,0 +1,26 @@
+.import-quality{margin-top:16px}
+.import-quality .iq-toolbar{display:flex;align-items:flex-end;flex-wrap:wrap;gap:10px;padding:0 16px 12px}
+.import-quality .iq-toolbar label{display:grid;gap:5px;font-size:12px;color:#52676c;min-width:0;max-width:100%}
+.import-quality select{height:34px;max-width:380px;width:100%;border:1px solid #cad7dc;background:#fff;border-radius:4px;padding:0 8px}
+.import-quality .iq-tabs{display:flex;gap:4px;padding:8px 16px;border-top:1px solid #d9e2e5;border-bottom:1px solid #d9e2e5;flex-wrap:wrap}
+.import-quality .iq-tabs button{border:0;background:transparent;box-shadow:none;border-radius:0;font-size:12px}
+.import-quality .iq-tabs .active{color:#006b78;border-bottom:2px solid #006b78}
+.import-quality #iqStatus{font-size:12px;color:#5d7177;padding:0 16px 10px;overflow-wrap:anywhere}
+.import-quality .ac-table-wrap{max-height:340px;overflow:auto}
+.import-quality table{font-size:12px}
+.import-quality th{position:sticky;top:0;background:#eef4f5;z-index:1;white-space:nowrap}
+.import-quality td{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.import-quality .iq-pager{display:flex;justify-content:flex-end;align-items:center;gap:12px;padding:10px 16px;font-size:12px}
+.import-quality .iq-review{padding:12px 16px;border-bottom:1px solid #d9e2e5}
+.import-quality .iq-review header{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;margin-bottom:8px;flex-wrap:wrap}
+.import-quality .iq-review header span{color:#687a80}
+.import-quality .iq-review-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.import-quality .iq-review-reason{flex:1;min-width:140px;max-width:420px;height:32px;border:1px solid #cad7dc;border-radius:4px;padding:0 8px;font-size:12px}
+.import-quality .iq-review input[type=radio]{width:16px;height:16px;accent-color:#006b78}
+.import-quality .iq-review-history{font-size:12px;margin-top:10px}
+.import-quality .iq-review-history summary{padding:6px 0}
+.import-quality dialog{max-width:460px;border:1px solid #c9d7dc;border-radius:6px;padding:22px;color:#233736}
+.import-quality dialog::backdrop{background:#172e3b55}
+.import-quality dialog p{font-size:13px;line-height:1.7}
+.import-quality dialog form>div{display:flex;justify-content:flex-end;gap:8px}
+@media(max-width:1100px){.import-quality select{max-width:290px}}

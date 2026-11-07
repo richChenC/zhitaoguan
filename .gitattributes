@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.py text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+.vendor/** -text
+src/desktop-ui/vendor/** -text

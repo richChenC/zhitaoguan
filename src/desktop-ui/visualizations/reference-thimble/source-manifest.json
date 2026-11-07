@@ -1,0 +1,24 @@
+{
+  "source": "指套管模型工程/04_三维查看器",
+  "importedAt": "2026-10-22",
+  "unit": "mm",
+  "integration": "thin-hook-only: source geometry, data, vendor and desktop interactions are unchanged. app.js adds live business getters, silent programmatic selection, ready/selection/frame events, iframe viewport recovery and pauses rendering while the host view is hidden. index.html loads the separate defect layer and adapts controls only below 1000px.",
+  "sourceFiles": [
+    { "path": "app.js", "sha256": "ca65abc1755fd2aa517304678e8f589455979fac42cfa89ecd9c90ce43f8b110", "size": 135754, "integrationHooks": true },
+    { "path": "index.html", "sha256": "171b81716b0e9bc2199da77e55d89a98e6ab21773099fbca72ab733f2848a8f1", "size": 25830, "integrationHooks": true },
+    { "path": "data/core_map.svg", "sha256": "39f429aae2d1526be8243a6260a89610c86b0ef17ba488024a2eefa992125465", "size": 62623 },
+    { "path": "data/dimensions.json", "sha256": "836cff0003ecc61733f19a44cd4a2990325a8488c71c5c3524bd040ce1774364", "size": 7892 },
+    { "path": "data/dome.json", "sha256": "9c81c0a9f9b71f9207fbf3c11433d92e20e6a3b6ab3426d30347e11d703a717e", "size": 899836 },
+    { "path": "data/p1p6_channels.json", "sha256": "7cfd53588d96fe6234d340530e33321feea98437dd7a9a69dcf00bba45af719a", "size": 4682 },
+    { "path": "data/p1p6_stations.json", "sha256": "58643b3ebbe124b69f0d14e7b9cb14393b5ca0ecef1f4fa6798ffaf598585be4", "size": 4163 },
+    { "path": "data/plate_plan.svg", "sha256": "54dca7403bff4fc56ca62c1961a7af198db192b4aca43ca13bbb190950cddfd7", "size": 60756 },
+    { "path": "data/thimble_assembly.json", "sha256": "cbbb2a70fd4f8933a3d7a26792db66f49f3ecf2795665a948afa20fa3e17f33c", "size": 992439 },
+    { "path": "data/tube_specs.json", "sha256": "c9db7686f4403f4acff42f63064ec06ccb2f778bbdf85fbb6cc4ad79e3af02fa", "size": 14366 },
+    { "path": "data/vessel_layout.json", "sha256": "66e1a861067b3880871980b2540baa1f149506a2ad8e8f5e37976b5150e70c0c", "size": 60835 },
+    { "path": "vendor/OrbitControls.js", "sha256": "678066c7c32676a376102d57749ea1d8bc7711bd16388cf03e414586502feb20", "size": 40563 },
+    { "path": "vendor/RoomEnvironment.js", "sha256": "55f466192cc84298755a424c5e040345006b2ee1455589b3b54126c2ea4123f4", "size": 4960 },
+    { "path": "vendor/three.core.js", "sha256": "4183cee05f0aa093682fdf551363a16bb20bd92b68e14f7576905f45c461ba82", "size": 381130 },
+    { "path": "vendor/three.core.min.js", "sha256": "4183cee05f0aa093682fdf551363a16bb20bd92b68e14f7576905f45c461ba82", "size": 381130 },
+    { "path": "vendor/three.module.js", "sha256": "852c06b9fe936cf8ebc2870c86370d1015c310b04de98cdfc07f4efaf6afd2af", "size": 338914 }
+  ]
+}

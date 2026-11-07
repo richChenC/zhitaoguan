@@ -1,0 +1,47 @@
+/* Analytics polish: improve hierarchy and responsiveness without changing data logic. */
+#analytics .an-wrap{max-width:1680px;padding:20px 24px 36px;gap:16px}
+#analytics .an-head{position:relative;padding:10px 0 12px;background:transparent}
+#analytics .an-head h2{font-size:20px;letter-spacing:0}
+#analytics .an-head .sub{border-radius:4px;padding:5px 10px}
+#analytics .alertbar{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+#analytics .alert{min-height:76px;padding:14px 18px;border-radius:5px;box-shadow:0 3px 14px rgba(24,45,55,.08)}
+#analytics .alert .v{font-variant-numeric:tabular-nums}
+#analytics .kpis{grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+#analytics .kpi{min-height:82px;border-radius:5px;padding:14px 16px;box-shadow:0 3px 14px rgba(24,45,55,.07)}
+#analytics .kpi .n{font-variant-numeric:tabular-nums}
+#analytics .filter{position:relative;border-radius:5px;padding:12px 16px;box-shadow:0 3px 12px rgba(24,45,55,.07)}
+#analytics .filter .pills{max-width:100%;overflow-x:auto;padding-bottom:2px}
+#analytics .panel{border-radius:5px;box-shadow:0 3px 14px rgba(24,45,55,.06)}
+#analytics .panel-title{min-height:58px;padding:10px 16px;background:#fbfcfc;border-bottom:1px solid var(--panel-bd)}
+#analytics .panel-title h2{font-size:14px}
+#analytics .panel-bd{padding:14px 16px}
+#analytics .viz-chart{min-height:280px}
+#analytics svg.chart{min-height:220px}
+#analytics .legendbar{gap:10px 16px;padding:9px 14px}
+#analytics .rank-table th{position:sticky;top:0;z-index:1}
+#analytics .heat{gap:8px}
+#analytics .heat .heat-cell{border-radius:6px}
+/* Keep the dashboard visual-first: remove prose while retaining data labels and controls. */
+#analytics .an-head,
+#analytics .panel-title span,
+#analytics .note,
+#analytics #mapNote,
+#analytics .findings,
+#analytics .three-hint{display:none!important}
+#analytics .panel-title{min-height:44px;padding:8px 16px}
+#analytics .panel-title h2{font-size:13px;margin:0}
+@media (max-width:1100px){
+  #analytics .an-wrap{padding:16px 16px 28px}
+  #analytics .kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #analytics .filter{position:static}
+}
+@media (max-width:720px){
+  #analytics .an-head{position:static}
+  #analytics .alertbar,#analytics .kpis{grid-template-columns:1fr}
+  #analytics .alert{min-height:0}
+  #analytics .row.r2,#analytics .row.r12,#analytics .row.r3{grid-template-columns:1fr}
+  #analytics .panel-title{padding:10px 12px}
+  #analytics .panel-bd{padding:10px 12px}
+  #analytics .viz-chart{min-height:230px;overflow-x:auto}
+  #analytics .heat{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+}

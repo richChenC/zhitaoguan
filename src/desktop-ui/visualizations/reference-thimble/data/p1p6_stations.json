@@ -1,0 +1,231 @@
+{
+ "source": "指套管P1-P6距离.xlsx · Sheet2 实测磨损记录 + 《P1 P6 理论距离》",
+ "unit": "mm（自 P1 沿管轴向管底方向）",
+ "records": [
+  {
+   "channel": "D10",
+   "pos": "P1",
+   "wearPct": 34.0,
+   "wearLen": 12.4,
+   "toP3": 1103.0,
+   "toP2": 859.0
+  },
+  {
+   "channel": "F9",
+   "pos": "P4",
+   "wearPct": 53.0,
+   "wearLen": 6.9,
+   "toP3": 847.0,
+   "toP2": null
+  },
+  {
+   "channel": "",
+   "pos": "P1",
+   "wearPct": 68.0,
+   "wearLen": 12.8,
+   "toP3": 1024.0,
+   "toP2": null
+  },
+  {
+   "channel": "F11",
+   "pos": "P1",
+   "wearPct": 32.0,
+   "wearLen": 10.3,
+   "toP3": 1024.0,
+   "toP2": null
+  },
+  {
+   "channel": "J10",
+   "pos": "P1",
+   "wearPct": 76.0,
+   "wearLen": 12.4,
+   "toP3": 1028.0,
+   "toP2": null
+  },
+  {
+   "channel": "",
+   "pos": "P4",
+   "wearPct": 50.0,
+   "wearLen": 6.9,
+   "toP3": 843.0,
+   "toP2": null
+  },
+  {
+   "channel": "J12",
+   "pos": "P1",
+   "wearPct": 31.0,
+   "wearLen": 10.9,
+   "toP3": 1025.0,
+   "toP2": null
+  },
+  {
+   "channel": "J3",
+   "pos": "P1",
+   "wearPct": 20.0,
+   "wearLen": 5.6,
+   "toP3": null,
+   "toP2": null
+  },
+  {
+   "channel": "J7",
+   "pos": "P1",
+   "wearPct": 45.0,
+   "wearLen": 10.0,
+   "toP3": 1089.0,
+   "toP2": 843.0
+  },
+  {
+   "channel": "H4",
+   "pos": "P1",
+   "wearPct": 29.0,
+   "wearLen": 10.2,
+   "toP3": null,
+   "toP2": null
+  },
+  {
+   "channel": "M3",
+   "pos": "P1",
+   "wearPct": 44.0,
+   "wearLen": 11.6,
+   "toP3": 1022.0,
+   "toP2": null
+  },
+  {
+   "channel": "N5",
+   "pos": "P5",
+   "wearPct": 25.0,
+   "wearLen": 5.4,
+   "toP3": null,
+   "toP2": null
+  },
+  {
+   "channel": "R8",
+   "pos": "P1",
+   "wearPct": 20.0,
+   "wearLen": 10.3,
+   "toP3": null,
+   "toP2": null
+  },
+  {
+   "channel": "",
+   "pos": "P4",
+   "wearPct": 20.0,
+   "wearLen": 5.4,
+   "toP3": null,
+   "toP2": null
+  },
+  {
+   "channel": "N8",
+   "pos": "P1",
+   "wearPct": 37.0,
+   "wearLen": 10.7,
+   "toP3": 1028.0,
+   "toP2": null
+  },
+  {
+   "channel": "",
+   "pos": "P4",
+   "wearPct": 50.0,
+   "wearLen": 6.0,
+   "toP3": 408.0,
+   "toP2": null
+  },
+  {
+   "channel": "N10",
+   "pos": "P1",
+   "wearPct": 25.0,
+   "wearLen": 11.4,
+   "toP3": null,
+   "toP2": null
+  },
+  {
+   "channel": "",
+   "pos": "P5",
+   "wearPct": 25.0,
+   "wearLen": 5.9,
+   "toP3": null,
+   "toP2": null
+  },
+  {
+   "channel": "L8",
+   "pos": "P1",
+   "wearPct": 36.0,
+   "wearLen": 9.7,
+   "toP3": 987.0,
+   "toP2": null
+  },
+  {
+   "channel": "",
+   "pos": "P4",
+   "wearPct": 24.0,
+   "wearLen": 6.6,
+   "toP3": null,
+   "toP2": null
+  },
+  {
+   "channel": "L6",
+   "pos": "P4",
+   "wearPct": 25.0,
+   "wearLen": 5.7,
+   "toP3": null,
+   "toP2": null
+  },
+  {
+   "channel": "",
+   "pos": "P1",
+   "wearPct": 47.0,
+   "wearLen": 10.3,
+   "toP3": 1006.0,
+   "toP2": null
+  }
+ ],
+ "stations": [
+  {
+   "id": "P1",
+   "desc": "堆芯支承柱螺栓顶部 / 十字支承柱顶部",
+   "fromTop": 0.0,
+   "basis": "定义（管顶）",
+   "status": "确认"
+  },
+  {
+   "id": "P2",
+   "desc": "P1 下游",
+   "fromTop": 851.0,
+   "basis": "ECT 实测『距P2』中位数（n=2，原始 [843.0, 859.0]）",
+   "status": "推导"
+  },
+  {
+   "id": "P3",
+   "desc": "P1 下游",
+   "fromTop": 1024.5,
+   "basis": "ECT 实测『距P3』中位数（n=10，原始 [987.0, 1006.0, 1022.0, 1024.0, 1025.0, 1028.0, 1089.0, 1103.0]）",
+   "status": "推导"
+  },
+  {
+   "id": "P4",
+   "desc": "P3 下游",
+   "fromTop": 1867.5,
+   "basis": "P3 + 实测 P4『距P3』中位数 843.0（n=3）",
+   "status": "推导"
+  },
+  {
+   "id": "P5",
+   "desc": "P4 下游",
+   "fromTop": 2397.5,
+   "basis": "P4 + 530（推测均匀分布，待实测复核）",
+   "status": "推定"
+  },
+  {
+   "id": "P6",
+   "desc": "中子测量贯穿管底部",
+   "fromTop": "L",
+   "basis": "定义（管底，长度取 P1→P6 理论值）",
+   "status": "确认"
+  }
+ ],
+ "measured": {
+  "toP2_median": 851.0,
+  "toP3_fromP1_median": 1024.5,
+  "toP3_fromP4_median": 843.0
+ }
+}

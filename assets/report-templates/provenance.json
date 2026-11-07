@@ -1,0 +1,18 @@
+[
+  {
+    "kind": "inspection",
+    "source": "AB141208632CICA45SS-1号机组第八次大修反应堆中子通量测量指套管涡流检验结果综合报告-A.docx",
+    "source_sha256": "8f1d21913f870fee0ec0ada3c00b0d0441a99eeb42ed24161cfb877885c291dd",
+    "source_table_index": 11,
+    "template_sha256": "b634513688f622486b6344bb9bb574757eff79720bade33693bd9676132c934f",
+    "section": "<w:sectPr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" w:rsidR=\"00000000\"><w:pgSz w:w=\"11906\" w:h=\"16838\" /><w:pgMar w:top=\"1417\" w:right=\"1134\" w:bottom=\"1417\" w:left=\"1134\" w:header=\"851\" w:footer=\"851\" w:gutter=\"0\" /><w:cols w:space=\"720\" /><w:docGrid w:linePitch=\"312\" /></w:sectPr>"
+  },
+  {
+    "kind": "comparison",
+    "source": "AB141208632CICA45SS-1号机组第八次大修反应堆中子通量测量指套管涡流检验结果综合报告-A.docx",
+    "source_sha256": "8f1d21913f870fee0ec0ada3c00b0d0441a99eeb42ed24161cfb877885c291dd",
+    "source_table_index": 7,
+    "template_sha256": "ea29d69c595e0645495294a8dc0929af6c1f7dfe1f8cb32fec1cf2e40450fb6e",
+    "section": "<w:sectPr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" w:rsidR=\"00000000\"><w:pgSz w:w=\"11906\" w:h=\"16838\" /><w:pgMar w:top=\"1418\" w:right=\"1134\" w:bottom=\"1418\" w:left=\"1134\" w:header=\"851\" w:footer=\"851\" w:gutter=\"0\" /><w:cols w:space=\"720\" /><w:docGrid w:linePitch=\"312\" /></w:sectPr>"
+  }
+]

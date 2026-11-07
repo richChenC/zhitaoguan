@@ -1,0 +1,148 @@
+/* ============================================================
+   pro-grade.css —— 商业级专业质感提档层
+   加载顺序：放在所有样式表最后，源码顺序取胜；全部用 token 变量编写，
+   浅色模式被提档，暗色主题因更高特异性规则保持自身背景/阴影不被破坏。
+   可一键回退：删除 index.html 末尾的 <link rel="stylesheet" href="/pro-grade.css">
+   ------------------------------------------------------------
+   设计取向：统一层级阴影 + 更大圆角 + 精致导航/表格/指标卡 + 克制微交互，
+   不引入新品牌色、不改布局结构、不动后端。
+   ============================================================ */
+
+:root{
+  --pg-radius:10px;
+  --pg-radius-sm:8px;
+  --pg-line:#e4ebf0;
+  --pg-paper-2:#f7fafb;
+  --pg-shadow-1:0 1px 2px rgba(18,32,40,.04), 0 6px 16px rgba(18,32,40,.055);
+  --pg-shadow-2:0 2px 6px rgba(18,32,40,.05), 0 14px 34px rgba(18,32,40,.09);
+}
+
+/* ---------- 1. 基础与微交互 ---------- */
+*{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+body{
+  font-family:'Microsoft YaHei','PingFang SC','Segoe UI',-apple-system,'Helvetica Neue',Arial,sans-serif;
+  background:linear-gradient(180deg,#f4f7f9 0%, #eef2f5 100%);
+  color:var(--ink);
+}
+input:not([type=checkbox]):not([type=radio]):not([type=range]),
+select,textarea,table,code,.mono{font-variant-numeric:tabular-nums}
+button,select,input,.panel,.card,.app-nav .nav-group button,.primary,.metrics article{
+  transition:background-color .15s ease,border-color .15s ease,box-shadow .2s ease,transform .12s ease,color .15s ease;
+}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#c6d1d7;border:2px solid transparent;background-clip:content-box;border-radius:8px}
+::-webkit-scrollbar-thumb:hover{background:#aab9c0;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+::selection{background:#bfece8;color:#08231f}
+
+/* ---------- 2. 顶栏导航：极淡渐变 + 细高光 + 更强阴影 ---------- */
+.app-nav{
+  background:linear-gradient(180deg,#ffffff 0%, #f6f9fb 100%);
+  box-shadow:0 1px 0 #e6edf1, 0 8px 22px rgba(20,38,48,.08);
+  border-bottom:1px solid #dde6ec;
+}
+.app-nav strong span{
+  border-radius:7px;
+  background:linear-gradient(135deg,#b83d44,#8f2c33);
+  box-shadow:0 2px 7px rgba(143,44,51,.38);
+  letter-spacing:.5px;font-weight:800;
+}
+.app-nav .nav-group button.active{
+  background:linear-gradient(180deg,#eaf6f4,#e1f1ee);
+  color:#0a6f6c;
+  box-shadow:inset 0 0 0 1px #bfe0db, inset 0 -2px 0 rgba(10,111,108,.18);
+}
+.app-nav .nav-group button.active:hover{background:#dcf0ec}
+.app-nav .nav-group button:hover{background:#eef3f5}
+
+/* ---------- 3. 面板：统一圆角 + 分层阴影 + 精致表头 ---------- */
+.panel,.ac-panel{
+  border-radius:var(--pg-radius);
+  border-color:var(--pg-line);
+  box-shadow:var(--pg-shadow-1);
+  background:var(--paper);
+}
+.panel:hover{box-shadow:var(--pg-shadow-2)}
+.panel-title{
+  background:linear-gradient(180deg,#fbfdfe,#f4f8fa);
+  border-bottom:1px solid var(--pg-line);
+  padding:13px 16px;
+  border-radius:var(--pg-radius) var(--pg-radius) 0 0;
+}
+.panel-title h2{font-size:14px;font-weight:700;letter-spacing:.2px;color:#2b3d47}
+.panel-title span{color:#7c8b95;font-size:11px}
+
+/* 仪表盘面板（数据可视化）同步提档阴影，保持统一 */
+#analytics .panel{box-shadow:var(--pg-shadow-1)}
+#analytics .panel:hover{box-shadow:var(--pg-shadow-2)}
+
+/* ---------- 4. 指标 / 统计卡 ---------- */
+.metrics article{
+  background:var(--paper);
+  border:1px solid var(--pg-line);
+  border-radius:var(--pg-radius-sm);
+  box-shadow:var(--pg-shadow-1);
+  padding:12px 14px;
+}
+.metrics article:hover{box-shadow:var(--pg-shadow-2);transform:translateY(-1px)}
+.metrics article strong{font-size:22px;font-weight:800;letter-spacing:.3px;color:#21323b;line-height:1.1}
+.metrics article span{color:#6b7a83;font-size:10.5px;letter-spacing:.3px}
+#analytics .kpi{
+  background:var(--paper);
+  border:1px solid var(--pg-line);
+  border-radius:var(--pg-radius-sm);
+  box-shadow:var(--pg-shadow-1);
+}
+
+/* ---------- 5. 数据表格：精致表头 + 悬浮 + 斑马 + 选中强调 ---------- */
+.table-wrap{
+  border:1px solid var(--pg-line);
+  border-radius:var(--pg-radius-sm);
+  background:var(--paper);
+}
+#workspace thead th, #states thead th, .state-table-panel thead th, .table-wrap thead th{
+  position:sticky;top:0;z-index:2;
+  background:linear-gradient(180deg,#f3f7f9,#eaf0f3);
+  color:#5a6b74;font-size:10px;font-weight:700;letter-spacing:.4px;
+  text-align:left;padding:9px 10px;
+  border-bottom:1.5px solid #d3dde3;
+  box-shadow:0 1px 0 #fff;
+}
+#workspace tbody td, #states tbody td, .state-table-panel tbody td{
+  padding:8px 10px;border-bottom:1px solid #eef2f5;font-size:11px;color:#33454e;
+}
+#workspace tbody tr:hover, #states tbody tr:hover, .state-table-panel tbody tr:hover{background:#f2f8fa}
+#workspace tbody tr:nth-child(even), #states tbody tr:nth-child(even), .state-table-panel tbody tr:nth-child(even){background:#fafcfd}
+#workspace tbody tr:nth-child(even):hover, #states tbody tr:nth-child(even):hover, .state-table-panel tbody tr:nth-child(even):hover{background:#eff6f9}
+#workspace tbody tr.selected, #states tbody tr.selected, .state-table-panel tbody tr.selected{background:#e9f5f4;box-shadow:inset 3px 0 var(--primary)}
+td.num,th.num{text-align:right}
+
+/* ---------- 6. 标题层级 / 眉标 kicker ---------- */
+.workspace-heading h1{font-size:22px;font-weight:700;letter-spacing:.3px;color:#21323b}
+.workspace-heading p{font-size:12px;color:#6b7a83;line-height:1.6;max-width:72ch}
+.eyebrow{
+  display:inline-block;letter-spacing:2px;font-size:10px;font-weight:800;
+  color:#3a6b66;text-transform:uppercase;padding-left:15px;position:relative;
+}
+.eyebrow::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:9px;height:2px;background:#0a6f6c;border-radius:2px}
+
+/* ---------- 7. 主按钮：悬浮微浮起 + 柔光 ---------- */
+button.primary,button#openImportFlow{box-shadow:0 2px 8px rgba(8,125,121,.22)}
+button.primary:hover,button#openImportFlow:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(8,125,121,.30)}
+button.primary:active,button#openImportFlow:active{transform:translateY(0)}
+
+/* ---------- 8. 图表（SVG 类钩子） ---------- */
+.cft-svg{overflow:visible}
+.cft-grid line, .cft-grid-x line{stroke:#eef3f6;stroke-width:1}
+.cft-axes line{stroke:#cfdae1;stroke-width:1}
+.cft-threshold.cft-limit{stroke:#d23b3b;filter:drop-shadow(0 0 3px rgba(210,59,59,.35))}
+.cft-threshold.cft-watch{stroke:#cf9a3a}
+.cft-threshold-lbl{font-weight:700}
+.cft-point{cursor:pointer;transition:stroke-width .12s ease}
+.cft-point:hover{stroke-width:3}
+.cft-total-area{pointer-events:none}
+
+/* ---------- 9. 减少动效偏好 ---------- */
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}

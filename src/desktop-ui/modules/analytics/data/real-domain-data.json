@@ -1,0 +1,1221 @@
+{
+ "meta": {
+  "source": "指套管数据测试 202007 / 指套管信息(指套管磨损统计分析结果.pptx) 真实文件解析",
+  "generated": "2026-08-28"
+ },
+ "group_cut": {
+  "阳江": {
+   "1号机（Y104）": {
+    "channels": [
+     {
+      "channel": 6,
+      "core_pos": "R8",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 14,
+      "core_pos": "L5",
+      "cut": 3,
+      "plug": "是",
+      "note": ""
+     },
+     {
+      "channel": 16,
+      "core_pos": "L8",
+      "cut": 2,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 17,
+      "core_pos": "N8",
+      "cut": 3,
+      "plug": "是",
+      "note": ""
+     },
+     {
+      "channel": 18,
+      "core_pos": "L6",
+      "cut": 2,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 19,
+      "core_pos": "J10",
+      "cut": 2,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 25,
+      "core_pos": "J5",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 27,
+      "core_pos": "G9",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 37,
+      "core_pos": "H6",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     }
+    ]
+   },
+   "2号机（Y203）": {
+    "channels": [
+     {
+      "channel": 4,
+      "core_pos": "D10",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 14,
+      "core_pos": "H13",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 15,
+      "core_pos": "F9",
+      "cut": 2,
+      "plug": "是",
+      "note": "已更换"
+     },
+     {
+      "channel": 19,
+      "core_pos": "F11",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 23,
+      "core_pos": "H6",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 25,
+      "core_pos": "J10",
+      "cut": 2,
+      "plug": "是",
+      "note": "已更换"
+     },
+     {
+      "channel": 26,
+      "core_pos": "J12",
+      "cut": 1,
+      "plug": "是",
+      "note": "已更换"
+     },
+     {
+      "channel": 39,
+      "core_pos": "J7",
+      "cut": 2,
+      "plug": "否",
+      "note": "已更换"
+     },
+     {
+      "channel": 40,
+      "core_pos": "H4",
+      "cut": 2,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 41,
+      "core_pos": "M3",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 45,
+      "core_pos": "N8",
+      "cut": 2,
+      "plug": "否",
+      "note": "已更换"
+     },
+     {
+      "channel": 46,
+      "core_pos": "N10",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 48,
+      "core_pos": "L8",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 49,
+      "core_pos": "L6",
+      "cut": 2,
+      "plug": "否",
+      "note": "已更换"
+     }
+    ]
+   },
+   "3号机（Y303）": {
+    "channels": [
+     {
+      "channel": 17,
+      "core_pos": "N8",
+      "cut": 2,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 18,
+      "core_pos": "L6",
+      "cut": 2,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 2,
+      "core_pos": "G14",
+      "cut": 2,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 20,
+      "core_pos": "L9",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     }
+    ]
+   },
+   "4号机（Y402）": {
+    "channels": [
+     {
+      "channel": 3,
+      "core_pos": "E11",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 15,
+      "core_pos": "F9",
+      "cut": 2,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 20,
+      "core_pos": "D7",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 27,
+      "core_pos": "J15",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 30,
+      "core_pos": "F4",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 34,
+      "core_pos": "N12",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 45,
+      "core_pos": "N8",
+      "cut": 2,
+      "plug": "是",
+      "note": ""
+     },
+     {
+      "channel": 48,
+      "core_pos": "L8",
+      "cut": 1,
+      "plug": "是",
+      "note": ""
+     }
+    ]
+   },
+   "5号机（Y501）": {
+    "channels": [
+     {
+      "channel": 18,
+      "core_pos": "L6",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     }
+    ]
+   }
+  },
+  "红沿河": {
+   "1号机（H105）": {
+    "channels": [
+     {
+      "channel": 2,
+      "core_pos": "G14",
+      "cut": 4,
+      "plug": "是",
+      "note": ""
+     },
+     {
+      "channel": 4,
+      "core_pos": "H13",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 5,
+      "core_pos": "J12",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 17,
+      "core_pos": "N8",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 18,
+      "core_pos": "L6",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 20,
+      "core_pos": "L9",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 25,
+      "core_pos": "J5",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     }
+    ]
+   },
+   "2号机（H204）": {
+    "channels": [
+     {
+      "channel": 4,
+      "core_pos": "D10",
+      "cut": 2,
+      "plug": "是",
+      "note": "已更换"
+     },
+     {
+      "channel": 6,
+      "core_pos": "C12",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 9,
+      "core_pos": "A9",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 15,
+      "core_pos": "F9",
+      "cut": 3,
+      "plug": "是",
+      "note": "已更换"
+     },
+     {
+      "channel": 19,
+      "core_pos": "F11",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 21,
+      "core_pos": "G7",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 25,
+      "core_pos": "J10",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 34,
+      "core_pos": "N12",
+      "cut": 2,
+      "plug": "否",
+      "note": "已更换"
+     },
+     {
+      "channel": 35,
+      "core_pos": "L9",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 36,
+      "core_pos": "L11",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 39,
+      "core_pos": "J7",
+      "cut": 3,
+      "plug": "是",
+      "note": "已更换"
+     },
+     {
+      "channel": 40,
+      "core_pos": "H4",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 43,
+      "core_pos": "R8",
+      "cut": 3,
+      "plug": "是",
+      "note": "已更换"
+     },
+     {
+      "channel": 45,
+      "core_pos": "N8",
+      "cut": 2,
+      "plug": "否",
+      "note": "已更换"
+     },
+     {
+      "channel": 46,
+      "core_pos": "N10",
+      "cut": 2,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 47,
+      "core_pos": "L5",
+      "cut": 1,
+      "plug": "否",
+      "note": "已更换"
+     }
+    ]
+   },
+   "3号机（H303）": {
+    "channels": [
+     {
+      "channel": 8,
+      "core_pos": "N10",
+      "cut": 3,
+      "plug": "是",
+      "note": ""
+     },
+     {
+      "channel": 11,
+      "core_pos": "H11",
+      "cut": 2,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 14,
+      "core_pos": "L5",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 18,
+      "core_pos": "L6",
+      "cut": 2,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 50,
+      "core_pos": "A9",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     }
+    ]
+   },
+   "4号机（H402）": {
+    "channels": [
+     {
+      "channel": 27,
+      "core_pos": "J15",
+      "cut": 1,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 45,
+      "core_pos": "N8",
+      "cut": 2,
+      "plug": "否",
+      "note": ""
+     },
+     {
+      "channel": 49,
+      "core_pos": "L6",
+      "cut": 2,
+      "plug": "否",
+      "note": ""
+     }
+    ]
+   }
+  },
+  "防城港": {
+   "1号机（F102）": {
+    "channels": [
+     {
+      "channel": 1,
+      "core_pos": "L11",
+      "cut": 1,
+      "plug": "",
+      "note": ""
+     },
+     {
+      "channel": 20,
+      "core_pos": "L09",
+      "cut": 1,
+      "plug": "",
+      "note": ""
+     },
+     {
+      "channel": 41,
+      "core_pos": "B07",
+      "cut": 1,
+      "plug": "",
+      "note": ""
+     },
+     {
+      "channel": 42,
+      "core_pos": "B05",
+      "cut": 1,
+      "plug": "",
+      "note": ""
+     }
+    ]
+   },
+   "2号机（F202）": {
+    "channels": [
+     {
+      "channel": 6,
+      "core_pos": "C12",
+      "cut": 1,
+      "plug": "",
+      "note": ""
+     },
+     {
+      "channel": 15,
+      "core_pos": "F9",
+      "cut": 2,
+      "plug": "是",
+      "note": ""
+     },
+     {
+      "channel": 25,
+      "core_pos": "J10",
+      "cut": 2,
+      "plug": "是",
+      "note": ""
+     },
+     {
+      "channel": 28,
+      "core_pos": "G9",
+      "cut": 2,
+      "plug": "是",
+      "note": ""
+     },
+     {
+      "channel": 33,
+      "core_pos": "J3",
+      "cut": 1,
+      "plug": "",
+      "note": ""
+     },
+     {
+      "channel": 34,
+      "core_pos": "N12",
+      "cut": 1,
+      "plug": "",
+      "note": ""
+     },
+     {
+      "channel": 39,
+      "core_pos": "J7",
+      "cut": 2,
+      "plug": "是",
+      "note": ""
+     },
+     {
+      "channel": 43,
+      "core_pos": "R8",
+      "cut": 2,
+      "plug": "是",
+      "note": ""
+     },
+     {
+      "channel": 45,
+      "core_pos": "N8",
+      "cut": 1,
+      "plug": "",
+      "note": ""
+     },
+     {
+      "channel": 46,
+      "core_pos": "N10",
+      "cut": 1,
+      "plug": "",
+      "note": ""
+     },
+     {
+      "channel": 47,
+      "core_pos": "L5",
+      "cut": 2,
+      "plug": "是",
+      "note": ""
+     },
+     {
+      "channel": 48,
+      "core_pos": "L8",
+      "cut": 1,
+      "plug": "",
+      "note": ""
+     }
+    ]
+   }
+  }
+ },
+ "f2": {
+  "plate": [
+   {
+    "channel": 5,
+    "core_pos": "D12",
+    "cut": 0,
+    "plug": "",
+    "wear_c2": 32.0,
+    "wear_c1": 17.0
+   },
+   {
+    "channel": 6,
+    "core_pos": "C12",
+    "cut": 1,
+    "plug": "",
+    "wear_c2": 49.0,
+    "wear_c1": 15.0
+   },
+   {
+    "channel": 7,
+    "core_pos": "B10",
+    "cut": 0,
+    "plug": "",
+    "wear_c2": 34.0,
+    "wear_c1": 15.0
+   },
+   {
+    "channel": 15,
+    "core_pos": "F9",
+    "cut": 2,
+    "plug": "是",
+    "wear_c2": 67.0,
+    "wear_c1": 62.0
+   },
+   {
+    "channel": 18,
+    "core_pos": "E5",
+    "cut": 0,
+    "plug": "",
+    "wear_c2": 30.0,
+    "wear_c1": 14.0
+   },
+   {
+    "channel": 21,
+    "core_pos": "G7",
+    "cut": 0,
+    "plug": "",
+    "wear_c2": 30.0,
+    "wear_c1": 14.0
+   },
+   {
+    "channel": 25,
+    "core_pos": "J10",
+    "cut": 2,
+    "plug": "是",
+    "wear_c2": 74.0,
+    "wear_c1": 68.0
+   },
+   {
+    "channel": 26,
+    "core_pos": "J12",
+    "cut": 0,
+    "plug": "",
+    "wear_c2": 37.0,
+    "wear_c1": 14.0
+   },
+   {
+    "channel": 27,
+    "core_pos": "J15",
+    "cut": 0,
+    "plug": "",
+    "wear_c2": 31.0,
+    "wear_c1": 23.0
+   },
+   {
+    "channel": 28,
+    "core_pos": "G9",
+    "cut": 2,
+    "plug": "是",
+    "wear_c2": 69.0,
+    "wear_c1": 61.0
+   },
+   {
+    "channel": 32,
+    "core_pos": "H1",
+    "cut": 0,
+    "plug": "",
+    "wear_c2": 42.0,
+    "wear_c1": 32.0
+   },
+   {
+    "channel": 33,
+    "core_pos": "J3",
+    "cut": 1,
+    "plug": "",
+    "wear_c2": 45.0,
+    "wear_c1": 18.0
+   },
+   {
+    "channel": 34,
+    "core_pos": "N12",
+    "cut": 1,
+    "plug": "",
+    "wear_c2": 52.0,
+    "wear_c1": 25.0
+   },
+   {
+    "channel": 38,
+    "core_pos": "J5",
+    "cut": 0,
+    "plug": "",
+    "wear_c2": 37.0,
+    "wear_c1": 20.0
+   },
+   {
+    "channel": 39,
+    "core_pos": "J7",
+    "cut": 2,
+    "plug": "是",
+    "wear_c2": 65.0,
+    "wear_c1": 47.0
+   },
+   {
+    "channel": 43,
+    "core_pos": "R8",
+    "cut": 2,
+    "plug": "是",
+    "wear_c2": 84.0,
+    "wear_c1": 61.0
+   },
+   {
+    "channel": 45,
+    "core_pos": "N8",
+    "cut": 1,
+    "plug": "",
+    "wear_c2": 57.0,
+    "wear_c1": 36.0
+   },
+   {
+    "channel": 46,
+    "core_pos": "N10",
+    "cut": 1,
+    "plug": "",
+    "wear_c2": 48.0,
+    "wear_c1": 30.0
+   },
+   {
+    "channel": 47,
+    "core_pos": "L5",
+    "cut": 2,
+    "plug": "是",
+    "wear_c2": 66.0,
+    "wear_c1": 45.0
+   },
+   {
+    "channel": 48,
+    "core_pos": "L8",
+    "cut": 1,
+    "plug": "",
+    "wear_c2": 48.0,
+    "wear_c1": 33.0
+   },
+   {
+    "channel": 49,
+    "core_pos": "L6",
+    "cut": 0,
+    "plug": "",
+    "wear_c2": 41.0,
+    "wear_c1": 25.0
+   }
+  ],
+  "p1_p5": {
+   "C1/2017": {
+    "P1": 68.0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 41.0,
+    "P5": 61.0
+   },
+   "C2/2019": {
+    "P1": 74.0,
+    "P2": 0,
+    "P3": 0,
+    "P4": 58.0,
+    "P5": 84.0
+   }
+  },
+  "cut_summary": {
+   "cut2": 6,
+   "cut1": 6,
+   "normal": 9
+  },
+  "detail": [
+   {
+    "tube": 4,
+    "pos": "D10",
+    "vol": 2.83,
+    "depth": 34.0,
+    "p": "P1",
+    "up": 8224.0,
+    "down": 8152.0,
+    "len_mm": 12.4,
+    "d_p3": 1103.0,
+    "d_p2": 859.0
+   },
+   {
+    "tube": 15,
+    "pos": "F9",
+    "vol": 5.68,
+    "depth": 53.0,
+    "p": "P4",
+    "up": 18844.0,
+    "down": 18804.0,
+    "len_mm": 6.9,
+    "d_p3": 847.0,
+    "d_p2": null
+   },
+   {
+    "tube": 15,
+    "pos": "F9",
+    "vol": 9.64,
+    "depth": 68.0,
+    "p": "P1",
+    "up": 7986.0,
+    "down": 7912.0,
+    "len_mm": 12.8,
+    "d_p3": 1024.0,
+    "d_p2": null
+   },
+   {
+    "tube": 19,
+    "pos": "F11",
+    "vol": 2.57,
+    "depth": 32.0,
+    "p": "P1",
+    "up": 7268.0,
+    "down": 7208.0,
+    "len_mm": 10.3,
+    "d_p3": 1024.0,
+    "d_p2": null
+   },
+   {
+    "tube": 25,
+    "pos": "J10",
+    "vol": 13.14,
+    "depth": 76.0,
+    "p": "P1",
+    "up": 8046.0,
+    "down": 7974.0,
+    "len_mm": 12.4,
+    "d_p3": 1028.0,
+    "d_p2": null
+   },
+   {
+    "tube": 25,
+    "pos": "J10",
+    "vol": 5.12,
+    "depth": 50.0,
+    "p": "P4",
+    "up": 18902.0,
+    "down": 18862.0,
+    "len_mm": 6.9,
+    "d_p3": 843.0,
+    "d_p2": null
+   },
+   {
+    "tube": 26,
+    "pos": "J12",
+    "vol": 2.51,
+    "depth": 31.0,
+    "p": "P1",
+    "up": 8004.0,
+    "down": 7941.0,
+    "len_mm": 10.9,
+    "d_p3": 1025.0,
+    "d_p2": null
+   },
+   {
+    "tube": 33,
+    "pos": "J3",
+    "vol": 1.6,
+    "depth": 20.0,
+    "p": "P1",
+    "up": 19503.0,
+    "down": 19469.0,
+    "len_mm": 5.6,
+    "d_p3": null,
+    "d_p2": null
+   },
+   {
+    "tube": 39,
+    "pos": "J7",
+    "vol": 4.32,
+    "depth": 45.0,
+    "p": "P1",
+    "up": 7716.0,
+    "down": 7658.0,
+    "len_mm": 10.0,
+    "d_p3": 1089.0,
+    "d_p2": 843.0
+   },
+   {
+    "tube": 40,
+    "pos": "H4",
+    "vol": 2.41,
+    "depth": 29.0,
+    "p": "P1",
+    "up": 7554.0,
+    "down": 7492.0,
+    "len_mm": 10.2,
+    "d_p3": null,
+    "d_p2": null
+   },
+   {
+    "tube": 41,
+    "pos": "M3",
+    "vol": 3.97,
+    "depth": 44.0,
+    "p": "P1",
+    "up": 7626.0,
+    "down": 7559.0,
+    "len_mm": 11.6,
+    "d_p3": 1022.0,
+    "d_p2": null
+   },
+   {
+    "tube": 42,
+    "pos": "N5",
+    "vol": 2.03,
+    "depth": 25.0,
+    "p": "P5",
+    "up": 18698.0,
+    "down": 18665.0,
+    "len_mm": 5.4,
+    "d_p3": null,
+    "d_p2": null
+   },
+   {
+    "tube": 43,
+    "pos": "R8",
+    "vol": 1.63,
+    "depth": 20.0,
+    "p": "P1",
+    "up": 7579.0,
+    "down": 7516.0,
+    "len_mm": 10.3,
+    "d_p3": null,
+    "d_p2": null
+   },
+   {
+    "tube": 43,
+    "pos": "R8",
+    "vol": 1.59,
+    "depth": 20.0,
+    "p": "P4",
+    "up": 15551.0,
+    "down": 15518.0,
+    "len_mm": 5.4,
+    "d_p3": null,
+    "d_p2": null
+   },
+   {
+    "tube": 45,
+    "pos": "N8",
+    "vol": 3.13,
+    "depth": 37.0,
+    "p": "P1",
+    "up": 7626.0,
+    "down": 7564.0,
+    "len_mm": 10.7,
+    "d_p3": 1028.0,
+    "d_p2": null
+   },
+   {
+    "tube": 45,
+    "pos": "N8",
+    "vol": 5.03,
+    "depth": 50.0,
+    "p": "P4",
+    "up": 15962.0,
+    "down": 15927.0,
+    "len_mm": 6.0,
+    "d_p3": 408.0,
+    "d_p2": null
+   },
+   {
+    "tube": 46,
+    "pos": "N10",
+    "vol": 1.9,
+    "depth": 25.0,
+    "p": "P1",
+    "up": 7282.0,
+    "down": 7216.0,
+    "len_mm": 11.4,
+    "d_p3": null,
+    "d_p2": null
+   },
+   {
+    "tube": 46,
+    "pos": "N10",
+    "vol": 1.93,
+    "depth": 25.0,
+    "p": "P5",
+    "up": 19025.0,
+    "down": 18991.0,
+    "len_mm": 5.9,
+    "d_p3": null,
+    "d_p2": null
+   },
+   {
+    "tube": 48,
+    "pos": "L8",
+    "vol": 3.02,
+    "depth": 36.0,
+    "p": "P1",
+    "up": 7332.0,
+    "down": 7273.0,
+    "len_mm": 9.7,
+    "d_p3": 987.0,
+    "d_p2": null
+   },
+   {
+    "tube": 48,
+    "pos": "L8",
+    "vol": 1.91,
+    "depth": 24.0,
+    "p": "P4",
+    "up": 18313.0,
+    "down": 18273.0,
+    "len_mm": 6.6,
+    "d_p3": null,
+    "d_p2": null
+   },
+   {
+    "tube": 49,
+    "pos": "L6",
+    "vol": 1.88,
+    "depth": 25.0,
+    "p": "P4",
+    "up": 19132.0,
+    "down": 19099.0,
+    "len_mm": 5.7,
+    "d_p3": null,
+    "d_p2": null
+   },
+   {
+    "tube": 49,
+    "pos": "L6",
+    "vol": 4.59,
+    "depth": 47.0,
+    "p": "P1",
+    "up": 8422.0,
+    "down": 8362.0,
+    "len_mm": 10.3,
+    "d_p3": 1006.0,
+    "d_p2": null
+   }
+  ]
+ },
+ "pptx": {
+  "quadrant": [
+   {
+    "label": "0°",
+    "count": 2
+   },
+   {
+    "label": "0°~90°",
+    "count": 8
+   },
+   {
+    "label": "90°",
+    "count": 3
+   },
+   {
+    "label": "90°~180°",
+    "count": 9
+   },
+   {
+    "label": "180°",
+    "count": 4
+   },
+   {
+    "label": "180°~270°",
+    "count": 10
+   },
+   {
+    "label": "270°",
+    "count": 3
+   },
+   {
+    "label": "270°~0°",
+    "count": 11
+   }
+  ],
+  "threshold": {
+   "over20": {
+    "top_channel": "J10",
+    "top_count": 116,
+    "note": "磨损>20%通道中J10磨损数量最多；F8未出现"
+   },
+   "over40": {
+    "top_channel": "J10",
+    "top_count": 42,
+    "note": "磨损>40%通道中J10最多；B5/B7/B8/D5/D7/E5/F4/F6/F8未出现"
+   },
+   "over65": {
+    "channels": [
+     "J10",
+     "L5",
+     "J12",
+     "F9"
+    ],
+    "top_channel": "J10",
+    "top_count": 6,
+    "note": "仅J10/L5/J12/F9出现>65%磨损"
+   }
+  },
+  "position_dist_note": "P1点磨损数量最多，其次为P4、P5点（各循环期间P1点磨损增量最多）",
+  "conclusions": [
+   "群厂各机组循环磨损增量处数量：大部分机组呈减少或平稳趋势；宁德3台机组目前显示都呈增大趋势（slide7-10）",
+   "阳江2号机组两次循环都存在磨损增量超过65%的情况（slide11）",
+   "群厂历史磨损统计：磨损>20%通道中J10最多(116次)；>40%中J10最多(42次)；>65%仅J10/L5/J12/F9",
+   "各象限磨损次数：0°~90°范围最多，180°~270°较少；270°~0°~90°范围磨损数量均在50%以上(22/50)"
+  ]
+ },
+ "group_cut_dayawan": {},
+ "p1_p6_height": {
+  "J7": 3287.67,
+  "G7": 3287.67,
+  "G9": 3287.67,
+  "H6": 3264.67,
+  "F8": 3264.67,
+  "J10": 3261.1,
+  "F9": 3261.1,
+  "F6": 3221.67,
+  "H11": 3218.1,
+  "L8": 3218.1,
+  "L9": 3198.17,
+  "J5": 3198.17,
+  "L6": 3174.1,
+  "F11": 3174.1,
+  "H4": 3128.17,
+  "J12": 3129.1,
+  "D7": 3129.1,
+  "L11": 3108.17,
+  "L5": 3108.17,
+  "E5": 3108.17,
+  "E11": 3108.17,
+  "F4": 3081.67,
+  "D10": 3081.67,
+  "H13": 3029.1,
+  "N8": 3029.1,
+  "L4": 3029.1,
+  "H3": 3029.1,
+  "D5": 3029.1,
+  "C8": 3029.1,
+  "N7": 3012.17,
+  "J3": 3012.17,
+  "N10": 2979.6,
+  "F13": 2979.6,
+  "D12": 2938.17,
+  "N5": 2909.67,
+  "B8": 2885.17,
+  "B7": 2878.6,
+  "G14": 2878.6,
+  "F2": 2829.17,
+  "B10": 2829.17,
+  "N12": 2822.6,
+  "M3": 2822.6,
+  "D3": 2822.6,
+  "C12": 2822.6,
+  "L14": 2768.1,
+  "B5": 2768.1,
+  "R8": 2711.6,
+  "H1": 2711.6,
+  "J15": 2694.1,
+  "A9": 2694.1
+ },
+ "p1_p6_note": {
+  "P1": "堆芯支承柱螺栓的顶部或十字支承柱的顶部",
+  "P6": "中子测量贯穿管的底部"
+ }
+}
