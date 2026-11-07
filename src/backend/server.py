@@ -1742,8 +1742,18 @@ def _normalize_mapping_override(mapping: dict, book) -> tuple[str, int, dict[str
 def import_excel_file(filename: str, blank_indication_policy: str = "", operator: str = "",
                       _audit=None, mapping: dict | None = None) -> dict:
     if not blank_indication_policy:
-        with task_progress.phase(0, 35):
-            check = import_excel_file(filename, "check", operator, mapping=mapping)
+        try:
+            with task_progress.phase(0, 35):
+                check = import_excel_file(filename, "check", operator, mapping=mapping)
+        except Exception as check_error:
+            # 预检（check）是只读预演，其报错才是第一现场；保留既有 review 回退行为，
+            # 但回退也失败时必须抛出原始预检错误，不能让回退错误掩盖真正原因。
+            try:
+                with task_progress.phase(35, 99):
+                    return import_excel_file(filename, "review", operator, mapping=mapping)
+            except Exception as review_error:
+                LOGGER.error("Excel 导入预检失败：%s；review 回退亦失败：%s", check_error, review_error)
+                raise check_error from review_error
         if check["blank_indication"]["count"]:
             task_progress.wait_for_confirmation()
             check["requires_indication_decision"] = True
