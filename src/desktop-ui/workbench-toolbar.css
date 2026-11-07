@@ -71,6 +71,20 @@
 }
 #workspace .workspace-scope-summary[data-filtered=true] { color:#317273; }
 #workspace .workspace-scope-summary[data-loading=true] { opacity:.6; }
+#workspace .workspace-export-status {
+  order:6;
+  flex:0 1 auto;
+  min-width:0;
+  max-width:46ch;
+  margin-left:8px;
+  color:#317273;
+  font-size:11px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+#workspace .workspace-export-status[hidden] { display:none; }
+html[data-theme="dark"] #workspace .workspace-export-status { color:var(--dark-ink,#cfe1e2); }
 #workspace .workspace-commands #workspaceRefreshRecords {
   order:4;
   flex:0 0 30px;

@@ -1038,23 +1038,94 @@ function installColumnFilters(){
   updateColumnFilterButtons();
 }
 installSelectionTools();installInlineFindingEditors();installColumnFilters();updateWorkspaceActions(!state.overview);document.addEventListener('DOMContentLoaded',()=>{installSelectionTools();installInlineFindingEditors();installColumnFilters()});
+// 综合台账导出：全量数据在服务端生成表格可能持续 40–60 秒，期间按钮保持可点击；
+// 第二次点击用 AbortController 中止请求，并始终显示“当前阶段 + 已用时间”，避免被误认为界面卡死。
+// 服务端已开始的 Excel 生成不会随连接中断立即停止，但客户端不会再保存任何文件。
+let ledgerExport=null;
+function ledgerExportScopeText(){
+  const values=[];
+  const site=$('#site')?.value.trim(),unit=$('#unit')?.value.trim(),outage=$('#outage')?.value.trim(),analyst=$('#analyst')?.value.trim(),thimble=$('#thimble')?.value.trim();
+  if(site)values.push(site);
+  if(unit)values.push(`${unit} 号机组`);
+  if(outage)values.push(outage);
+  if(analyst)values.push(`分析：${analyst}`);
+  if(thimble)values.push(`#${thimble} 通道`);
+  const columns=Object.keys(workspaceColumnFilters);
+  if(columns.length)values.push(`列筛选 ${columns.length} 项`);
+  return values.join(' · ')||'全部检测记录';
+}
+function ledgerExportStatus(text,{state='busy'}={}){
+  const host=$('#workspace .workspace-commands');
+  if(!host)return;
+  let status=$('#ledgerExportStatus');
+  if(!status){
+    status=document.createElement('span');
+    status.id='ledgerExportStatus';
+    status.className='workspace-export-status';
+    status.setAttribute('role','status');
+    status.setAttribute('aria-live','polite');
+    host.append(status);
+  }
+  status.hidden=!text;
+  status.dataset.state=state;
+  status.title=text||'';
+  status.textContent=text||'';
+}
 $('#exportLedgerBtn')?.addEventListener('click',async()=>{
-  const button=$('#exportLedgerBtn');button.disabled=true;button.textContent='正在导出...';
+  const button=$('#exportLedgerBtn');if(!button)return;
+  // 导出中再次点击 = 取消；原生保存窗口打开时忽略，避免把“保存中”误判成可取消。
+  if(ledgerExport){
+    if(ledgerExport.phase!=='saving')ledgerExport.controller.abort();
+    return;
+  }
+  const controller=new AbortController();
+  const exportState=ledgerExport={controller,phase:'request',startedAt:Date.now()};
+  const scope=ledgerExportScopeText();
+  button.disabled=false;
+  button.setAttribute('aria-busy','true');
+  button.textContent='正在导出…点击取消';
+  const tick=()=>{
+    if(ledgerExport!==exportState)return;
+    const elapsed=Math.max(0,Math.round((Date.now()-exportState.startedAt)/1000));
+    if(exportState.phase==='request')ledgerExportStatus(`正在准备数据 · 已用 ${elapsed} 秒 · ${scope}`);
+    else if(exportState.phase==='render')ledgerExportStatus(`正在生成表格 · 已用 ${elapsed} 秒 · ${scope}`);
+  };
+  tick();
+  const timer=window.setInterval(tick,1000);
+  // 请求阶段同时包含取数与表格生成；1.5 秒后切到“生成表格”，让等待过程有阶段感。
+  const phaseTimer=window.setTimeout(()=>{if(ledgerExport===exportState&&exportState.phase==='request'){exportState.phase='render';tick()}},1500);
   try{
-    const data=await api('/api/data-ledger/export',{method:'POST',body:JSON.stringify(Object.fromEntries(params()))});
+    const data=await api('/api/data-ledger/export',{method:'POST',body:JSON.stringify(Object.fromEntries(params())),signal:controller.signal});
+    if(controller.signal.aborted)throw new DOMException('已取消','AbortError');
+    exportState.phase='write';
+    ledgerExportStatus(`正在写入文件 · ${data.rows} 条检测记录`);
     if(window.desktopAPI?.saveLedger){
-      const response=await fetch(data.download_url);
+      const response=await fetch(data.download_url,{signal:controller.signal});
       if(!response.ok)throw new Error('获取台账文件失败，请重新导出。');
       if(Number(response.headers.get('content-length'))>50*1024*1024)throw new Error('台账文件超过 50 MB，无法保存，请缩小筛选范围后重试。');
       const bytes=new Uint8Array(await response.arrayBuffer());
+      if(controller.signal.aborted)throw new DOMException('已取消','AbortError');
+      exportState.phase='saving';
+      button.textContent='等待保存位置';
+      ledgerExportStatus('请在保存窗口中选择台账保存位置');
       const saved=await window.desktopAPI.saveLedger({bytes,defaultName:data.filename});
+      ledgerExportStatus('');
       toast(saved?`综合台账已保存：${saved}`:'已取消保存综合台账',{type:saved?'success':'info'});
     }else{
       const link=document.createElement('a');link.href=data.download_url;link.download=data.filename;link.click();
+      ledgerExportStatus('');
       toast(`已生成 ${data.rows} 条检测记录，正在保存台账`,{type:'info'});
     }
-  }catch(error){toast(error.message,{type:'error'})}
-  finally{button.disabled=false;button.textContent='导出综合台账'}
+  }catch(error){
+    const aborted=controller.signal.aborted||error?.name==='AbortError';
+    ledgerExportStatus('');
+    toast(aborted?'已取消，未保存':error.message,{type:aborted?'info':'error'});
+  }finally{
+    window.clearInterval(timer);window.clearTimeout(phaseTimer);
+    if(ledgerExport===exportState)ledgerExport=null;
+    button.removeAttribute('aria-busy');
+    button.textContent='导出综合台账';
+  }
 });
 function syncCoreAvailability(){const map=$('#coreMap'),unit=$('#unit');if(!map||!unit)return;map.style.pointerEvents=unit.value||selectionVisualization().ready?'':'none';}
 syncCoreAvailability(); $('#unit')?.addEventListener('change',syncCoreAvailability); document.addEventListener('DOMContentLoaded',syncCoreAvailability);
