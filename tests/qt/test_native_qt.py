@@ -10,6 +10,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtQuickWidgets import QQuickWidget  # noqa: E402
 
 from qt_shell.native_client import NativeClient  # noqa: E402
 from qt_shell.native_windows import (  # noqa: E402
@@ -18,6 +19,7 @@ from qt_shell.native_windows import (  # noqa: E402
     NativeMainWindow,
     NativeReportsPage,
     NativeStatePage,
+    NativeThreeDPage,
 )
 
 
@@ -47,12 +49,15 @@ class NativeQtTests(unittest.TestCase):
     def test_native_window_builds_without_webengine(self):
         client = NativeClient("http://127.0.0.1:18767")
         window = NativeMainWindow(client, {"username": "tester", "permissions": []})
-        self.assertEqual(window.nav.count(), 5)
-        self.assertEqual(window.stack.count(), 5)
+        self.assertEqual(window.nav.count(), 6)
+        self.assertEqual(window.stack.count(), 6)
         self.assertEqual(window.workbench.model.columnCount(), 9)
         self.assertIsInstance(window.stack.widget(1), NativeStatePage)
-        self.assertIsInstance(window.stack.widget(2), NativeAnalyticsPage)
-        self.assertIsInstance(window.stack.widget(3), NativeReportsPage)
+        self.assertIsInstance(window.stack.widget(2), NativeThreeDPage)
+        self.assertIsInstance(window.stack.widget(3), NativeAnalyticsPage)
+        self.assertIsInstance(window.stack.widget(4), NativeReportsPage)
+        self.app.processEvents()
+        self.assertNotEqual(window.stack.widget(2).view.status(), QQuickWidget.Status.Error)
         window.close()
 
     def test_native_entry_does_not_import_webengine(self):

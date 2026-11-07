@@ -7,9 +7,10 @@ migrated.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QUrl, Qt, Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -31,6 +32,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from PySide6.QtQuickWidgets import QQuickWidget
 
 from .constants import APP_ICON, PRODUCT_NAME
 from .native_client import NativeClient
@@ -463,6 +465,18 @@ class NativeReportsPage(QWidget):
         self.status.setText(f"已加载 {len(rows)} 个报告模板")
 
 
+class NativeThreeDPage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.view = QQuickWidget(self)
+        self.view.setResizeMode(QQuickWidget.ResizeMode.SizeRootObjectToView)
+        qml = Path(__file__).with_name("native_threed.qml")
+        self.view.setSource(QUrl.fromLocalFile(str(qml)))
+        layout.addWidget(self.view)
+
+
 class SettingsPage(QWidget):
     logoutRequested = Signal()
 
@@ -505,12 +519,13 @@ class NativeMainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         self.nav = QListWidget()
         self.nav.setFixedWidth(210)
-        for label in ("数据工作台", "状态处理", "数据可视化", "报告中心", "设置"):
+        for label in ("数据工作台", "状态处理", "三维模型", "数据可视化", "报告中心", "设置"):
             self.nav.addItem(QListWidgetItem(label))
         self.stack = QStackedWidget()
         self.workbench = DataWorkbench(client)
         self.stack.addWidget(self.workbench)
         self.stack.addWidget(NativeStatePage(client))
+        self.stack.addWidget(NativeThreeDPage())
         self.stack.addWidget(NativeAnalyticsPage(client))
         self.stack.addWidget(NativeReportsPage(client))
         settings = SettingsPage(user)
