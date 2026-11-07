@@ -216,3 +216,45 @@ body[data-reduce-motion="true"] :is(.vw-hist-bar,.cft-point) { transition:none; 
   #analytics .official-viz .vw-outage-details { padding-left:6px; }
   #rcHeaderForm .rc-field-group { grid-template-columns:minmax(0,1fr); }
 }
+
+/* e3-2 排版与信息层级：统一页面栅格基准、区块节奏、面板标题层级与控件规格。
+   只收敛「同类元素不同规格」，不改任何页面结构与业务交互。 */
+@media(min-width:681px) {
+  /* 页面统一外边距，与卡片内 14/20 的横向留白对齐，落在 4px 节奏上 */
+  body main { padding:16px 20px 20px !important; }
+}
+body .split { gap:16px; }
+body .split + .split { margin-top:16px; }
+
+/* 面板与面板标题：所有面板共用一套规格（此前 53/60 两种高度、9/12 与 10/13 两套内边距） */
+body .panel { border-radius:var(--ui-radius-lg); }
+body :is(#workspace,#states,#reports,#analytics,#settings,#threeD) .panel > .panel-title {
+  height:52px;
+  min-height:52px;
+  padding:0 14px;
+  gap:10px;
+  align-items:center;
+  border-bottom:1px solid var(--line);
+}
+body :is(#workspace,#states,#reports,#analytics,#settings,#threeD) .panel > .panel-title h2 {
+  font-size:var(--ui-fs-body-lg);
+  line-height:20px;
+  font-weight:700;
+  letter-spacing:0;
+}
+body :is(#workspace,#states,#reports,#analytics,#settings,#threeD) .panel > .panel-title span {
+  font-size:var(--ui-fs-caption);
+  line-height:16px;
+  font-weight:500;
+}
+body :is(#workspace,#states,#reports,#analytics,#settings,#threeD) .panel > .panel-title button {
+  height:30px;
+  min-height:30px;
+  padding:0 10px;
+}
+
+/* 区块节奏：筛选卡与下方内容之间留 16px，筛选区内部列间距对齐 4px 节奏 */
+#workspace .toolbar { margin-bottom:16px; }
+#workspace .workspace-filters { gap:12px; }
+#workspace .workspace-commands { gap:8px; }
+
