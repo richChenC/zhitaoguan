@@ -2,7 +2,7 @@
 // responsive while the feature modules retain their existing self-mounting API.
 (() => {
   const modules = {
-    analytics: '/modules/analytics/official-workspace.js?v=20261106-lazy',
+    analytics: '/modules/analytics/official-workspace.js?v=20261107-e3f',
     reports: '/modules/analysis-center.js?v=20261106-lazy',
   };
   const styles = {

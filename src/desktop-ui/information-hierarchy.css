@@ -329,3 +329,18 @@ html[data-theme] #workspace .table-panel .table-wrap tbody td:nth-child(12) {
 html[data-theme="light"] #workspace .table-panel .table-wrap tbody tr:nth-child(even) { background:#f6f9fa; }
 html[data-theme="light"] #workspace .table-panel .table-wrap tbody tr:nth-child(even):hover { background:var(--ui-surface-hover); }
 
+/* e3-2c 首屏完整：概览条占用纵向空间后，把工作台锁定在一屏内，
+   表格与右侧堆芯面板各自内部滚动，分页器保持可见。 */
+@media(min-width:1081px) {
+  body #workspace .split {
+    height:calc(100dvh - 430px); min-height:420px; align-items:stretch;
+  }
+  body #workspace .table-panel {
+    display:flex; flex-direction:column; height:100%; min-height:0;
+  }
+  body #workspace .table-panel .table-wrap {
+    flex:1 1 auto; min-height:0; max-height:none; overflow:auto;
+  }
+  body #workspace .core-panel { height:100%; min-height:0; overflow:auto; }
+}
+

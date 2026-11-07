@@ -10,7 +10,7 @@ const state = {sites: new Set(), unit: '', outage: '', focus: '', plate: 'depth'
   comparison: 'all', comparisonUnits: new Set(), trendMetric:'report', positionUnit:'', frequencyThreshold:20,
   frequencyPosition:'', positionMetric:'total', riskUnit:'', riskOutage:'', riskBaselineOutage:undefined, riskFilter:'all',
   riskTube:null, riskSearch:'', riskSort:'priority', riskSplit:62,
-  positionSelection: new Set(['P1','P2','P3','P4','P5','总量']), positionSelectionMode: 'multiple',
+  positionSelection: new Set(['P1','P2','P3','P4','P5']), positionSelectionMode: 'multiple',
   longitudinalTubes: new Set(), longitudinalJump: 15, longitudinalUnit: '', longitudinalDepth:'service', longitudinalHistoryTube:null,
   longitudinalAll:false, longitudinalUnits:null,
   distUnit: '', distOutage: '', replacementKey:'', replacementOutages:null};
@@ -749,7 +749,7 @@ function drawMatchedTrends(activeKeys, allUnitKeys) {
   const positionRounds=rounds.filter(round=>!state.positionUnit||round.unit===state.positionUnit);
   const positionSeries=[...$('c32Legend').querySelectorAll('[data-position-series]')].map((button,index)=>{
     const name=button.dataset.positionSeries;
-    return {name,color:name==='总量'?COLOR.total:COLOR_BY_POSITION[name],lineWidth:name==='总量'?2.8:1.8,
+    return {name,color:COLOR_BY_POSITION[name],lineWidth:1.8,
       symbol:['diamond','square','triangle','cross','star','circle'][index%6],pointR:3.1,
       data:incrementPoints(positionRounds,name,state.positionUnit?1:allUnitKeys.length)};
   }).filter(line=>state.positionSelection.has(line.name));
@@ -762,7 +762,7 @@ function drawMatchedTrends(activeKeys, allUnitKeys) {
   });
   $('chart32').closest('.panel').querySelector('.panel-title h2').textContent='P 位 WAR 匹配增量趋势';
   $('c32Tag').textContent=`${state.positionUnit||'全部机组'} · 同 P 位、同轴向位置匹配`;
-  $('c32Note').textContent='各 P 位仅合计该位置的可靠匹配深度差；总量含 P1–P6。换管、未确认移位、堵管待核对及不唯一匹配不参与合计；NDD 不作为上次零深度。';
+  $('c32Note').textContent='各 P 位仅合计该位置的可靠匹配深度差；换管、未确认移位、堵管待核对及不唯一匹配不参与合计；NDD 不作为上次零深度。';
   for(const [id,scope] of [['c31Toolbar',selected],['c32Toolbar',positionRounds]]){
     const button=document.createElement('button');button.type='button';button.className='vw-compact-action';
     button.textContent='核对明细';button.dataset.incrementDetails=id;
@@ -891,16 +891,15 @@ function drawTrends() {
     data:rows.map(t => ({x:t.order,y:t.position_stats[key] ? t.position_stats[key].total : t.total == null ? null : 0,
       partial:t.partial||(t.position_stats[key]?.missing || 0)>0||t.incomplete>0,
       label:`${state.positionUnit||'全部机组'} / 第${t.order}轮 · ${key} · ${t.contributors||1} 台有记录 · ${t.position_stats[key]?(t.position_stats[key].total??'/'):(t.total==null?'/':0)} 百分点`}))}));
-  pSeries.push({name:'总量',color:COLOR.total,total:true,lineWidth:2.8,pointR:4,data:rows.map(t => ({x:t.order,y:t.total,partial:t.partial||t.missing_depth>0||t.incomplete>0}))});
   const selectedPositions=pSeries.filter(series=>state.positionSelection.has(series.name));
-  renderLineChart($('chart32'), {width:Math.max(600,$('chart32').clientWidth),height:chartHeight('chart32'),series:rows.length ? selectedPositions : [],yLabel:'WAR 报告深度合计（百分点）',valueDecimals:1,referenceStyle:true,showTotalArea:true,pointLabels:showPointLabels(),compactTooltip:true});
+  renderLineChart($('chart32'), {width:Math.max(600,$('chart32').clientWidth),height:chartHeight('chart32'),series:rows.length ? selectedPositions : [],yLabel:'WAR 报告深度合计（百分点）',valueDecimals:1,referenceStyle:true,pointLabels:showPointLabels(),compactTooltip:true});
   $('chart32').querySelectorAll('.series .cft-point').forEach(point=>{
     const bucket=point.closest('.series').dataset.name,order=Number(point.dataset.x);
     bindChartPoint(point,`${bucket} · 第 ${order} 次大修，查看来源`,()=>{
       const entries=[];
       for(const snapshot of data.snapshots.filter(snapshot=>snapshot.order===order&&(!state.positionUnit||snapshot.unit===state.positionUnit)))
         for(const tube of snapshot.tubes)for(const finding of tube.findings||[]){
-          if(String(finding.indication).trim().toUpperCase()==='WAR'&&(bucket==='总量'||finding.position_bucket===bucket))entries.push({snapshot,tube,finding});
+          if(String(finding.indication).trim().toUpperCase()==='WAR'&&finding.position_bucket===bucket)entries.push({snapshot,tube,finding});
         }
       showRecordList(`${bucket} · 第 ${order} 次大修`,entries,'当前范围 · WAR 检测来源');
     });
@@ -914,9 +913,9 @@ function drawTrends() {
     else state.positionSelection.add(name);
     drawTrends();
   });
-  $('c32Tag').textContent = `${state.positionUnit||'全部机组'} · P1–P5 分层与报告深度合计`;
+  $('c32Tag').textContent = `${state.positionUnit||'全部机组'} · P1–P5 分层`;
   $('chart32').closest('.panel').querySelector('.panel-title h2').textContent='P 位报告深度趋势';
-  $('c32Note').textContent = '单位：壁厚百分点；P1–P5 为位置分层，橙线为同期报告深度合计，不是磨损增量或速率。';
+  $('c32Note').textContent = '单位：壁厚百分点；P1–P5 为位置分层，不是磨损增量或速率。';
   let share = $('c32PositionShare');
   if (!share) {
     share = document.createElement('section');
