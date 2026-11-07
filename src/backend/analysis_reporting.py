@@ -14,8 +14,9 @@ import io
 import json
 import re
 import math
+import threading
 import unicodedata
-from collections import Counter, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 from datetime import datetime
 
 try:
@@ -607,6 +608,76 @@ def preview(snapshot, service=None):
         body = "".join("<tr>" + "".join(f"<td>{escape(v)}</td>" for v in r) + "</tr>" for r in rows)
         parts.append(f"<article class='report-sheet'><div class='report-page-mark'>{index}/{len(pages)}</div><h1>{escape(snapshot['title'])}</h1><section class='report-info'>{fields}</section><table><thead><tr>{''.join(f'<th>{escape(h)}</th>' for h in snapshot['headers'])}</tr></thead><tbody>{body}</tbody></table><footer>{escape(RULE_NOTE)}<br>分析：____________　审核：____________　批准：____________</footer></article>")
     return {**snapshot, "html": "".join(parts)}
+
+
+# 预览结果缓存：同一份「参数 + 数据版本」只构建一次。
+# 数据版本不用文件 mtime：审计事件每次请求都写库（WAL），文件指纹会被无谓刷新。
+# 改用只覆盖预览输入的聚合指纹；取不到指纹时不缓存，宁可慢也不返回过期结果。
+_PREVIEW_CACHE = OrderedDict()
+_PREVIEW_CACHE_LIMIT = 8
+_PREVIEW_CACHE_LOCK = threading.Lock()
+_PREVIEW_BUILD_LOCK = threading.Lock()
+
+
+def data_fingerprint(service):
+    try:
+        with service.connect() as db:
+            findings = db.execute(
+                "SELECT COUNT(*), COALESCE(MAX(id),0), COALESCE(MAX(imported_at),'') "
+                "FROM findings WHERE is_deleted=0").fetchone()
+            history = db.execute(
+                "SELECT COUNT(*), COALESCE(MAX(edited_at),'') FROM finding_edit_history").fetchone()
+            reviews = db.execute(
+                "SELECT COUNT(*), COALESCE(MAX(id),0) FROM cross_group_reviews").fetchone()
+            states = db.execute(
+                "SELECT COUNT(*), COALESCE(MAX(updated_at),'') FROM tube_states").fetchone()
+    except Exception:
+        return None
+    return {"findings": tuple(findings), "history": tuple(history),
+            "reviews": tuple(reviews), "states": tuple(states)}
+
+
+def _preview_cache_key(service, payload, rules):
+    fingerprint = data_fingerprint(service)
+    if fingerprint is None:
+        return None
+    material = json.dumps({"payload": payload, "rules": rules or {},
+                           "data": fingerprint},
+                          ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(material.encode()).hexdigest()
+
+
+def _preview_cache_get(key):
+    with _PREVIEW_CACHE_LOCK:
+        cached = _PREVIEW_CACHE.get(key)
+        if cached is not None:
+            _PREVIEW_CACHE.move_to_end(key)
+        return cached
+
+
+def _preview_cache_put(key, result):
+    with _PREVIEW_CACHE_LOCK:
+        _PREVIEW_CACHE[key] = result
+        _PREVIEW_CACHE.move_to_end(key)
+        while len(_PREVIEW_CACHE) > _PREVIEW_CACHE_LIMIT:
+            _PREVIEW_CACHE.popitem(last=False)
+
+
+def preview_cached(service, payload, rules=None):
+    """GET 预览入口：命中缓存直接返回，未命中时同一时刻只构建一份相同请求。"""
+    key = _preview_cache_key(service, payload, rules)
+    if key is None:
+        return preview(report_snapshot(service, payload, rules=rules), service)
+    cached = _preview_cache_get(key)
+    if cached is not None:
+        return cached
+    with _PREVIEW_BUILD_LOCK:
+        cached = _preview_cache_get(key)
+        if cached is not None:
+            return cached
+        result = preview(report_snapshot(service, payload, rules=rules), service)
+        _preview_cache_put(key, result)
+        return result
 
 
 def export(service, payload, rules=None):

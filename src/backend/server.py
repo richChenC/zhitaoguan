@@ -4989,7 +4989,7 @@ class Handler(SimpleHTTPRequestHandler):
             if path == "/api/cross-group-reviews":
                 return self.json_response(cross_group_review.save(sys.modules[__name__], data))
             if path == "/api/reports/preview":
-                return self.json_response(analysis_reporting.preview(analysis_reporting.report_snapshot(sys.modules[__name__], data, rules=active_analysis_rules()), sys.modules[__name__]))
+                return self.json_response(analysis_reporting.preview_cached(sys.modules[__name__], data, rules=active_analysis_rules()))
             if path == "/api/reports/export":
                 return self.json_response(analysis_reporting.export(sys.modules[__name__], data, rules=active_analysis_rules()))
             if path == "/api/report-options": return self.json_response({"reports": report_options(data.get("path", ""))})
