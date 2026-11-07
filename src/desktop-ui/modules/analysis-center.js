@@ -383,16 +383,108 @@ function reportPayload(){
   if($('rcSelected').checked && selected.some(r=>r.outage!==scope.outage||Number(r.unit_id)!==scope.unit||(r.site_code&&r.site_code!==scope.site)))throw new Error('工作台勾选记录与报告范围不同，请重新带入工作台范围');
   return {...scope,kind:reportMode,old:reportMode==='comparison'?$('rcOld').value:'',template_id:reportMode,draft_edits:reportEditor?.payload()||[],finding_ids:$('rcSelected').checked?selected.map(r=>r.id):[],metadata:reportMode==='comparison'?{}:Object.fromEntries([['机组',String(scope.unit)],...fieldDefinitions.map(([id,label])=>[label,$(id)?.value || ''])])};
 }
+// 预览复用：服务端每次返回整页表单 HTML，但常见刷新只改动少数行（草稿编辑、单管修正），
+// 结构一致时逐行比较、只替换变化的行/单元格；页数或列结构变化才退回整页替换。
+function syncPreviewCell(current,next){
+  for(const name of ['class','style','data-edit-key','title','aria-label']){
+    const value=next.getAttribute(name);
+    if(value===null){if(current.hasAttribute(name))current.removeAttribute(name)}
+    else if(current.getAttribute(name)!==value)current.setAttribute(name,value);
+  }
+  if(current.innerHTML!==next.innerHTML)current.innerHTML=next.innerHTML;
+}
+function syncPreviewRow(current,next){
+  const before=[...current.children],after=[...next.children];
+  if(before.length!==after.length)return false;
+  for(let index=0;index<after.length;index++){
+    const a=after[index],b=before[index];
+    if(a.tagName!==b.tagName)return false;
+    if((a.getAttribute('colspan')||'1')!==(b.getAttribute('colspan')||'1'))return false;
+    if((a.getAttribute('rowspan')||'1')!==(b.getAttribute('rowspan')||'1'))return false;
+  }
+  for(let index=0;index<after.length;index++)syncPreviewCell(before[index],after[index]);
+  return true;
+}
+function syncPreviewTable(current,next,stats){
+  for(const selector of [':scope>caption',':scope>colgroup',':scope>thead']){
+    const before=current.querySelector(selector),after=next.querySelector(selector);
+    if(!before&&!after)continue;
+    if(!before||!after)return false;
+    if(before.outerHTML!==after.outerHTML)before.replaceWith(after.cloneNode(true));
+  }
+  const currentBody=current.querySelector(':scope>tbody'),nextBody=next.querySelector(':scope>tbody');
+  if(!currentBody||!nextBody)return false;
+  const beforeRows=[...currentBody.children],afterRows=[...nextBody.children];
+  if(beforeRows.length!==afterRows.length){
+    // 行数变化（例如更换大修）：只重建表体，保留页面外框与纸张尺寸。
+    currentBody.replaceWith(nextBody.cloneNode(true));
+    stats.changedRows+=afterRows.length;
+    return true;
+  }
+  for(let index=0;index<afterRows.length;index++){
+    const beforeRow=beforeRows[index],afterRow=afterRows[index];
+    stats.totalRows++;
+    if(beforeRow.outerHTML===afterRow.outerHTML){stats.reusedRows++;continue}
+    if(syncPreviewRow(beforeRow,afterRow)){stats.changedRows++;continue}
+    beforeRow.replaceWith(afterRow.cloneNode(true));
+    stats.changedRows++;
+  }
+  return true;
+}
+function syncPreviewSheet(current,next,stats){
+  for(const name of ['class','style']){
+    const value=next.getAttribute(name);
+    if(value===null){if(current.hasAttribute(name))current.removeAttribute(name)}
+    else if(current.getAttribute(name)!==value)current.setAttribute(name,value);
+  }
+  const beforeTables=[...current.querySelectorAll('table')],afterTables=[...next.querySelectorAll('table')];
+  if(beforeTables.length!==afterTables.length)return false;
+  const beforeStatic=[...current.children].filter(node=>node.tagName!=='TABLE');
+  const afterStatic=[...next.children].filter(node=>node.tagName!=='TABLE');
+  if(beforeStatic.length!==afterStatic.length)return false;
+  afterStatic.forEach((node,index)=>{if(beforeStatic[index].outerHTML!==node.outerHTML)beforeStatic[index].replaceWith(node.cloneNode(true))});
+  for(let index=0;index<afterTables.length;index++){if(!syncPreviewTable(beforeTables[index],afterTables[index],stats))return false}
+  return true;
+}
+function applyPreviewHtml(host,html){
+  const started=performance.now();
+  const template=document.createElement('template');
+  template.innerHTML=html;
+  const nextSheets=[...template.content.children];
+  const currentSheets=[...host.children];
+  const stats={mode:'full',pages:nextSheets.length,changedRows:0,reusedRows:0,totalRows:0};
+  const reusable=nextSheets.length>0&&currentSheets.length===nextSheets.length&&
+    nextSheets.every(node=>node.classList?.contains('report-sheet'))&&currentSheets.every(node=>node.classList?.contains('report-sheet'));
+  if(reusable){
+    stats.mode='incremental';
+    for(let index=0;index<nextSheets.length;index++){
+      if(nextSheets[index].outerHTML===currentSheets[index].outerHTML)continue;
+      if(!syncPreviewSheet(currentSheets[index],nextSheets[index],stats)){stats.mode='full';break}
+    }
+  }
+  if(stats.mode==='full'){
+    host.replaceChildren(template.content);
+    stats.changedRows=nextSheets.reduce((sum,sheet)=>sum+sheet.querySelectorAll('tbody>tr').length,0);
+  }
+  stats.ms=Math.round(performance.now()-started);
+  host.dataset.renderMode=stats.mode;
+  host.dataset.changedRows=String(stats.changedRows);
+  window.__thimblePreviewRender=stats;
+  return stats;
+}
 async function refreshReport(){
   if(!mounted)return;
   invalidateReport();
   const request=reportRequest;reportAbort=new AbortController();
-  $('rcPreview').setAttribute('aria-busy','true');
+  const preview=$('rcPreview');
+  // 保留上一版预览作为底稿，新数据到达后只替换变化行，避免整页闪白与重排。
+  preview.setAttribute('aria-busy','true');
+  if(!preview.querySelector('.report-sheet'))preview.innerHTML='<p class="ac-empty">正在准备报告预览…</p>';
   try{
     const payload=reportPayload();$('rcStatus').textContent='正在生成可追溯预览…';
     const data=await api('/api/reports/preview',payload,reportAbort.signal);if(request!==reportRequest)return;
     lastPayload=payload;lastSnapshot=data;
-    $('rcPreview').innerHTML=data.html;
+    applyPreviewHtml(preview,data.html);
     if(fitPreviewOnResize)fitPreviewWidth({scroll:false});else applyPreviewZoom();
     reportEditor.sync(data);$('rcSnapshot').textContent=`共 ${data.rows} 条记录${data.draft_audit?.length?` · 人工修改 ${data.draft_audit.length} 项`:''}`;
     $('rcStatus').dataset.state=data.coverage_complete===false?'error':'ready';
@@ -404,8 +496,8 @@ async function refreshReport(){
     $('rcWarnings').innerHTML=(data.kind==='comparison'?`<div class="${data.coverage_complete?'comparison-coverage complete':'rc-coverage-error'}" role="status"><strong>${data.coverage_complete?'50根管完整性检查通过':'50根管完整性检查未通过，禁止正式导出'}</strong><p>${coverageText}</p></div><div class="rc-comparison-summary"><span>原有显示 R <b>${data.summary?.R||0}</b><small>历史缺陷仍存在</small></span><span>新增显示 NI <b>${data.summary?.NI||0}</b><small>本次新出现</small></span><span>待确认 <b>${data.summary?.['待确认']||0}</b><small>需要人工判断</small></span><span>历史未匹配 <b>${data.summary?.historical_unmatched||0}</b><small>${historicalTubeCount?`涉及 ${historicalTubeCount} 个管号`:'历史记录条数'}</small></span><span>双方 NDD <b>${data.summary?.NDD||0}</b><small>两次均无显示</small></span></div>`:'')+(warnings.length?warningNotice(warnings):'');
     $('rcSourceRows').innerHTML=table(data.source_headers||[],data.sources||[]);
     $('rcExport').disabled=exportBusy||data.coverage_complete===false;
-  }catch(error){if(request!==reportRequest||error.name==='AbortError')return;$('rcStatus').dataset.state='pending';$('rcStatus').textContent=error.message;$('rcPreview').innerHTML=`<p class="ac-empty">${escape(error.message)}</p>`;}
-  finally{if(request===reportRequest)$('rcPreview').removeAttribute('aria-busy');}
+  }catch(error){if(request!==reportRequest||error.name==='AbortError')return;$('rcStatus').dataset.state='pending';$('rcStatus').textContent=error.message;preview.innerHTML=`<p class="ac-empty">${escape(error.message)}</p>`;}
+  finally{if(request===reportRequest)preview.removeAttribute('aria-busy');}
 }
 async function exportReport(){
   if(exportBusy||!lastSnapshot||!lastPayload||lastSnapshot.coverage_complete===false)return;
