@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QGridLayout,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -237,6 +238,231 @@ class SimpleApiPage(QWidget):
             self.content.setText(str(data or {}))
 
 
+class StateModel(QAbstractTableModel):
+    headers = ["基地", "大修号", "机组", "通道", "位置", "状态", "位移 mm", "备注", "更新时间"]
+    fields = ["site_code", "outage", "unit_id", "thimble_id", "position", "state", "offset_mm", "note", "updated_at"]
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.rows: list[dict[str, Any]] = []
+
+    def rowCount(self, parent=QModelIndex()):
+        return 0 if parent.isValid() else len(self.rows)
+
+    def columnCount(self, parent=QModelIndex()):
+        return 0 if parent.isValid() else len(self.fields)
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        if not index.isValid() or index.row() >= len(self.rows):
+            return None
+        if role == Qt.ItemDataRole.DisplayRole:
+            value = self.rows[index.row()].get(self.fields[index.column()], "")
+            return "" if value is None else str(value)
+        if role == Qt.ItemDataRole.TextAlignmentRole and index.column() in {2, 3, 6}:
+            return int(Qt.AlignmentFlag.AlignCenter)
+        return None
+
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if role != Qt.ItemDataRole.DisplayRole:
+            return None
+        return self.headers[section] if orientation == Qt.Orientation.Horizontal else section + 1
+
+    def replace(self, rows):
+        self.beginResetModel()
+        self.rows = rows
+        self.endResetModel()
+
+
+class NativeStatePage(QWidget):
+    def __init__(self, client: NativeClient, parent=None):
+        super().__init__(parent)
+        self.client = client
+        self.model = StateModel(self)
+        self.current: dict[str, Any] | None = None
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(22, 20, 22, 20)
+        title = QLabel("状态处理")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
+        self.message = QLabel("选择一条管状态记录进行维护")
+        self.message.setObjectName("muted")
+        layout.addWidget(self.message)
+        self.table = QTableView()
+        self.table.setModel(self.model)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setAlternatingRowColors(True)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.clicked.connect(self._select)
+        layout.addWidget(self.table, 1)
+        form = QHBoxLayout()
+        self.state = QComboBox()
+        self.state.addItem("正常", "normal")
+        self.state.addItem("堵管", "plugged")
+        self.state.addItem("移位", "shifted")
+        self.state.addItem("换管", "replaced")
+        self.offset = QLineEdit()
+        self.offset.setPlaceholderText("位移量（mm）")
+        self.note = QLineEdit()
+        self.note.setPlaceholderText("状态备注")
+        self.save = QPushButton("保存状态")
+        self.save.clicked.connect(self._save)
+        self.refresh = QPushButton("刷新")
+        self.refresh.clicked.connect(self.load)
+        form.addWidget(self.state)
+        form.addWidget(self.offset)
+        form.addWidget(self.note, 1)
+        form.addWidget(self.save)
+        form.addWidget(self.refresh)
+        layout.addLayout(form)
+        self.load()
+
+    def load(self):
+        self.message.setText("正在读取状态记录...")
+        self.client.get("/api/states", self._loaded)
+
+    def _loaded(self, data, error):
+        if error or not data:
+            self.message.setText(error or "状态读取失败")
+            self.model.replace([])
+            return
+        rows = data.get("items") or []
+        self.model.replace(rows)
+        self.message.setText(f"已加载 {len(rows):,} 条状态记录；保存操作会写入审计历史")
+
+    def _select(self, index):
+        self.current = self.model.rows[index.row()]
+        state = str(self.current.get("state") or "normal")
+        idx = self.state.findData(state)
+        self.state.setCurrentIndex(max(0, idx))
+        self.offset.setText("" if self.current.get("offset_mm") is None else str(self.current.get("offset_mm")))
+        self.note.setText(str(self.current.get("note") or ""))
+
+    def _save(self):
+        if not self.current:
+            QMessageBox.information(self, PRODUCT_NAME, "请先选择状态记录")
+            return
+        raw_offset = self.offset.text().strip()
+        try:
+            offset = float(raw_offset) if raw_offset else None
+        except ValueError:
+            QMessageBox.warning(self, PRODUCT_NAME, "位移量必须是数字")
+            return
+        payload = {
+            "outage": self.current.get("outage"),
+            "unit_id": self.current.get("unit_id"),
+            "thimble_id": self.current.get("thimble_id"),
+            "state": self.state.currentData(),
+            "offset_mm": offset,
+            "note": self.note.text(),
+            "source": "native-qt",
+        }
+        self.save.setEnabled(False)
+        self.client.post("/api/state", payload, self._saved)
+
+    def _saved(self, data, error):
+        self.save.setEnabled(True)
+        if error:
+            QMessageBox.warning(self, PRODUCT_NAME, error)
+            return
+        QMessageBox.information(self, PRODUCT_NAME, "状态已保存，审计记录已生成")
+        self.load()
+
+
+class NativeAnalyticsPage(QWidget):
+    def __init__(self, client: NativeClient, parent=None):
+        super().__init__(parent)
+        self.client = client
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(22, 20, 22, 20)
+        title = QLabel("数据可视化")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
+        self.cards = QGridLayout()
+        self.labels: dict[str, QLabel] = {}
+        for index, (key, caption) in enumerate((
+            ("totalTubes", "涉及套管"), ("activeDefects", "检测记录"),
+            ("runningUnits", "机组数量"), ("activeOutages", "近 30 天大修"),
+            ("maxWear", "最大磨损"),
+        )):
+            box = QWidget()
+            box.setObjectName("metricCard")
+            box_layout = QVBoxLayout(box)
+            value = QLabel("—")
+            value.setObjectName("metricValue")
+            box_layout.addWidget(value)
+            box_layout.addWidget(QLabel(caption))
+            self.labels[key] = value
+            self.cards.addWidget(box, 0, index)
+        layout.addLayout(self.cards)
+        self.detail = QLabel("正在加载统计摘要...")
+        self.detail.setWordWrap(True)
+        layout.addWidget(self.detail)
+        refresh = QPushButton("刷新统计")
+        refresh.clicked.connect(self.load)
+        layout.addWidget(refresh, 0, Qt.AlignmentFlag.AlignLeft)
+        layout.addStretch(1)
+        self.load()
+
+    def load(self):
+        self.client.get("/api/analytics/summary", self._loaded)
+
+    def _loaded(self, data, error):
+        if error or not data:
+            self.detail.setText(error or "统计读取失败")
+            return
+        for key, label in self.labels.items():
+            value = data.get(key, 0)
+            label.setText(f"{value:,}" if isinstance(value, (int, float)) else str(value))
+        top = data.get("topTube") or {}
+        self.detail.setText(
+            "风险摘要："
+            + (f"{top.get('siteName') or top.get('siteCode') or ''} "
+               f"{top.get('outage') or ''} · {top.get('unitId') or ''}号机 · "
+               f"{top.get('tubeNumber') or ''}号管，磨损 {top.get('wearDepth', 0)}%"
+               if top else "当前没有可展示的磨损记录")
+        )
+
+
+class NativeReportsPage(QWidget):
+    def __init__(self, client: NativeClient, parent=None):
+        super().__init__(parent)
+        self.client = client
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(22, 20, 22, 20)
+        title = QLabel("报告中心")
+        title.setObjectName("pageTitle")
+        layout.addWidget(title)
+        layout.addWidget(QLabel("报告模板和导出操作通过本地数据服务执行。"))
+        self.templates = QListWidget()
+        layout.addWidget(self.templates, 1)
+        self.status = QLabel("正在读取报告模板...")
+        layout.addWidget(self.status)
+        refresh = QPushButton("刷新模板")
+        refresh.clicked.connect(self.load)
+        layout.addWidget(refresh, 0, Qt.AlignmentFlag.AlignLeft)
+        self.load()
+
+    def load(self):
+        self.client.get("/api/reports/templates", self._loaded)
+
+    def _loaded(self, data, error):
+        self.templates.clear()
+        if error or not data:
+            self.status.setText(error or "模板读取失败")
+            return
+        rows = data.get("items") or data.get("reports") or []
+        if isinstance(rows, dict):
+            rows = list(rows.values())
+        for item in rows:
+            if isinstance(item, dict):
+                text = str(item.get("name") or item.get("title") or item.get("id") or item)
+            else:
+                text = str(item)
+            self.templates.addItem(text)
+        self.status.setText(f"已加载 {len(rows)} 个报告模板")
+
+
 class SettingsPage(QWidget):
     logoutRequested = Signal()
 
@@ -284,9 +510,9 @@ class NativeMainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.workbench = DataWorkbench(client)
         self.stack.addWidget(self.workbench)
-        self.stack.addWidget(SimpleApiPage(client, "状态处理", "/api/states"))
-        self.stack.addWidget(SimpleApiPage(client, "数据可视化", "/api/analytics/summary"))
-        self.stack.addWidget(SimpleApiPage(client, "报告中心", "/api/reports/templates"))
+        self.stack.addWidget(NativeStatePage(client))
+        self.stack.addWidget(NativeAnalyticsPage(client))
+        self.stack.addWidget(NativeReportsPage(client))
         settings = SettingsPage(user)
         settings.logoutRequested.connect(self._logout)
         self.stack.addWidget(settings)
@@ -308,6 +534,8 @@ class NativeMainWindow(QMainWindow):
             QPushButton:hover { background: #eaf2f7; }
             QTableView { background: white; border: 1px solid #d3dce3; gridline-color: #e6ebef; }
             QHeaderView::section { background: #e8eef2; padding: 7px; border: 0; font-weight: 600; }
+            #metricCard { background: white; border: 1px solid #d3dce3; border-radius: 5px; }
+            #metricValue { color: #1769aa; font-size: 22px; font-weight: 700; }
             """
         )
 

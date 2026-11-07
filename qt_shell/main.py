@@ -20,6 +20,7 @@ os.environ.setdefault("QT_SCALE_FACTOR", "1")
 os.environ.setdefault("QT_AUTO_SCREEN_SCALE_FACTOR", "0")
 os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "0")
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = " ".join(CHROMIUM_FLAGS)
+os.environ.setdefault("THIMBLE_NATIVE_QT", "1")
 # 保证 PyInstaller onefile 后端与 QtWebEngine 的解包目录在可控位置
 os.environ.setdefault("TMP", tempfile.gettempdir())
 os.environ.setdefault("TEMP", tempfile.gettempdir())
@@ -29,16 +30,13 @@ from PySide6.QtGui import QIcon  # noqa: E402
 from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402
 
 from .backend_service import BackendService, ServiceStartError  # noqa: E402
-from .desktop_api import DesktopAPI  # noqa: E402
 from .factory_reset import apply as apply_factory_reset  # noqa: E402
 from .log_utils import ServiceLog, startup_failure_message  # noqa: E402
-from .offline_policy import protect_directory  # noqa: E402
+from .directory_security import protect_directory  # noqa: E402
 from .single_instance import (  # noqa: E402
     InstanceWakeServer,
     wake_existing_until_ready,
 )
-from .web_profile import ShellProfile  # noqa: E402
-from .windows import Shell  # noqa: E402
 
 
 def _run_native_qt(app, backend, wake_server=None) -> int:
@@ -324,6 +322,12 @@ def main() -> int:
         finally:
             _release_single_instance(lock)
         return code
+
+    # Compatibility-only path for the previous WebEngine shell. Native Qt is
+    # the default and keeps WebEngine imports out of its startup path.
+    from .desktop_api import DesktopAPI
+    from .web_profile import ShellProfile
+    from .windows import Shell
 
     profile_holder: list[ShellProfile | None] = [None]
     api = DesktopAPI(lambda: profile_holder[0])
