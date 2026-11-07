@@ -45,8 +45,8 @@
     const filters = toolbar.querySelector('.workspace-filters');
     if (!commands || !filters) return;
     const commandGroups = [
-      ['data', '数据文件', ['openImportFlow', 'exportLedgerBtn']],
-      ['maintenance', '记录维护', ['btn-data-delete', 'btn-recycle-bin', 'clearRecordsBtn']]
+      ['data', '数据文件', ['openImportFlow', 'exportLedgerBtn', 'btn-recycle-bin']],
+      ['danger', '危险操作', ['btn-data-delete', 'clearRecordsBtn']]
     ].map(([key, label, ids]) => {
       const group = document.createElement('div');
       group.className = 'workspace-command-group';

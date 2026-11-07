@@ -7,6 +7,7 @@
 <main>
  <section id="workspace" class="view active">
   <div class="workspace-heading"><div><span class="eyebrow">INSPECTION DATA</span><h1>检测记录与管板定位</h1><p>通过基地、机组和大修批次定位指套管缺陷，点击记录查看二维位置；双击单元格可直接编辑。</p></div><div class="workspace-actions"><button id="openImportFlow" class="primary">导入数据</button><button id="exportLedgerBtn" type="button">导出综合台账</button><button id="clearRecordsBtn" class="danger-outline" type="button">清空记录</button></div></div><div class="toolbar"><select id="site"><option value="">全部基地</option></select><select id="unit"><option value="">全部机组</option></select><select id="outage"><option value="">全部大修</option></select><input id="analyst" placeholder="分析人员"><input id="thimble" type="number" min="1" max="50" placeholder="通道编号"><button id="searchBtn" class="primary">应用筛选</button><button id="resetBtn">清除条件</button></div>
+  <section id="workspaceOverview" class="workspace-overview" aria-label="当前筛选概览" aria-live="polite"><article class="wo-card" data-kpi="records"><span>检测记录</span><strong id="woRecords">0</strong><small>当前筛选 · 全部分页</small></article><article class="wo-card" data-kpi="tubes"><span>缺陷管</span><strong id="woTubes">0</strong><small>有效缺陷涉及管数</small></article><article class="wo-card" data-kpi="depth"><span>最大磨损</span><strong id="woMaxDepth">/</strong><small id="woMaxNote">壁厚百分比</small></article><article class="wo-card" data-kpi="watch"><span>需关注管</span><strong id="woWatch">0</strong><small id="woLimitNote">达到关注线</small></article></section>
   <div class="split"><div class="panel table-panel"><div class="panel-title"><div><h2>检测记录</h2><span id="resultInfo">共 0 条</span></div></div><div class="table-wrap"><table><thead><tr><th>选择</th><th>序号</th><th>大修</th><th>机组</th><th>通道编号</th><th>堆芯位置</th><th>三字符</th><th>幅值（V）</th><th>相位</th><th>磨损深度<br>（壁厚%）</th><th>磨损位置</th><th>测量通道</th><th>探头类型</th><th>分析人员</th><th>数据</th><th>数据组</th><th>备注</th><th>堵管移位信息</th></tr></thead><tbody id="rows"></tbody></table></div><div class="pager"><button id="prevBtn">上一页</button><span id="pageInfo">1 / 1</span><button id="nextBtn">下一页</button></div></div>
   <aside class="panel core-panel"><div class="panel-title core-panel-title"><div><h2>堆芯分布</h2><span>左半圆奇数机组 · 右半圆偶数机组</span></div><button id="exportCorePng" type="button" title="将当前勾选结果保存为 PNG 图片">导出图片</button></div><div id="coreMap" class="core-map"></div><div id="coreStats" class="core-stats empty">勾选检测记录后统计缺陷分布</div><div class="legend"><span><i class="odd"></i>勾选的奇数记录</span><span><i class="even"></i>勾选的偶数记录</span><span><i class="selected"></i>当前点击管位</span></div><div id="detail" class="detail empty">勾选记录高亮，或直接点击管位查看详情</div></aside></div>
  </section>
@@ -225,7 +226,7 @@
  </div>
  <div class="dialog-actions"><span id="importActionHint">添加 Excel 文件后即可开始导入。</span><button value="cancel">关闭</button><button id="runImport" value="default" class="primary" disabled>开始导入</button></div>
  </form></dialog>
-<div id="toast" role="status" aria-live="polite"></div><script src="/artifact-naming.js?v=20261029-stable"></script><script src="/plate-geometry.js?v=20261029"></script><script src="/interaction-system.js?v=20261102-settings-utility"></script><script src="/task-progress.js?v=live-row-progress"></script><script src="/settings-sync.js?v=20261103-all-settings"></script><script src="/state-preferences.js?v=20261103-settings-link"></script><script src="/date-format.js?v=20261104-readable-time"></script><script src="/app.js?v=20261104-live-visualization-refresh"></script><script src="/tube-state-workspace.js?v=20261031-action-dock"></script><script src="/state-maintenance-layout.js?v=20261031-action-dock"></script><script src="/tube-lifecycle-workspace.js?v=20261031-action-dock"></script><script src="/software-settings.js?v=20261104-backup-labels"></script><script src="/lazy-modules.js?v=20261106-lazy"></script><script type="module" src="/modules/three-d/main-view.js?v=20261106-lazy"></script>
+<div id="toast" role="status" aria-live="polite"></div><script src="/artifact-naming.js?v=20261029-stable"></script><script src="/plate-geometry.js?v=20261029"></script><script src="/interaction-system.js?v=20261102-settings-utility"></script><script src="/task-progress.js?v=live-row-progress"></script><script src="/settings-sync.js?v=20261103-all-settings"></script><script src="/state-preferences.js?v=20261103-settings-link"></script><script src="/date-format.js?v=20261104-readable-time"></script><script src="/app.js?v=20261107-e3b"></script><script src="/tube-state-workspace.js?v=20261031-action-dock"></script><script src="/state-maintenance-layout.js?v=20261031-action-dock"></script><script src="/tube-lifecycle-workspace.js?v=20261031-action-dock"></script><script src="/software-settings.js?v=20261104-backup-labels"></script><script src="/lazy-modules.js?v=20261106-lazy"></script><script type="module" src="/modules/three-d/main-view.js?v=20261106-lazy"></script>
 <link rel="stylesheet" href="/data-delete-manager.css?v=20261016a">
 <link rel="stylesheet" href="/tube-state-workspace.css?v=20261031-action-dock">
 <link rel="stylesheet" href="/state-maintenance-layout.css?v=20261031-action-dock">
@@ -233,7 +234,7 @@
 <script src="/recycle-bin-manager.js?v=20260901"></script>
 <script src="/data-delete-entry.js?v=20261104-refresh-event"></script>
 <script src="/operation-log-viewer.js?v=20261020-state-recognition"></script>
-<script src="/workspace-actions.js?v=20261105-record-header"></script>
+<script src="/workspace-actions.js?v=20261107-e3c"></script>
 <link rel="stylesheet" href="/workbench.css?v=20261102-import-source-flow">
 <link rel="stylesheet" href="/desktop-theme.css?v=20261103-single-close-icon">
 <link rel="stylesheet" href="/settings-workspace.css?v=20261030-settings-window-fix">
@@ -249,5 +250,5 @@
 <link rel="stylesheet" href="/filter-controls.css?v=20261103">
 <script src="/source-records.js?v=20261103-record-details"></script>
 <link rel="stylesheet" href="/settings-runtime.css?v=20261103">
-<link rel="stylesheet" href="/information-hierarchy.css?v=20261107-e3">
+<link rel="stylesheet" href="/information-hierarchy.css?v=20261107-e3d">
 <link rel="stylesheet" href="/settings-overhaul.css?v=20261104-settings-redesign"></body></html>

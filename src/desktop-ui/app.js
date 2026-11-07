@@ -422,6 +422,27 @@ function cacheRowsPage(key,data){
   rowsPageCache.set(key,data);
   while(rowsPageCache.size>6)rowsPageCache.delete(rowsPageCache.keys().next().value);
 }
+// 概览 KPI：只用本次请求已返回的 total/core_items 聚合，不新增后端接口。
+function renderWorkspaceOverview(data){
+  const host=$('#workspaceOverview');if(!host)return;
+  const settings=severitySettings(),maxByTube=new Map();
+  for(const row of (data?.core_items||[])){
+    const percent=Number(row.percent);if(!Number.isFinite(percent)||percent<=0)continue;
+    const key=`${row.unit_id}|${row.thimble_id}`;
+    maxByTube.set(key,Math.max(maxByTube.get(key)||0,percent));
+  }
+  const tubeMaximums=[...maxByTube.values()],maxDepth=tubeMaximums.length?Math.max(...tubeMaximums):0;
+  const watchCount=tubeMaximums.filter(value=>value>=settings.midThreshold).length;
+  const limitCount=tubeMaximums.filter(value=>value>=settings.highThreshold).length;
+  const set=(selector,text)=>{const el=$(selector);if(el)el.textContent=text};
+  set('#woRecords',String(data?.total??0));
+  set('#woTubes',String(maxByTube.size));
+  set('#woMaxDepth',maxDepth>0?displayPercent(Math.round(maxDepth*10)/10):'/');
+  set('#woMaxNote',maxDepth>0?`壁厚百分比 · 关注 ${settings.midThreshold}% / 极限 ${settings.highThreshold}%`:'当前范围无有效磨损数据');
+  set('#woWatch',String(watchCount));
+  set('#woLimitNote',watchCount?`其中 ≥ 极限 ${settings.highThreshold}%：${limitCount} 根`:`无管达到关注线 ${settings.midThreshold}%`);
+  host.dataset.empty=String(!(data?.total>0));
+}
 async function loadRows({pageOnly=false,requireValidFilter=false}={}){
   const tube=$('#thimble'),invalidFilter=Boolean(tube.value&&!tube.checkValidity());
   if(invalidFilter&&!requireValidFilter){tube.reportValidity();return}
@@ -446,7 +467,7 @@ async function loadRows({pageOnly=false,requireValidFilter=false}={}){
     loadedRowsScope=scope;loadedRowsPage=d.page;if(d.total===0)clearSelectionState();
     if(!keepCore)coreMode=document.querySelector('#unit').value?(Number(document.querySelector('#unit').value)%2?'odd':'even'):'combined';state.pages=d.pages;
     coreSwitch?.querySelectorAll('[data-core-mode]').forEach(button=>button.classList.toggle('active',button.dataset.coreMode===coreMode));
-    $('.split').classList.remove('empty-results');$('#resultInfo').textContent=`共 ${d.total} 条`;$(`#pageInfo`).textContent=`${d.page} / ${d.pages}`;
+    $('.split').classList.remove('empty-results');$('#resultInfo').textContent=`共 ${d.total} 条`;$(`#pageInfo`).textContent=`${d.page} / ${d.pages}`;if(!keepCore)renderWorkspaceOverview(d);
     $('#prevBtn').disabled=d.page<=1;$('#nextBtn').disabled=d.page>=d.pages;const pageSize=$('#pageSize');if(pageSize)pageSize.value=String(d.size);
     const pageRange=$('#workspacePageRange');if(pageRange)pageRange.textContent=d.total?`第 ${(d.page-1)*d.size+1}–${Math.min(d.page*d.size,d.total)} 条，共 ${d.total} 条`:'共 0 条';
     host.innerHTML=d.items.map((r,i)=>{const effective=isEffectiveFinding(r),number=(d.page-1)*d.size+i+1,checked=state.selectedIds.has(r.id);return `<tr data-i="${i}" class="${effective?'':'no-defect'}${checked?' selected':''}"><td><input type="checkbox" aria-label="选择第${number}条记录" ${checked?'checked':''}></td><td class="row-number">${number}</td><td>${displayTableCell(r.outage)}</td><td>${displayTableCell(r.unit_id)}</td>${editableCell(r.thimble_id,'thimble_id')}${editableCell(r.position,'position')}${editableCell(displayFindingCode(r),'indication')}${editableCell(r.volts,'volts')}${editableCell(r.degrees,'degrees')}${editableCell(r.percent,'percent','%')}${editableCell(r.location,'location')}${editableCell(r.channel,'channel')}${editableCell(r.probe,'probe')}${editableCell(r.analyst,'analyst')}${editableCell(r.filename,'filename')}${editableCell(r.calgroup,'calgroup')}${editableCell(r.analysis,'analysis')}${editableCell(r.maintenance_text,'maintenance_text')}</tr>`}).join('');
@@ -487,7 +508,7 @@ async function loadRows({pageOnly=false,requireValidFilter=false}={}){
     if(keepCore){rowsPageCache.delete(cacheKey);state.page=previousPage;throw error}
     clearSelectionState();state.page=1;state.pages=1;$('#resultInfo').textContent=invalidFilter?'筛选无效':'加载失败';$('#pageInfo').textContent=invalidFilter?'筛选无效':'加载失败';
     if($('#workspacePageRange'))$('#workspacePageRange').textContent=invalidFilter?'请修正通道编号筛选':'记录读取失败';
-    drawCore([]);renderSelectedDetails();syncCoreAvailability();notifyThreeView();
+    drawCore([]);renderSelectedDetails();syncCoreAvailability();notifyThreeView();renderWorkspaceOverview(null);
     if(invalidFilter)showWorkspaceNotice('请修正筛选',error.message,'修正筛选',()=>tube.focus());
     else showWorkspaceNotice('检测记录加载失败','请确认本地服务已启动，然后重试。','重新加载',reloadWorkspace);
     throw error;

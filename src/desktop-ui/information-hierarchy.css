@@ -258,3 +258,61 @@ body :is(#workspace,#states,#reports,#analytics,#settings,#threeD) .panel > .pan
 #workspace .workspace-filters { gap:12px; }
 #workspace .workspace-commands { gap:8px; }
 
+/* e3-2b 数据工作台：概览结论前置（记录量 / 缺陷管 / 最大磨损 / 需关注管），
+   明细保持在后；危险操作收纳为最右独立分组。 */
+body #workspace .workspace-heading {
+  display:flex !important; align-items:flex-end; justify-content:space-between;
+  gap:16px; margin:0 0 12px;
+}
+body #workspace .workspace-heading .eyebrow { display:none; }
+body #workspace .workspace-heading h1 {
+  margin:0; color:var(--ui-text-1); font-size:20px; line-height:28px; font-weight:700; letter-spacing:0;
+}
+body #workspace .workspace-heading p {
+  margin:4px 0 0; max-width:92ch; color:var(--ui-text-3); font-size:12px; line-height:18px;
+}
+body #workspace .workspace-overview {
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:0 0 16px;
+}
+body #workspace .workspace-overview .wo-card {
+  display:flex; flex-direction:column; gap:1px; min-width:0;
+  padding:9px 12px; border:1px solid #dbe4e9; border-radius:var(--ui-radius-md); background:#fff;
+}
+body #workspace .workspace-overview .wo-card > span { color:#5f7280; font-size:11px; line-height:16px; }
+body #workspace .workspace-overview .wo-card > strong {
+  color:var(--ui-text-1); font-size:20px; line-height:26px; font-weight:700; font-variant-numeric:tabular-nums;
+}
+body #workspace .workspace-overview .wo-card > small {
+  min-width:0; overflow:hidden; color:#5c727f; font-size:11px; line-height:15px;
+  white-space:nowrap; text-overflow:ellipsis;
+}
+body #workspace .workspace-overview .wo-card[data-kpi="watch"] { border-left:3px solid var(--severity-mid); }
+body #workspace .workspace-overview .wo-card[data-kpi="watch"] > strong { color:#8a5310; }
+
+/* 命令分组的阅读顺序：数据文件 → 范围摘要 → 刷新 → 危险操作（最右、独立分组） */
+body #workspace .workspace-command-group[data-command-group="data"] { order:0; }
+body #workspace .workspace-command-group[data-command-group="danger"] {
+  order:9; margin-left:auto; padding-left:0; border-left:0;
+}
+body #workspace .workspace-command-group[data-command-group="danger"] .workspace-command-caption { color:#95515c; }
+#workspace .workspace-commands #btn-data-delete { color:#a44854; border-color:#e2cbd0; }
+
+html[data-theme="dark"] body #workspace .workspace-heading h1 { color:var(--dark-ink); }
+html[data-theme="dark"] body #workspace .workspace-heading p { color:var(--dark-muted); }
+html[data-theme="dark"] body #workspace .workspace-overview .wo-card {
+  background:var(--dark-panel); border-color:var(--dark-line);
+}
+html[data-theme="dark"] body #workspace .workspace-overview .wo-card > span,
+html[data-theme="dark"] body #workspace .workspace-overview .wo-card > small { color:var(--dark-muted); }
+html[data-theme="dark"] body #workspace .workspace-overview .wo-card > strong { color:var(--dark-ink); }
+html[data-theme="dark"] body #workspace .workspace-overview .wo-card[data-kpi="watch"] > strong { color:#edb674; }
+
+@media(max-width:1100px) {
+  body #workspace .workspace-overview { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:620px) {
+  body #workspace .workspace-heading { display:block !important; }
+  body #workspace .workspace-overview { gap:8px; }
+  body #workspace .workspace-command-group[data-command-group="danger"] { margin-left:0; }
+}
+
