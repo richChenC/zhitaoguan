@@ -316,3 +316,16 @@ html[data-theme="dark"] body #workspace .workspace-overview .wo-card[data-kpi="w
   body #workspace .workspace-command-group[data-command-group="danger"] { margin-left:0; }
 }
 
+/* e3-4 表格细节：表头压缩到两行 11px，正文保持 12px/36px；数字列等宽右对齐；
+   长文本单行截断并交由脚本补 title；偶数行斑马纹提升到可辨识但不喧宾夺主。 */
+html[data-theme] #workspace .table-panel .table-wrap table thead th {
+  padding:6px 8px; font-size:11px; line-height:1.3; letter-spacing:0; font-weight:600;
+}
+html[data-theme] #workspace .table-panel .table-wrap tbody td:not(:nth-child(18)) { white-space:nowrap; }
+html[data-theme] #workspace .table-panel .table-wrap tbody td:nth-child(5),
+html[data-theme] #workspace .table-panel .table-wrap tbody td:nth-child(12) {
+  text-align:right; font-variant-numeric:tabular-nums;
+}
+html[data-theme="light"] #workspace .table-panel .table-wrap tbody tr:nth-child(even) { background:#f6f9fa; }
+html[data-theme="light"] #workspace .table-panel .table-wrap tbody tr:nth-child(even):hover { background:var(--ui-surface-hover); }
+
