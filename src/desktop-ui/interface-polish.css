@@ -1420,7 +1420,7 @@ body .app-nav footer #requestActivity {
   body .app-nav>strong { display:none!important; }
   body .app-nav .nav-group { display:flex!important; flex:1 1 auto!important; width:auto!important; height:100%!important; min-width:0!important; gap:3px!important; align-items:center!important; justify-content:flex-start!important; overflow-x:auto!important; overflow-y:hidden!important; }
   body .app-nav .nav-group button { flex:0 0 auto!important; width:auto!important; min-width:max-content!important; height:38px!important; min-height:38px!important; padding:0 12px!important; justify-content:center!important; border:1px solid transparent!important; border-radius:4px!important; color:#687786!important; background:transparent!important; font-size:12px!important; }
-  body .app-nav .nav-group button.active, body .app-nav .nav-group button[aria-current=page] { color:#087e7b!important; background:#e8f4f2!important; border-color:#c6e2de!important; box-shadow:none!important; font-weight:700!important; }
+  body .app-nav .nav-group button.active, body .app-nav .nav-group button[aria-current=page] { color:#056762!important; background:#e8f4f2!important; border-color:#c6e2de!important; box-shadow:none!important; font-weight:700!important; }
   body .app-nav .nav-settings { margin:0!important; border:0!important; }
   body .app-nav footer { display:grid!important; flex:0 0 92px!important; width:92px!important; min-width:92px!important; height:58px!important; grid-template-rows:28px 14px!important; align-content:center!important; justify-items:center!important; margin:0!important; padding:0 0 0 8px!important; border:0!important; border-left:1px solid #e1e7eb!important; background:#fff!important; color:#8798a4!important; }
   body .app-nav .nav-utilities { display:flex!important; align-items:center!important; justify-content:center!important; gap:4px!important; }
@@ -1765,7 +1765,7 @@ body .app-nav footer #requestActivity {
   body .app-nav>strong { display:none!important; }
   body .app-nav .nav-group { display:flex!important; flex:1 1 auto!important; width:auto!important; height:100%!important; min-width:0!important; gap:3px!important; align-items:center!important; justify-content:flex-start!important; overflow-x:auto!important; overflow-y:hidden!important; }
   body .app-nav .nav-group button { flex:0 0 auto!important; width:auto!important; min-width:max-content!important; height:38px!important; min-height:38px!important; padding:0 12px!important; border:1px solid transparent!important; border-radius:4px!important; justify-content:center!important; color:#687786!important; background:transparent!important; font-size:12px!important; }
-  body .app-nav .nav-group button.active, body .app-nav .nav-group button[aria-current=page] { color:#087e7b!important; background:#e8f4f2!important; border-color:#c6e2de!important; box-shadow:none!important; font-weight:700!important; }
+  body .app-nav .nav-group button.active, body .app-nav .nav-group button[aria-current=page] { color:#056762!important; background:#e8f4f2!important; border-color:#c6e2de!important; box-shadow:none!important; font-weight:700!important; }
   body .app-nav .nav-settings { margin:0!important; border:0!important; }
   body .app-nav footer { display:grid!important; flex:0 0 92px!important; width:92px!important; min-width:92px!important; height:58px!important; grid-template-rows:28px 14px!important; align-content:center!important; justify-items:center!important; margin:0!important; padding:0 0 0 8px!important; border:0!important; border-left:1px solid #e1e7eb!important; background:#fff!important; color:#8798a4!important; }
   body .app-nav .nav-utilities { display:flex!important; align-items:center!important; justify-content:center!important; gap:4px!important; }
@@ -1792,7 +1792,7 @@ body .app-nav footer #requestActivity {
     border:1px solid transparent!important; border-radius:4px!important; color:#687786!important; background:transparent!important; }
   body .app-nav .nav-group button:hover { background:#f2f6f7!important; color:#087e7b!important; }
   body .app-nav .nav-group button.active, body .app-nav .nav-group button[aria-current=page] {
-    background:#e8f4f2!important; color:#087e7b!important; border-color:#c6e2de!important; box-shadow:none!important; }
+    background:#e8f4f2!important; color:#056762!important; border-color:#c6e2de!important; box-shadow:none!important; }
   body .app-nav .nav-settings { margin:0!important; border:0!important; }
   body .app-nav footer { display:grid!important; flex:0 0 92px!important; width:92px!important; height:58px!important;
     min-width:92px!important; grid-template-rows:28px 14px!important; align-content:center!important; justify-items:center!important;
