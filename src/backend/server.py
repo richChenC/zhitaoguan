@@ -3346,6 +3346,8 @@ def export_evolution_excel(site: str, unit: int) -> dict:
         for row in tube["items"]:
             defects = [item for item in [row] if is_real_defect(item)]
             state = row["state"]
+            # 导出面向业务阅读，状态枚举按界面同一口径转中文，避免 normal/shifted 原值外泄。
+            state = {"normal": "正常", "plugged": "堵管", "shifted": "移位", "replaced": "换管"}.get(state, state)
             comparison = row.get("comparison", "无缺陷")
             for item in defects or [row]:
                 sheet.append([site, unit, tube["thimble"], row["outage"], state, item["location"], item["datapoint"], item["percent"], comparison, row["note"]])
