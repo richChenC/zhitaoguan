@@ -8,14 +8,14 @@
   const styles = {
     analytics: [
       '/modules/analytics/analytics.css?v=20261016a',
-      '/analysis-center.css?v=20261020-dialog-polish',
+      '/analysis-center.css?v=20261107-tokens',
       '/visualization-workspace.css?v=20261101-plate-scope',
       '/status-change-workspace.css?v=20261101-redesign',
       '/visualization-windows.css?v=20261102',
     ],
     reports: [
-      '/analysis-center.css?v=20261020-dialog-polish',
-      '/report-preview.css?v=20261102',
+      '/analysis-center.css?v=20261107-tokens',
+      '/report-preview.css?v=20261107-tokens',
       '/report-workspace.css?v=20261023-report-center-workflow',
     ],
     settings: [

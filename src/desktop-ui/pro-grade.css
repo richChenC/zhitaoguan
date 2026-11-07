@@ -1,28 +1,32 @@
-/* ============================================================
-   pro-grade.css —— 商业级专业质感提档层
-   加载顺序：放在所有样式表最后，源码顺序取胜；全部用 token 变量编写，
-   浅色模式被提档，暗色主题因更高特异性规则保持自身背景/阴影不被破坏。
-   可一键回退：删除 index.html 末尾的 <link rel="stylesheet" href="/pro-grade.css">
+﻿/* ============================================================
+   pro-grade.css —— 商业级专业质感与信息层级层
+   加载顺序：在 appearance.css 之后，源码顺序取胜；
+   颜色、字号、间距、圆角、阴影、控件规格全部取自 tokens.css 的 --ui-* 语义层，
+   亮/暗两套由 tokens.css 提供，组件不再写死任何颜色。
+   可一键回退：删除 index.html 中的 <link rel="stylesheet" href="/pro-grade.css">
    ------------------------------------------------------------
-   设计取向：统一层级阴影 + 更大圆角 + 精致导航/表格/指标卡 + 克制微交互，
+   取舍：统一层级阴影 + 10px 圆角 + 精致导航/表格/指标卡 + 克制微交互，
    不引入新品牌色、不改布局结构、不动后端。
    ============================================================ */
 
+/* ---------- 0. 兼容别名：旧规则若还引用 --pg-*，仍拿到语义层值 ---------- */
 :root{
-  --pg-radius:10px;
-  --pg-radius-sm:8px;
-  --pg-line:#e4ebf0;
-  --pg-paper-2:#f7fafb;
-  --pg-shadow-1:0 1px 2px rgba(18,32,40,.04), 0 6px 16px rgba(18,32,40,.055);
-  --pg-shadow-2:0 2px 6px rgba(18,32,40,.05), 0 14px 34px rgba(18,32,40,.09);
+  --pg-radius:var(--ui-radius-xl);
+  --pg-radius-sm:var(--ui-radius-lg);
+  --pg-line:var(--ui-border-subtle);
+  --pg-paper-2:var(--ui-surface-2);
+  --pg-shadow-1:var(--ui-shadow-1);
+  --pg-shadow-2:var(--ui-shadow-2);
 }
 
 /* ---------- 1. 基础与微交互 ---------- */
 *{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 body{
-  font-family:'Microsoft YaHei','PingFang SC','Segoe UI',-apple-system,'Helvetica Neue',Arial,sans-serif;
-  background:linear-gradient(180deg,#f4f7f9 0%, #eef2f5 100%);
-  color:var(--ink);
+  font-family:var(--ui-font-ui);
+  background:linear-gradient(180deg,var(--ui-canvas) 0%, var(--ui-canvas) 100%);
+  color:var(--ui-text-1);
+  font-size:var(--ui-fs-body);
+  line-height:var(--ui-lh-body);
 }
 input:not([type=checkbox]):not([type=radio]):not([type=range]),
 select,textarea,table,code,.mono{font-variant-numeric:tabular-nums}
@@ -30,119 +34,250 @@ button,select,input,.panel,.card,.app-nav .nav-group button,.primary,.metrics ar
   transition:background-color .15s ease,border-color .15s ease,box-shadow .2s ease,transform .12s ease,color .15s ease;
 }
 ::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-thumb{background:#c6d1d7;border:2px solid transparent;background-clip:content-box;border-radius:8px}
-::-webkit-scrollbar-thumb:hover{background:#aab9c0;background-clip:content-box}
+::-webkit-scrollbar-thumb{background:var(--ui-border-strong);border:2px solid transparent;background-clip:content-box;border-radius:8px}
+::-webkit-scrollbar-thumb:hover{background:var(--ui-text-4);background-clip:content-box}
 ::-webkit-scrollbar-track{background:transparent}
-::selection{background:#bfece8;color:#08231f}
+::selection{background:var(--ui-accent-soft);color:var(--ui-text-1)}
 
-/* ---------- 2. 顶栏导航：极淡渐变 + 细高光 + 更强阴影 ---------- */
+/* ---------- 2. 顶栏导航：极淡分层 + 细高光 ---------- */
 .app-nav{
-  background:linear-gradient(180deg,#ffffff 0%, #f6f9fb 100%);
-  box-shadow:0 1px 0 #e6edf1, 0 8px 22px rgba(20,38,48,.08);
-  border-bottom:1px solid #dde6ec;
-}
-.app-nav strong span{
-  border-radius:7px;
-  background:linear-gradient(135deg,#b83d44,#8f2c33);
-  box-shadow:0 2px 7px rgba(143,44,51,.38);
-  letter-spacing:.5px;font-weight:800;
+  background:var(--ui-surface-1);
+  box-shadow:0 1px 0 var(--ui-border-subtle), 0 8px 22px rgba(20,38,48,.07);
+  border-bottom:1px solid var(--ui-border);
 }
 .app-nav .nav-group button.active{
-  background:linear-gradient(180deg,#eaf6f4,#e1f1ee);
-  color:#0a6f6c;
-  box-shadow:inset 0 0 0 1px #bfe0db, inset 0 -2px 0 rgba(10,111,108,.18);
+  background:var(--ui-accent-soft);
+  color:var(--ui-text-accent);
+  box-shadow:inset 0 0 0 1px var(--ui-border), inset 0 -2px 0 rgba(8,125,121,.18);
 }
-.app-nav .nav-group button.active:hover{background:#dcf0ec}
-.app-nav .nav-group button:hover{background:#eef3f5}
+.app-nav .nav-group button.active:hover{background:var(--ui-accent-soft)}
+.app-nav .nav-group button:hover{background:var(--ui-surface-2)}
 
 /* ---------- 3. 面板：统一圆角 + 分层阴影 + 精致表头 ---------- */
 .panel,.ac-panel{
-  border-radius:var(--pg-radius);
-  border-color:var(--pg-line);
-  box-shadow:var(--pg-shadow-1);
-  background:var(--paper);
+  border-radius:var(--ui-radius-xl);
+  border-color:var(--ui-border-subtle);
+  box-shadow:var(--ui-shadow-1);
+  background:var(--ui-surface-1);
 }
-.panel:hover{box-shadow:var(--pg-shadow-2)}
+.panel:hover{box-shadow:var(--ui-shadow-2)}
 .panel-title{
-  background:linear-gradient(180deg,#fbfdfe,#f4f8fa);
-  border-bottom:1px solid var(--pg-line);
-  padding:13px 16px;
-  border-radius:var(--pg-radius) var(--pg-radius) 0 0;
+  background:var(--ui-surface-2);
+  border-bottom:1px solid var(--ui-border-subtle);
+  padding:var(--ui-space-3) var(--ui-space-4);
+  border-radius:var(--ui-radius-xl) var(--ui-radius-xl) 0 0;
 }
-.panel-title h2{font-size:14px;font-weight:700;letter-spacing:.2px;color:#2b3d47}
-.panel-title span{color:#7c8b95;font-size:11px}
+.panel-title h2{font-size:var(--ui-fs-body-lg);font-weight:var(--ui-fw-bold);letter-spacing:.2px;color:var(--ui-text-1)}
+.panel-title span{color:var(--ui-text-3);font-size:var(--ui-fs-caption)}
 
 /* 仪表盘面板（数据可视化）同步提档阴影，保持统一 */
-#analytics .panel{box-shadow:var(--pg-shadow-1)}
-#analytics .panel:hover{box-shadow:var(--pg-shadow-2)}
+#analytics .panel{box-shadow:var(--ui-shadow-1)}
+#analytics .panel:hover{box-shadow:var(--ui-shadow-2)}
 
-/* ---------- 4. 指标 / 统计卡 ---------- */
+/* ---------- 4. 指标 / 统计卡：能用一个数说清的，不画图 ---------- */
 .metrics article{
-  background:var(--paper);
-  border:1px solid var(--pg-line);
-  border-radius:var(--pg-radius-sm);
-  box-shadow:var(--pg-shadow-1);
-  padding:12px 14px;
+  background:var(--ui-surface-1);
+  border:1px solid var(--ui-border-subtle);
+  border-radius:var(--ui-radius-lg);
+  box-shadow:var(--ui-shadow-1);
+  padding:var(--ui-space-3) var(--ui-space-4);
 }
-.metrics article:hover{box-shadow:var(--pg-shadow-2);transform:translateY(-1px)}
-.metrics article strong{font-size:22px;font-weight:800;letter-spacing:.3px;color:#21323b;line-height:1.1}
-.metrics article span{color:#6b7a83;font-size:10.5px;letter-spacing:.3px}
+.metrics article:hover{box-shadow:var(--ui-shadow-2);transform:translateY(-1px)}
+.metrics article strong{font-size:var(--ui-fs-display);font-weight:var(--ui-fw-bold);letter-spacing:.3px;color:var(--ui-text-1);line-height:var(--ui-lh-tight);font-variant-numeric:tabular-nums}
+.metrics article span{color:var(--ui-text-3);font-size:var(--ui-fs-caption);letter-spacing:.3px}
 #analytics .kpi{
-  background:var(--paper);
-  border:1px solid var(--pg-line);
-  border-radius:var(--pg-radius-sm);
-  box-shadow:var(--pg-shadow-1);
+  background:var(--ui-surface-1);
+  border:1px solid var(--ui-border-subtle);
+  border-radius:var(--ui-radius-lg);
+  box-shadow:var(--ui-shadow-1);
 }
+#analytics .kpi .n{font-size:var(--ui-fs-metric);font-weight:var(--ui-fw-bold);letter-spacing:.2px;color:var(--ui-text-1);line-height:var(--ui-lh-tight);font-variant-numeric:tabular-nums}
 
-/* ---------- 5. 数据表格：精致表头 + 悬浮 + 斑马 + 选中强调 ---------- */
+/* ---------- 5. 数据表格：行高、斑马、数字右对齐、长文本截断 ---------- */
 .table-wrap{
-  border:1px solid var(--pg-line);
-  border-radius:var(--pg-radius-sm);
-  background:var(--paper);
+  border:1px solid var(--ui-border-subtle);
+  border-radius:var(--ui-radius-lg);
+  background:var(--ui-surface-1);
 }
-#workspace thead th, #states thead th, .state-table-panel thead th, .table-wrap thead th{
+html[data-theme] #workspace .table-panel .table-wrap table thead th,
+html[data-theme] .state-table-panel .table-wrap table thead th{
   position:sticky;top:0;z-index:2;
-  background:linear-gradient(180deg,#f3f7f9,#eaf0f3);
-  color:#5a6b74;font-size:10px;font-weight:700;letter-spacing:.4px;
-  text-align:left;padding:9px 10px;
-  border-bottom:1.5px solid #d3dde3;
-  box-shadow:0 1px 0 #fff;
+  background:var(--ui-surface-2);
+  color:var(--ui-text-3);font-size:var(--ui-fs-micro);font-weight:var(--ui-fw-bold);letter-spacing:.4px;
+  text-align:left;padding:9px 10px;height:var(--ui-table-head-h);
+  border-bottom:1.5px solid var(--ui-border-head);
+  box-shadow:0 1px 0 var(--ui-surface-1);
+  white-space:nowrap;
 }
-#workspace tbody td, #states tbody td, .state-table-panel tbody td{
-  padding:8px 10px;border-bottom:1px solid #eef2f5;font-size:11px;color:#33454e;
+html[data-theme] #workspace .table-panel .table-wrap tbody tr,
+html[data-theme] .state-table-panel .table-wrap tbody tr{height:var(--ui-table-row-h)}
+html[data-theme] #workspace .table-panel .table-wrap tbody td,
+html[data-theme] .state-table-panel .table-wrap tbody td{
+  height:var(--ui-table-row-h);padding:7px 10px;
+  border-bottom:1px solid var(--ui-table-divider);
+  font-size:var(--ui-fs-body-sm);color:var(--ui-text-2);
+  vertical-align:middle;overflow:hidden;text-overflow:ellipsis;
 }
-#workspace tbody tr:hover, #states tbody tr:hover, .state-table-panel tbody tr:hover{background:#f2f8fa}
-#workspace tbody tr:nth-child(even), #states tbody tr:nth-child(even), .state-table-panel tbody tr:nth-child(even){background:#fafcfd}
-#workspace tbody tr:nth-child(even):hover, #states tbody tr:nth-child(even):hover, .state-table-panel tbody tr:nth-child(even):hover{background:#eff6f9}
-#workspace tbody tr.selected, #states tbody tr.selected, .state-table-panel tbody tr.selected{background:#e9f5f4;box-shadow:inset 3px 0 var(--primary)}
+#workspace .table-panel .table-wrap tbody tr:hover,
+html[data-theme] #workspace .table-panel .table-wrap tbody tr:hover,
+html[data-theme] .state-table-panel .table-wrap tbody tr:hover{background:var(--ui-surface-hover)}
+html[data-theme] #workspace .table-panel .table-wrap tbody tr:nth-child(even),
+html[data-theme] .state-table-panel .table-wrap tbody tr:nth-child(even){background:var(--ui-table-zebra)}
+html[data-theme] #workspace .table-panel .table-wrap tbody tr:nth-child(even):hover,
+html[data-theme] .state-table-panel .table-wrap tbody tr:nth-child(even):hover{background:var(--ui-surface-hover)}
+html[data-theme] #workspace .table-panel .table-wrap tbody tr.selected,
+html[data-theme] .state-table-panel .table-wrap tbody tr.selected{background:var(--ui-surface-selected);box-shadow:inset 3px 0 var(--ui-accent)}
+
+/* 数值列：右对齐 + 等宽数字，便于纵向比较 */
 td.num,th.num{text-align:right}
+html[data-theme] #workspace .table-panel .table-wrap tbody td:nth-child(2),
+html[data-theme] #workspace .table-panel .table-wrap tbody td:nth-child(8),
+html[data-theme] #workspace .table-panel .table-wrap tbody td:nth-child(9),
+html[data-theme] #workspace .table-panel .table-wrap tbody td:nth-child(10){
+  text-align:right;
+  font-family:var(--ui-font-mono);
+  font-variant-numeric:tabular-nums;
+  font-size:var(--ui-fs-body-sm);
+}
+html[data-theme] #workspace .table-panel .table-wrap thead th:nth-child(2),
+html[data-theme] #workspace .table-panel .table-wrap thead th:nth-child(8),
+html[data-theme] #workspace .table-panel .table-wrap thead th:nth-child(9),
+html[data-theme] #workspace .table-panel .table-wrap thead th:nth-child(10){text-align:right}
+
+/* 长文本列：单行截断，完整内容由单元格 title 提供（tooltip） */
+html[data-theme] #workspace .table-panel .table-wrap tbody td.ledger-editable{
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px;
+}
+/* 关注模式下备注列允许换行，不参与截断 */
+html[data-theme] #workspace .table-panel .table-wrap tbody td:nth-child(18){
+  white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;max-width:none;
+}
 
 /* ---------- 6. 标题层级 / 眉标 kicker ---------- */
-.workspace-heading h1{font-size:22px;font-weight:700;letter-spacing:.3px;color:#21323b}
-.workspace-heading p{font-size:12px;color:#6b7a83;line-height:1.6;max-width:72ch}
+.workspace-heading h1{font-size:var(--ui-fs-title);font-weight:var(--ui-fw-bold);letter-spacing:.3px;color:var(--ui-text-1)}
+.workspace-heading p{font-size:var(--ui-fs-body-sm);color:var(--ui-text-3);line-height:var(--ui-lh-loose);max-width:72ch}
 .eyebrow{
-  display:inline-block;letter-spacing:2px;font-size:10px;font-weight:800;
-  color:#3a6b66;text-transform:uppercase;padding-left:15px;position:relative;
+  display:inline-block;letter-spacing:2px;font-size:var(--ui-fs-micro);font-weight:var(--ui-fw-bold);
+  color:var(--ui-text-accent);text-transform:uppercase;padding-left:15px;position:relative;
 }
-.eyebrow::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:9px;height:2px;background:#0a6f6c;border-radius:2px}
+.eyebrow::before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:9px;height:2px;background:var(--ui-accent);border-radius:2px}
 
-/* ---------- 7. 主按钮：悬浮微浮起 + 柔光 ---------- */
-button.primary,button#openImportFlow{box-shadow:0 2px 8px rgba(8,125,121,.22)}
-button.primary:hover,button#openImportFlow:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(8,125,121,.30)}
+/* ---------- 7. 控件规格：高度、圆角、聚焦环统一 ---------- */
+button,.button{height:var(--ui-control-h-lg);border-radius:var(--ui-control-radius);border-color:var(--ui-border)}
+.toolbar input,.toolbar select,.ac-scope select,.rc-toolbar select{height:var(--ui-control-h-lg);border-radius:var(--ui-control-radius);border-color:var(--ui-border);background:var(--ui-surface-1);color:var(--ui-text-1)}
+button.primary,button#openImportFlow{box-shadow:0 2px 8px rgba(8,125,121,.18)}
+button.primary:hover,button#openImportFlow:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(8,125,121,.24)}
 button.primary:active,button#openImportFlow:active{transform:translateY(0)}
+:is(button,a,input,select,textarea):focus-visible{outline:2px solid var(--ui-focus);outline-offset:2px}
 
-/* ---------- 8. 图表（SVG 类钩子） ---------- */
+/* ---------- 8. 信息层级：概览 → 分析 → 明细 ----------
+   分析页一屏只答一个问题：主图（群厂趋势）更大更清晰，辅助图（管板/P 分层）小尺寸佐证；
+   KPI 卡承载「结论」，不为一句结论再画一张图。 ---------- */
+#analytics>.an-wrap{grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr)}
+#analytics .an-wrap>.an-primary-trend{grid-column:span 1}
+#analytics .an-wrap>.an-primary-map{grid-column:span 1}
+#analytics #chart31{min-height:240px;max-height:320px}
+#analytics #chart31 .cft-svg{max-height:300px}
+#analytics #chart32,#analytics #chart34{min-height:160px;max-height:210px}
+#analytics #chart32 .cft-svg,#analytics #chart34 .cft-svg{max-height:200px}
+#analytics .an-primary-trend .panel-title h2{font-size:var(--ui-fs-title-sm)}
+#analytics .an-primary-trend .panel-title{min-height:64px}
+#analytics .legendbar{border:1px solid var(--ui-border-subtle);border-radius:var(--ui-radius-md);background:var(--ui-surface-2);color:var(--ui-text-3)}
+#analytics .chart-legend-note{border:1px solid var(--ui-border-subtle);border-radius:var(--ui-radius-md);background:var(--ui-surface-2);color:var(--ui-text-3)}
+#analytics .note{border-radius:var(--ui-radius-md)!important;background:var(--ui-surface-2)!important;color:var(--ui-text-2)!important;border:1px solid var(--ui-border-subtle)}
+
+/* ---------- 9. 图表：网格/坐标轴/阈值用语义色，暗底单独验对比度 ---------- */
 .cft-svg{overflow:visible}
-.cft-grid line, .cft-grid-x line{stroke:#eef3f6;stroke-width:1}
-.cft-axes line{stroke:#cfdae1;stroke-width:1}
-.cft-threshold.cft-limit{stroke:#d23b3b;filter:drop-shadow(0 0 3px rgba(210,59,59,.35))}
-.cft-threshold.cft-watch{stroke:#cf9a3a}
-.cft-threshold-lbl{font-weight:700}
-.cft-point{cursor:pointer;transition:stroke-width .12s ease}
+.cft-grid line, .cft-grid-x line{stroke:var(--ui-chart-grid);stroke-width:1}
+.cft-axes line{stroke:var(--ui-chart-axis);stroke-width:1}
+.cft-axes text,.cft-grid text,.cft-legend text{fill:var(--ui-chart-ink)}
+.cft-threshold.cft-limit{stroke:var(--ui-chart-threshold-limit);filter:drop-shadow(0 0 3px rgba(210,59,59,.35))}
+.cft-threshold.cft-watch{stroke:var(--ui-chart-threshold-watch)}
+.cft-threshold-lbl{font-weight:700;fill:var(--ui-chart-ink)}
+.cft-point{cursor:pointer;transition:stroke-width .12s ease;stroke:var(--ui-chart-point)}
 .cft-point:hover{stroke-width:3}
 .cft-total-area{pointer-events:none}
 
-/* ---------- 9. 减少动效偏好 ---------- */
+/* ---------- 10. 减少动效偏好 ---------- */
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important;animation:none!important}
 }
+
+/* ============================================================
+   11. 夜间模式单独一版
+   背景三段：画布 #101618 < 面板 #192124 < 控件 #253034，避免一片死黑；
+   边框三档：细 #263133 / 常 #3a4749 / 强 #556663，分隔线在暗底仍可见。
+   ============================================================ */
+html[data-theme="dark"] body{background:var(--ui-canvas);color:var(--ui-text-1)}
+html[data-theme="dark"] :is(main,#workspace,#analytics,#reports,#states,#settings){background:transparent;color:var(--ui-text-1)}
+html[data-theme="dark"] .app-nav{
+  background:var(--ui-surface-1);
+  border-bottom-color:var(--ui-border);
+  box-shadow:0 1px 0 var(--ui-border-subtle), 0 8px 22px rgba(0,0,0,.35);
+}
+html[data-theme="dark"] :is(.panel,.ac-panel,.table-panel,.core-panel,.state-panel,.state-table-panel){
+  background:var(--ui-surface-1);border-color:var(--ui-border);color:var(--ui-text-1);
+  box-shadow:var(--ui-shadow-1);
+}
+html[data-theme="dark"] .panel-title{background:var(--ui-surface-2);border-bottom-color:var(--ui-border-subtle)}
+html[data-theme="dark"] .panel-title h2{color:var(--ui-text-1)}
+html[data-theme="dark"] .panel-title span{color:var(--ui-text-3)}
+html[data-theme="dark"] :is(h1,h2,h3,h4,h5,strong,b,label){color:var(--ui-text-1)}
+html[data-theme="dark"] :is(p,.workspace-heading p,.hint,.help,.description,.subtitle,.panel-subtitle){color:var(--ui-text-3)}
+html[data-theme="dark"] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),select,textarea){
+  background:var(--ui-surface-3);border-color:var(--ui-border-strong);color:var(--ui-text-1);
+}
+html[data-theme="dark"] :is(input,textarea)::placeholder{color:var(--ui-text-4)}
+html[data-theme="dark"] :is(input,select,textarea):focus{border-color:var(--ui-focus);box-shadow:var(--ui-focus-ring)}
+html[data-theme="dark"] .table-wrap{background:var(--ui-surface-1);border-color:var(--ui-border)}
+html[data-theme="dark"] .table-wrap table thead th,
+html[data-theme="dark"] #workspace .table-panel .table-wrap table thead th{
+  background:var(--ui-surface-2);color:var(--ui-text-3);border-bottom-color:var(--ui-border-head);
+  box-shadow:0 1px 0 var(--ui-surface-1);
+}
+html[data-theme="dark"] .table-wrap tbody td,
+html[data-theme="dark"] #workspace .table-panel .table-wrap tbody td{color:var(--ui-text-2);border-bottom-color:var(--ui-table-divider)}
+html[data-theme="dark"] .table-wrap tbody tr:nth-child(even),
+html[data-theme="dark"] #workspace .table-panel .table-wrap tbody tr:nth-child(even){background:var(--ui-table-zebra)}
+html[data-theme="dark"] .table-wrap tbody tr:hover,
+html[data-theme="dark"] #workspace .table-panel .table-wrap tbody tr:hover{background:var(--ui-surface-hover)}
+html[data-theme="dark"] .table-wrap tbody tr.selected,
+html[data-theme="dark"] #workspace .table-panel .table-wrap tbody tr.selected{background:var(--ui-surface-selected);box-shadow:inset 3px 0 var(--ui-accent)}
+html[data-theme="dark"] .metrics article,
+html[data-theme="dark"] #analytics .kpi{background:var(--ui-surface-1);border-color:var(--ui-border-subtle);box-shadow:var(--ui-shadow-1)}
+html[data-theme="dark"] .metrics article strong,
+html[data-theme="dark"] #analytics .kpi .n{color:var(--ui-text-1)}
+html[data-theme="dark"] .metrics article span,
+html[data-theme="dark"] #analytics .kpi :is(span,small){color:var(--ui-text-3)}
+html[data-theme="dark"] #analytics :is(.legendbar,.chart-legend-note,.note,.alert,.filter){
+  background:var(--ui-surface-2);border-color:var(--ui-border-subtle);color:var(--ui-text-2)
+}
+html[data-theme="dark"] .cft-grid line,html[data-theme="dark"] .cft-grid-x line{stroke:var(--ui-chart-grid)}
+html[data-theme="dark"] .cft-axes line{stroke:var(--ui-chart-axis)}
+html[data-theme="dark"] :is(.cft-axes text,.cft-grid text,.cft-legend text){fill:var(--ui-chart-ink)}
+html[data-theme="dark"] .cft-threshold.cft-limit{stroke:var(--ui-chart-threshold-limit);filter:drop-shadow(0 0 4px rgba(240,99,95,.45))}
+html[data-theme="dark"] .cft-threshold.cft-watch{stroke:var(--ui-chart-threshold-watch)}
+html[data-theme="dark"] .cft-point{stroke:var(--ui-chart-point)}
+html[data-theme="dark"] :is(.report-center .rc-preview,.report-inline-panel .report-preview-content){
+  background:var(--ui-surface-3);border-color:var(--ui-border)
+}
+html[data-theme="dark"] .report-preview-dialog{background:var(--ui-surface-3);border-color:var(--ui-border);box-shadow:var(--ui-shadow-3)}
+html[data-theme="dark"] ::-webkit-scrollbar-thumb{background:var(--ui-border-strong)}
+
+/* ---------- 12. 面板标题的层次（覆盖 information-hierarchy 的 ID 级规则） ----------
+   标题栏必须比面板正文浅/深一级，否则「标题」和「内容」在暗底黏成一片；
+   副标题必须比标题弱一档，避免两者同为 13:1 而失去层级。 ---------- */
+html[data-theme="light"] #workspace .table-panel .panel-title,
+html[data-theme="dark"] #workspace .table-panel .panel-title{
+  background:var(--ui-surface-2);
+  border-bottom:1px solid var(--ui-border-subtle);
+}
+html[data-theme="light"] #workspace .table-panel .panel-title h2,
+html[data-theme="dark"] #workspace .table-panel .panel-title h2{color:var(--ui-text-1)}
+html[data-theme="light"] #workspace .table-panel .panel-title span,
+html[data-theme="dark"] #workspace .table-panel .panel-title span{color:var(--ui-text-3)}
+html[data-theme="light"] #workspace .table-panel .panel-title span,
+html[data-theme="dark"] #workspace .table-panel .panel-title span{font-size:var(--ui-fs-caption)}
+html[data-theme="light"] #workspace .table-panel .panel-title h2,
+html[data-theme="dark"] #workspace .table-panel .panel-title h2{font-size:var(--ui-fs-body-lg)}
+

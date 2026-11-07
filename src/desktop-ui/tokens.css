@@ -1,5 +1,10 @@
-/* Shared by the desktop shell and the embedded model. */
+/* Shared by the desktop shell and the embedded model.
+   两层结构：
+   1) 兼容层（--bg/--paper/--ink…）保持旧组件可用；
+   2) 语义层（--ui-*）供新版界面统一取色、字号、间距、圆角、阴影、控件规格。
+   语义层同时定义亮/暗两套值，组件只引用 --ui-* 即可自动适配夜间模式。 */
 :root {
+  /* ---------- 兼容层 ---------- */
   --bg:#f2f5f7;
   --paper:#fff;
   --ink:#263842;
@@ -15,6 +20,126 @@
   --blue:#0b72c7;
   --green:#4f8b70;
   --control-height:34px;
+
+  /* ---------- 语义层：背景与表面 ---------- */
+  --ui-canvas:#f2f5f7;           /* 应用底色 */
+  --ui-surface-1:#ffffff;        /* 卡片/面板 */
+  --ui-surface-2:#f8fafb;        /* 次级表面：表头、工具条、图例条 */
+  --ui-surface-3:#eff3f5;        /* 凹陷表面：输入框、分段控件底座 */
+  --ui-surface-hover:#f2f8fa;    /* 行悬浮 */
+  --ui-surface-selected:#e9f5f4; /* 选中行 */
+  --ui-paper:#ffffff;            /* 纸质报告底：亮暗两套都保持白纸 */
+  --ui-paper-ink:#17242a;        /* 纸质报告正文：夜间也不反转 */
+  --ui-paper-ink-2:#27363c;
+  --ui-paper-muted:#647981;
+  --ui-paper-rule:#35454b;       /* 纸质表格线 */
+  --ui-paper-edge:#c8d1d4;       /* 纸张外沿 */
+  --ui-paper-head:#f1f4f5;       /* 纸质表头底色 */
+  --ui-paper-ok:#28715a;         /* 纸质报告内的正常态 */
+  --ui-paper-danger:#b13f47;     /* 纸质报告内的异常态 */
+  --ui-overlay:#14262d;          /* 遮罩 */
+
+  /* ---------- 语义层：文字 ---------- */
+  --ui-text-1:#263842;  /* 主文字、数值 */
+  --ui-text-2:#3e535e;  /* 正文 */
+  --ui-text-3:#556974;  /* 次要说明：白底 5.6:1 */
+  --ui-text-4:#64757f;  /* 单位、脚注：白底 4.78:1，仍满足 AA */
+  --ui-text-inverse:#ffffff;
+  --ui-text-accent:#0a6f6c;
+
+  /* ---------- 语义层：边框与分隔 ---------- */
+  --ui-border-subtle:#edf0f2;  /* 表格行分隔 */
+  --ui-border:#d8e1e6;         /* 控件、卡片描边 */
+  --ui-border-strong:#bccbd0;  /* 需要明确边界的分隔 */
+  --ui-border-head:#d3dde3;    /* 表头下沿 */
+
+  /* ---------- 语义层：品牌与状态 ---------- */
+  --ui-accent:#087d79;
+  --ui-accent-strong:#056762;
+  --ui-accent-soft:#e9f5f4;
+  --ui-focus:#17848b;
+  --ui-danger:#a8444c;
+  --ui-danger-soft:#fbeeef;
+  --ui-warn:#b88725;
+  --ui-warn-soft:#fbf6e9;
+  --ui-info:#0b72c7;
+  --ui-info-soft:#eef5fc;
+  --ui-ok:#2f7a5b;
+  --ui-ok-soft:#e9f4ee;
+
+  /* ---------- 语义层：图表 ---------- */
+  --ui-chart-1:#087d79;
+  --ui-chart-2:#0b72c7;
+  --ui-chart-3:#b88725;
+  --ui-chart-4:#6b79a2;
+  --ui-chart-5:#bc503e;
+  --ui-chart-6:#2f7a5b;
+  --ui-chart-7:#7b5bd6;
+  --ui-chart-grid:#eef3f6;
+  --ui-chart-axis:#cfdae1;
+  --ui-chart-ink:#4a5f6b;
+  --ui-chart-point:#087d79;
+  --ui-chart-threshold-watch:#cf9a3a;
+  --ui-chart-threshold-limit:#d23b3b;
+
+  /* ---------- 语义层：字号层级 ---------- */
+  --ui-font-ui:'Microsoft YaHei','PingFang SC','Segoe UI',-apple-system,'Helvetica Neue',Arial,sans-serif;
+  --ui-font-mono:Consolas,'SF Mono','Cascadia Mono',monospace;
+  --ui-fs-micro:10px;   /* 眉标、单位、表头 */
+  --ui-fs-caption:11px; /* 脚注、辅助说明 */
+  --ui-fs-body-sm:12px; /* 表格正文 */
+  --ui-fs-body:13px;    /* 正文 */
+  --ui-fs-body-lg:14px; /* 面板标题 */
+  --ui-fs-title-sm:16px;/* 区块标题 */
+  --ui-fs-title:20px;   /* 页面标题 */
+  --ui-fs-display:22px; /* 首屏主标题 */
+  --ui-fs-metric:28px;  /* KPI 数值 */
+  --ui-fw-regular:400;
+  --ui-fw-medium:500;
+  --ui-fw-semibold:600;
+  --ui-fw-bold:700;
+  --ui-lh-tight:1.25;
+  --ui-lh-body:1.55;
+  --ui-lh-loose:1.75;
+
+  /* ---------- 语义层：间距节奏（4px 基准） ---------- */
+  --ui-space-1:4px;
+  --ui-space-2:8px;
+  --ui-space-3:12px;
+  --ui-space-4:16px;
+  --ui-space-5:20px;
+  --ui-space-6:24px;
+  --ui-space-7:32px;
+  --ui-space-8:40px;
+
+  /* ---------- 语义层：圆角 ---------- */
+  --ui-radius-xs:3px;
+  --ui-radius-sm:4px;
+  --ui-radius-md:6px;
+  --ui-radius-lg:8px;
+  --ui-radius-xl:10px;
+  --ui-radius-pill:999px;
+
+  /* ---------- 语义层：阴影 ---------- */
+  --ui-shadow-1:0 1px 2px rgba(18,32,40,.04), 0 6px 16px rgba(18,32,40,.055);
+  --ui-shadow-2:0 2px 6px rgba(18,32,40,.05), 0 14px 34px rgba(18,32,40,.09);
+  --ui-shadow-3:0 24px 70px rgba(23,42,49,.31);
+  --ui-focus-ring:0 0 0 2px rgba(8,125,121,.22);
+
+  /* ---------- 语义层：控件规格 ---------- */
+  --ui-control-h-sm:28px;
+  --ui-control-h-md:32px;
+  --ui-control-h-lg:36px;
+  --ui-control-px:12px;
+  --ui-control-radius:var(--ui-radius-sm);
+
+  /* ---------- 语义层：表格 ---------- */
+  --ui-table-head-h:40px;
+  --ui-table-row-h:36px;
+  --ui-table-zebra:#fafcfd;
+  --ui-table-divider:#eef2f5;
+
+  /* ---------- 状态色（沿用既有名称） ---------- */
   --severity-low:#79b98c;
   --severity-mid:#e5a83b;
   --severity-high:#df4b45;
@@ -36,4 +161,91 @@
   --state-missing-fill:#edf1f3;
   --state-missing-edge:#9baab3;
   --state-missing-ink:#44545e;
+}
+
+/* ============================================================
+   夜间模式：独立调一版
+   层次来自三段背景（画布 < 面板 < 控件），不是一片死黑，也不是一片灰。
+   边框分三档：细分隔、控件描边、需要明确边界的强分隔。
+   ============================================================ */
+html[data-theme="dark"] {
+  --bg:#111719;
+  --ui-canvas:#111719;
+  --ui-surface-1:#1c2527;
+  --ui-surface-2:#232f31;
+  --ui-surface-3:#2b393b;
+  --ui-surface-hover:#283737;
+  --ui-surface-selected:#22404a;
+  --ui-overlay:#05090a;
+
+  --ui-text-1:#e5eeec;
+  --ui-text-2:#c3d1d0;
+  --ui-text-3:#a8b8b5;
+  --ui-text-4:#8fa3a1;
+  --ui-text-inverse:#ffffff;
+  --ui-text-accent:#7fd6c7;
+
+  --ui-border-subtle:#2a3537;
+  --ui-border:#3b4c4d;
+  --ui-border-strong:#566b69;
+  --ui-border-head:#465558;
+
+  --ui-accent:#3fb3a6;
+  --ui-accent-strong:#5ecbbd;
+  --ui-accent-soft:#1b3234;
+  --ui-focus:#7fd6c7;
+  --ui-danger:#e5747c;
+  --ui-danger-soft:#332226;
+  --ui-warn:#e3b767;
+  --ui-warn-soft:#332d1f;
+  --ui-info:#74b1e8;
+  --ui-info-soft:#1b2733;
+  --ui-ok:#7fc9a4;
+  --ui-ok-soft:#1c2f28;
+
+  /* 图表色板：暗底整体提亮，避免深色系列融进背景 */
+  --ui-chart-1:#4fc0b2;
+  --ui-chart-2:#64aee8;
+  --ui-chart-3:#e3b767;
+  --ui-chart-4:#9aa4d6;
+  --ui-chart-5:#ef7f6d;
+  --ui-chart-6:#7fc9a4;
+  --ui-chart-7:#b79ae8;
+  --ui-chart-grid:#263234;
+  --ui-chart-axis:#3f4d50;
+  --ui-chart-ink:#b7c7c5;
+  --ui-chart-point:#4fc0b2;
+  --ui-chart-threshold-watch:#e8b25a;
+  --ui-chart-threshold-limit:#f0635f;
+
+  --ui-shadow-1:0 1px 2px rgba(0,0,0,.35), 0 6px 16px rgba(0,0,0,.28);
+  --ui-shadow-2:0 2px 8px rgba(0,0,0,.4), 0 16px 36px rgba(0,0,0,.34);
+  --ui-shadow-3:0 24px 70px rgba(0,0,0,.55);
+  --ui-focus-ring:0 0 0 2px rgba(127,214,199,.28);
+
+  --ui-table-zebra:#1d2629;
+  --ui-table-divider:#283436;
+
+  /* 状态色在暗底提亮 */
+  --severity-low:#8fd3a3;
+  --severity-mid:#f0bb5b;
+  --severity-high:#f0655f;
+  --state-normal-fill:#1c3b2f;
+  --state-normal-edge:#4dbb8c;
+  --state-normal-ink:#b9ecd2;
+  --state-plugged-fill:#3a2329;
+  --state-plugged-edge:#e57082;
+  --state-plugged-ink:#ffc4ce;
+  --state-shifted-fill:#3a2f1c;
+  --state-shifted-edge:#e0a44a;
+  --state-shifted-ink:#ffe0ad;
+  --state-replaced-fill:#1d2b3d;
+  --state-replaced-edge:#6fa8e6;
+  --state-replaced-ink:#c8ddf8;
+  --state-review-fill:#332c1d;
+  --state-review-edge:#d0a44e;
+  --state-review-ink:#f5dcab;
+  --state-missing-fill:#232b2d;
+  --state-missing-edge:#64757a;
+  --state-missing-ink:#b3c0c4;
 }
