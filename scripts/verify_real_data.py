@@ -27,7 +27,9 @@ def digest(path):
 
 
 def main():
-    output = PROJECT / "tmp" / ("real-data-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+    # Keep reproducible validation artifacts outside the software runtime tree.
+    output_root = PROJECT.parent / "05_测试与验证" / "03_自动化临时产物"
+    output = output_root / ("real-data-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     output.mkdir(parents=True)
     os.environ["THIMBLE_DATA_DIR"] = str(output)
     os.environ["THIMBLE_OUTPUT_DIR"] = str(output / "excel")

@@ -303,6 +303,9 @@ def recognize_note(server, data):
 
 
 def preview(server, data):
+    direction_policy = data.get("direction_policy", "default")
+    if direction_policy not in {"default", "pending"}:
+        raise ValueError("状态表方向策略无效")
     if data.get('outage'):
         server.validate_state_payload({**data, 'thimble_id': 1, 'state': 'normal', 'offset_mm': 0})
     name = Path(str(data.get("filename", "")))
@@ -389,13 +392,14 @@ def preview(server, data):
     task_progress.step("识别维护表格结构")
     with task_progress.phase(20, 95):
         candidates, warnings, recognized = recognize(tables, data, name.name, unresolved,
-                                                     default_direction=state_preferences.direction(server))
+                                                     default_direction=("pending" if direction_policy == "pending"
+                                                                        else state_preferences.direction(server)))
     if not recognized:
         raise ValueError("未找到管号与维护信息；支持状态列、备注说明、横向通道表、历次大修矩阵及 Word 处理记录")
     safe = []
     for row in task_progress.iterate(candidates, "校验识别到的维护记录", span=(95, 99)):
         try:
-            clean = validate_rows(server, [row])[0]
+            clean = validate_rows(server, [row], default_direction=direction_policy != "pending")[0]
             # Retain the distances resolved with the current saved preference.
             safe.append(clean)
         except ValueError as error:

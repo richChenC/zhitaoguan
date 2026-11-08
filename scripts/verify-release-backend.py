@@ -1,8 +1,10 @@
 """Reject stale or unwanted files embedded in the frozen backend."""
 from pathlib import Path
+import marshal
 import sys
 
 from PyInstaller.archive.readers import CArchiveReader
+from verify_native_bundle import normalized
 
 
 def main() -> int:
@@ -19,12 +21,26 @@ def main() -> int:
     ]
     if not any(name.startswith("docs/使用手册/") for name in names):
         violations.append("missing embedded user manuals")
+    source_root = Path(__file__).resolve().parents[1] / "src/backend"
+    if "server" not in archive.toc:
+        violations.append("missing backend entry point")
+    elif normalized(marshal.loads(archive.extract("server"))) != normalized(
+            compile((source_root / "server.py").read_bytes(), "<source>", "exec", dont_inherit=True, optimize=0)):
+        violations.append("stale backend entry point")
+    pyz = archive.open_embedded_archive(next(name for name in archive.toc if name.endswith(".pyz")))
+    checked = 0
+    for name in pyz.toc:
+        source = source_root / (name.replace(".", "/") + ".py")
+        if source.is_file():
+            checked += 1
+            if normalized(pyz.extract(name)) != normalized(compile(source.read_bytes(), "<source>", "exec", dont_inherit=True, optimize=0)):
+                violations.append(f"stale backend module: {name}")
     if violations:
         print("Backend release content verification failed:", file=sys.stderr)
         for name in violations:
             print(f"  {name}", file=sys.stderr)
         return 1
-    print("Backend release content verification passed.")
+    print(f"Backend release content verification passed ({checked} source modules and entry point).")
     return 0
 
 

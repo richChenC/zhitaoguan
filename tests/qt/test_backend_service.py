@@ -44,6 +44,7 @@ class BackendEnvironmentTests(unittest.TestCase):
 
     def test_inherited_paths_cannot_redirect_qt_data_or_exports(self):
         inherited = {
+            "THIMBLE_QT_TEST_DATA_ROOT": "",
             "THIMBLE_USER_DATA_DIR": r"C:\production",
             "THIMBLE_DATA_DIR": r"C:\production\data",
             "THIMBLE_DB_PATH": r"C:\production\data\thimble.db",

@@ -12,7 +12,7 @@ import sqlite3
 import time
 import uuid
 import sys
-from urllib.parse import urlparse, quote
+from urllib.parse import parse_qs, urlparse, quote
 
 try:
     from . import schema_migrations
@@ -297,6 +297,7 @@ POST_PERMISSIONS = {
     '/api/cross-group-reviews':'review.write','/api/reports/preview':'data.read','/api/reports/export':'export.create',
     '/api/report-options':'data.import','/api/discover-server':'data.import',
     '/api/import':'data.import','/api/import-excel':'data.import','/api/import-excel-inspect':'data.import',
+      '/api/import-directory-preview':'data.import',
     '/api/data-quality/export':'export.create','/api/import-batches/action':'data.delete',
     '/api/export-indication-warnings':'export.create','/api/deduplicate':'data.purge',
     '/api/analysis-rules':'settings.manage','/api/backup':'backup.manage',
@@ -310,6 +311,7 @@ POST_PERMISSIONS = {
     '/api/states/export':'export.create','/api/states/delete-batch':'state.write',
     '/api/states/recognize-note':'state.write','/api/state-delete':'state.write',
     '/api/security/image-export':'export.create',
+    '/api/audits/export':'export.create',
 }
 
 
@@ -343,11 +345,40 @@ def auth_get(server, handler, path):
     if path in ('/api/security/events','/api/security/exports','/api/schema-migrations'):
         table = {'/api/security/events':'security_events','/api/security/exports':'export_audits','/api/schema-migrations':'schema_migrations'}[path]
         with server.connect() as db:
-            return {'items':[dict(r) for r in db.execute(f'SELECT * FROM {table} ORDER BY 1 DESC LIMIT 200')]}
+            query = parse_qs(urlparse(handler.path).query)
+            page = max(1, int(query.get('page', [1])[0]))
+            size = max(1, min(200, int(query.get('size', [100])[0])))
+            return {'items':[dict(r) for r in db.execute(
+                f'SELECT * FROM {table} ORDER BY id DESC LIMIT ? OFFSET ?', (size, (page - 1) * size))],
+                'total': db.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0], 'page': page, 'size': size}
     return None
 
 
 def auth_post(server, handler, path, data):
+    if path == '/api/audits/export':
+        principal = _principal.get()
+        if principal is not None and 'audit.read' not in principal['permissions']:
+            raise AccessError('当前账户没有查看审计权限')
+        from openpyxl import Workbook
+        try:
+            from . import artifact_naming
+        except ImportError:
+            import artifact_naming
+        book = Workbook()
+        book.remove(book.active)
+        with server.connect() as db:
+            for table, title in (('operation_logs', '操作审计'), ('security_events', '安全审计'),
+                                 ('export_audits', '导出校验')):
+                sheet = book.create_sheet(title)
+                cursor = db.execute(f'SELECT * FROM {table} ORDER BY id')
+                sheet.append([column[0] for column in cursor.description])
+                for row in cursor:
+                    sheet.append(list(row))
+                for row in sheet.iter_rows():
+                    for cell in row:
+                        if isinstance(cell.value, str):
+                            cell.data_type = 's'
+        return server.workbook_result(artifact_naming.filename('审计台账', '完整历史', 'xlsx'), book)
     if path=='/api/security/image-export':
         resource = str(data.get('name','image'))[:200]
         digest = data.get('sha256','')

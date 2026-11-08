@@ -10,6 +10,8 @@
 import tempfile
 import sqlite3
 import unittest
+import time
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,7 +20,9 @@ from src.backend import backup_service, server
 
 class BackupRestoreTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
+        artifact_root = Path(__file__).resolve().parents[2] / "05_测试与验证" / "03_自动化临时产物"
+        artifact_root.mkdir(parents=True, exist_ok=True)
+        self.tmp = tempfile.TemporaryDirectory(prefix="backup-unit-", dir=artifact_root)
         self.db = Path(self.tmp.name) / "db.db"
         self.patcher = patch.object(server, "DB_PATH", self.db)
         self.patcher.start()
@@ -115,6 +119,29 @@ class BackupRestoreTests(unittest.TestCase):
         self.assertEqual(safety[0]["kind_label"], "恢复前备份")
         self.assertTrue(safety[0]["name"].startswith("TH_数据库备份_恢复前_"))
         self.assertTrue(Path(safety[0]["path"]).is_file())
+
+    def test_locked_destination_backup_has_deadline_and_preserves_committed_data(self):
+        source = Path(self.tmp.name) / "source.db"
+        target = Path(self.tmp.name) / "target.db"
+        with closing(sqlite3.connect(source)) as db, db:
+            db.execute("CREATE TABLE sample(value)")
+            db.execute("INSERT INTO sample VALUES('source')")
+        with closing(sqlite3.connect(target)) as db, db:
+            db.execute("CREATE TABLE sample(value)")
+            db.execute("INSERT INTO sample VALUES('target')")
+        holder = sqlite3.connect(target)
+        holder.execute("BEGIN IMMEDIATE")
+        try:
+            started = time.monotonic()
+            with closing(sqlite3.connect(source)) as src, closing(sqlite3.connect(target, timeout=.01)) as dst:
+                with self.assertRaisesRegex(ValueError, "持续忙碌"):
+                    backup_service.copy_database(src, dst, timeout=.1)
+            self.assertLess(time.monotonic() - started, 1)
+        finally:
+            holder.rollback()
+            holder.close()
+        with closing(sqlite3.connect(target)) as db:
+            self.assertEqual(db.execute("SELECT value FROM sample").fetchone()[0], "target")
 
 
 _INSERT = """INSERT INTO findings(

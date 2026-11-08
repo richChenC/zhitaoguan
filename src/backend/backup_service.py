@@ -3,6 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 import sqlite3
+import time
 import uuid
 
 try:
@@ -40,9 +41,19 @@ def kind_label(kind):
     return '其他备份'
 
 
+def copy_database(source, target, *, timeout=30):
+    deadline = time.monotonic() + timeout
+
+    def progress(status, remaining, total):
+        if status != sqlite3.SQLITE_DONE and time.monotonic() >= deadline:
+            raise ValueError('数据库持续忙碌或复制超时，操作已取消，请关闭占用数据库的程序后重试')
+
+    source.backup(target, pages=128, progress=progress, sleep=.05)
+
+
 def snapshot(source, target):
     with schema_migrations.readonly(source) as src, sqlite3.connect(target, factory=schema_migrations.ClosingConnection) as dst:
-        src.backup(dst)
+        copy_database(src, dst)
 
 
 def policy(server, data=None):
@@ -169,11 +180,35 @@ def restore(server, path):
                     raise ValueError('恢复后的账户关联校验失败')
             schema_migrations.validate(stage, current=True)
             # All managed connections are drained by the maintenance gate.
-            for file in (current, stage):
-                with sqlite3.connect(file, factory=schema_migrations.ClosingConnection) as db:
+            # The current database is about to be replaced.  Touching its
+            # journal mode can fail on Windows when an external read handle
+            # still exists even though all managed connections are drained.
+            # Only the staged copy needs WAL finalization before replacement.
+            for file in (stage,):
+                with sqlite3.connect(
+                    file, factory=schema_migrations.ClosingConnection, timeout=30
+                ) as db:
+                    db.execute('PRAGMA busy_timeout=30000')
                     db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
-                    db.execute('PRAGMA journal_mode=DELETE')
-            stage.replace(current)
+                    db.commit()
+            # Keep the live database path open on Windows. Replacing the file
+            # with os.replace() is rejected while the service or an external
+            # reader still owns a handle. SQLite's backup API is transactional
+            # and writes the verified staged snapshot into the existing path.
+            with sqlite3.connect(
+                stage, factory=schema_migrations.ClosingConnection, timeout=30
+            ) as source, sqlite3.connect(
+                current, factory=schema_migrations.ClosingConnection, timeout=30
+            ) as target:
+                target.execute('PRAGMA busy_timeout=30000')
+                copy_database(source, target)
+                target.commit()
+                try:
+                    target.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+                except sqlite3.OperationalError:
+                    # A reader may briefly hold the WAL; the backup itself is
+                    # already committed and SQLite will checkpoint later.
+                    pass
             with server.connect() as db:
                 after = db.execute('SELECT COUNT(*),COUNT(DISTINCT outage) FROM findings WHERE is_deleted=0').fetchone()
             return {'restored_from':verified['path'],'safety_backup':safety['path'],

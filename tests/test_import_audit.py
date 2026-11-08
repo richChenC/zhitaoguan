@@ -131,6 +131,36 @@ class ImportAuditTests(unittest.TestCase):
         self.assertIn("MISSING_REPORT", data["codes"])
         self.assertEqual(data["totals"]["artifacts"], 5)
 
+    def test_native_directory_preflight_returns_rows_without_any_database_writes(self):
+        group = self.root / "TH2I09CAL00001"
+        group.mkdir()
+        write_sum(group)
+        write_ect(group, "DIR001C001I001.ECT", 1, 1, 1)
+        write_report(group, [report_entry("DIR001C001I001.ECT", 1, 1, 1, "a")])
+        options = server.report_options(str(self.root))
+        confirmation = {"confirmed": True, "candidates": [
+            {key: row.get(key) or "" for key in ("path", "sha256", "sum_sha256")}
+            for row in options if not row.get("error")]}
+        with server.connect() as db:
+            before = db.total_changes
+            tables_before = {table: db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                             for table in ("findings", "import_batches", "validation_issues", "restore_points")}
+        result = server.preview_directory_import(str(self.root), [options[0]["path"]], confirmation)
+        self.assertEqual(result["parsed"], 1)
+        self.assertEqual(result["preview_rows"][0]["indication"], "WAR")
+        with server.connect() as db:
+            self.assertEqual(tables_before, {table: db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                                            for table in tables_before})
+
+    def test_native_excel_inspection_has_source_row_numbers_and_preflight_rows(self):
+        source = self.workbook([["H209", 2, 1, "B5", "WAR", "P1"]])
+        inspected = server.inspect_excel_file(str(source))
+        self.assertEqual(inspected["sheets"][0]["sample_rows"][0]["row_number"], 2)
+        preview = server.import_excel_file(str(source), "check")
+        self.assertEqual(preview["preview_rows"][0]["thimble_id"], 1)
+        with server.connect() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM findings").fetchone()[0], 0)
+
     def test_records_with_different_phase_do_not_share_import_identity(self):
         source = self.root / "phases.xlsx"
         book = Workbook()

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import base64
-from copy import copy, deepcopy
+from copy import deepcopy
 import hashlib
 import html
 import getpass
@@ -179,6 +179,9 @@ def apply_plain_excel_table(sheet, header_rows=(1,), data_start=None, end_row=No
     plain_side = Side(style="thin", color="000000")
     plain_border = Border(left=plain_side, right=plain_side,
                           top=plain_side, bottom=plain_side)
+    plain_font = Font(name=PLAIN_EXCEL_FONT, sz=10, color="000000", bold=False)
+    plain_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    empty_fill = PatternFill(fill_type=None)
     header_rows = set(header_rows)
     first_data = data_start or (max(header_rows) + 1 if header_rows else 1)
     last_data = min(end_row or sheet.max_row, sheet.max_row)
@@ -189,16 +192,14 @@ def apply_plain_excel_table(sheet, header_rows=(1,), data_start=None, end_row=No
         for cell in row:
             if cell.value is None and not cell.has_style:
                 continue
-            font = copy(cell.font)
-            font.name = PLAIN_EXCEL_FONT
-            font.sz = 10
-            font.color = "000000"
             if row_number in header_rows:
-                font.bold = False
-                cell.fill = PatternFill(fill_type=None)
-            cell.font = font
+                cell.fill = empty_fill
+            cell.font = plain_font
             cell.border = plain_border
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.alignment = plain_alignment
+            if isinstance(cell.value, str):
+                # Keep imported text beginning with "=" or "+" as text.
+                cell.data_type = "s"
 
 
 def recent_service_log(limit: int = 120) -> dict:
@@ -1700,11 +1701,18 @@ def inspect_excel_file(filename: str) -> dict:
                     max_row = max_row or 0
                     max_column = max_column or len(headers)
             outage_hint = sheet.title.strip().upper() if re.fullmatch(r"[A-Z]{1,2}\d{3}", sheet.title.strip().upper()) else ""
+            sample_rows = [
+                {"row_number": row_number, "values": ["" if value is None else str(value) for value in values]}
+                for row_number, values in enumerate(sheet.iter_rows(
+                    min_row=header_row + 1, max_row=min(header_row + 40, max_row),
+                    max_col=min(max_column, 80), values_only=True), header_row + 1)
+            ] if max_row > header_row else []
             sheets.append({"name": sheet.title, "max_row": max_row,
                            "max_column": max_column, "header_row": header_row,
                            "outage_hint": outage_hint,
                            "unit_hint": infer_unit(outage_hint, "") if outage_hint else None,
-                           "recognized": bool(detected), "mapping": mapping, "columns": columns})
+                           "recognized": bool(detected), "mapping": mapping, "columns": columns,
+                           "sample_rows": sample_rows})
     finally:
         book.close()
     return {"file": str(source), "sheets": sheets}
@@ -1746,14 +1754,10 @@ def import_excel_file(filename: str, blank_indication_policy: str = "", operator
             with task_progress.phase(0, 35):
                 check = import_excel_file(filename, "check", operator, mapping=mapping)
         except Exception as check_error:
-            # 预检（check）是只读预演，其报错才是第一现场；保留既有 review 回退行为，
-            # 但回退也失败时必须抛出原始预检错误，不能让回退错误掩盖真正原因。
-            try:
-                with task_progress.phase(35, 99):
-                    return import_excel_file(filename, "review", operator, mapping=mapping)
-            except Exception as review_error:
-                LOGGER.error("Excel 导入预检失败：%s；review 回退亦失败：%s", check_error, review_error)
-                raise check_error from review_error
+            # 预检是只读阶段。打开、解析或校验失败时必须保留第一现场，
+            # 不能为了“继续导入”再次进入 review 写入路径。
+            LOGGER.error("Excel 导入预检失败，已终止导入：%s", check_error)
+            raise
         if check["blank_indication"]["count"]:
             task_progress.wait_for_confirmation()
             check["requires_indication_decision"] = True
@@ -2139,7 +2143,36 @@ def import_excel_file(filename: str, blank_indication_policy: str = "", operator
             "blank_indication": blank_summary,
             "source_total": row_total, "parsed_total": parsed,
             "ndd_auto": resolution["ndd_auto"], "war_candidate": resolution["war_candidate"],
-            "review": resolution["review"], "error_total": invalid_count}
+            "review": resolution["review"], "error_total": invalid_count,
+            "check_only": dry_run,
+            "preview_rows": [asdict(finding) for finding in pending[:200]] if dry_run else []}
+
+
+def preview_directory_import(directory, reports, confirmation):
+    """Read-only RPT preflight; never enters the import/audit write decorator."""
+    validate_report_confirmation(directory, reports, confirmation)
+    available = {str(Path(row["path"]).resolve()).casefold(): row
+                 for row in report_options(directory) if row.get("path") and not row.get("error")}
+    groups = set()
+    if not reports:
+        raise ValueError("请至少选择一份报告")
+    for report in reports:
+        row = available.get(str(Path(report).resolve()).casefold())
+        if row is None:
+            raise ValueError("所选报告不属于当前有效数据组")
+        key = (row.get("site_code"), row.get("unit_id"), row.get("outage"), row.get("group"))
+        if key in groups:
+            raise ValueError("同一数据组只能选择一个报告版本")
+        groups.add(key)
+    processed = process_directory(directory, reports)
+    errors = processed["parse_errors"] + processed["report_reference_errors"]
+    findings = processed["findings"]
+    return {"parsed": len(findings), "parsed_total": len(findings),
+            "source_total": len(processed["report_rows"]),
+            "blank_indication": blank_indication_summary(findings),
+            "error_total": len(errors), "errors": errors,
+            "preview_rows": [asdict(finding) for finding in findings[:200]],
+            "reports": len(processed["reports"]), "check_only": True}
 
 
 def analyze_directory(directory: str, selected_reports: list[str] | None = None) -> tuple[list[Finding], list[dict]]:
@@ -2573,15 +2606,6 @@ def export_data_ledger(data: dict) -> dict:
         for column in range(1, current.max_column + 1):
             values = [str(current.cell(row, column).value or "") for row in range(1, min(current.max_row, 300) + 1)]
             current.column_dimensions[get_column_letter(column)].width = min(48, max(12, max(map(len, values), default=0) + 2))
-        for row_cells in current.iter_rows(min_row=2):
-            for cell in row_cells:
-                if isinstance(cell.value, str):
-                    cell.data_type = "s"
-                font = copy(cell.font)
-                font.name = PLAIN_EXCEL_FONT
-                font.sz = 10
-                font.color = "000000"
-                cell.font = font
     metadata = book.create_sheet("_ledger_metadata")
     with connect() as db:
         token = db.execute("SELECT token FROM ledger_identity WHERE id=1").fetchone()[0]
@@ -4129,19 +4153,27 @@ def tube_state_scope(params):
         items.append(item)
     return {"revision": token, "items": items}
 
-def validation_summary(limit: int = 200) -> dict:
+def validation_summary(limit: int = 200, *, page=None, size=100) -> dict:
+    size = max(1, min(int(size), 200))
+    offset = (max(1, int(page)) - 1) * size if page is not None else 0
+    row_limit = size if page is not None else max(1, min(limit, 500))
     with connect() as db:
-        rows = [dict(row) for row in db.execute("SELECT * FROM validation_issues WHERE is_deleted=0 ORDER BY id DESC LIMIT ?", (max(1, min(limit, 500)),)).fetchall()]
+        rows = [dict(row) for row in db.execute("SELECT * FROM validation_issues WHERE is_deleted=0 ORDER BY id DESC LIMIT ? OFFSET ?",
+                                              (row_limit, offset)).fetchall()]
         counts = {row["severity"]: row["count"] for row in db.execute("""SELECT severity,COUNT(*) count FROM validation_issues v
             LEFT JOIN import_batches b ON b.id=v.batch_id WHERE v.resolved_at IS NULL AND v.is_deleted=0
             AND COALESCE(b.status,'completed')='completed' AND COALESCE(b.is_deleted,0)=0 GROUP BY severity""")}
         total = db.execute("SELECT COUNT(*) FROM validation_issues WHERE is_deleted=0").fetchone()[0]
     return {"items": rows, "open": counts, "count": total}
 
-def import_batch_summary(limit: int = 50) -> dict:
+def import_batch_summary(limit: int = 50, *, page=None, size=100) -> dict:
+    size = max(1, min(int(size), 200))
+    offset = (max(1, int(page)) - 1) * size if page is not None else 0
+    row_limit = size if page is not None else max(1, min(int(limit), 500))
     with connect() as db:
-        rows = [dict(row) for row in db.execute("SELECT * FROM import_batches ORDER BY id DESC LIMIT ?", (limit,)).fetchall()]
-    return {"items": rows, "count": len(rows)}
+        rows = [dict(row) for row in db.execute("SELECT * FROM import_batches ORDER BY id DESC LIMIT ? OFFSET ?", (row_limit, offset)).fetchall()]
+        total = db.execute("SELECT COUNT(*) FROM import_batches").fetchone()[0]
+    return {"items": rows, "count": len(rows), "total": total}
 
 # ============================================================
 # 数据删除与回收 / 统计分析 - 扩展 API
@@ -4504,8 +4536,39 @@ def api_operation_logs(page=1, size=50):
     with connect() as db:
         total = db.execute("SELECT COUNT(*) FROM operation_logs").fetchone()[0]
         rows = [dict(row) for row in db.execute(
-            "SELECT * FROM operation_logs ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+            "SELECT l.*, b.detail_json AS _context_json FROM operation_logs l "
+            "LEFT JOIN delete_batches b ON b.id=l.delete_batch_id "
+            "ORDER BY l.created_at DESC, l.id DESC LIMIT ? OFFSET ?",
             (size, (page - 1) * size)).fetchall()]
+        contexts = {}
+        for row in rows:
+            detail_json = row.pop("_context_json", None)
+            if not detail_json:
+                continue
+            batch = row["delete_batch_id"]
+            if batch not in contexts:
+                try:
+                    detail = json.loads(detail_json)
+                except (TypeError, ValueError):
+                    detail = {}
+                if not isinstance(detail, dict):
+                    detail = {}
+                ids = detail.get("findingIds") if row["scope"] == "selected" else [detail.get("findingId")]
+                if row["scope"] in {"selected", "finding"} and isinstance(ids, list):
+                    # JSON table parameters avoid SQLite's variable-count limit.
+                    found = db.execute(
+                        "SELECT outage,unit_id,CASE WHEN COUNT(DISTINCT thimble_id)=1 "
+                        "THEN MIN(thimble_id) END AS thimble_id FROM findings "
+                        "WHERE id IN (SELECT value FROM json_each(?)) GROUP BY outage,unit_id",
+                        (json.dumps(ids),)).fetchall()
+                elif detail.get("outage"):
+                    found = db.execute(
+                        "SELECT DISTINCT outage,unit_id FROM findings WHERE outage=?",
+                        (str(detail["outage"]),)).fetchall()
+                else:
+                    found = []
+                contexts[batch] = [dict(item) for item in found if item["outage"] and item["unit_id"]]
+            row["contexts"] = contexts[batch]
     return {"items": rows, "total": total, "page": page, "size": size}
 
 
@@ -4925,8 +4988,12 @@ class Handler(SimpleHTTPRequestHandler):
             if parsed.path == "/api/cross-group-reviews":
                 q = parse_qs(parsed.query)
                 return self.json_response(cross_group_review.listing(sys.modules[__name__], q.get("batch_id", [""])[0]))
-            if parsed.path == "/api/validation-issues": return self.json_response(validation_summary())
-            if parsed.path == "/api/import-batches": return self.json_response(import_batch_summary())
+            if parsed.path == "/api/validation-issues":
+                q = parse_qs(parsed.query)
+                return self.json_response(validation_summary(page=q.get("page", [None])[0], size=q.get("size", [100])[0]))
+            if parsed.path == "/api/import-batches":
+                q = parse_qs(parsed.query)
+                return self.json_response(import_batch_summary(page=q.get("page", [None])[0], size=q.get("size", [100])[0]))
             if parsed.path == "/api/data-quality":
                 q = parse_qs(parsed.query)
                 return self.json_response(import_audit.quality(sys.modules[__name__],
@@ -5010,6 +5077,9 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json_response(import_excel_file(data.get("path", ""), data.get("blank_indication_policy", ""), local_security.actor(), mapping=data.get("mapping") or None))
             if path == "/api/import-excel-inspect":
                 return self.json_response(inspect_excel_file(data.get("path", "")))
+            if path == "/api/import-directory-preview":
+                return self.json_response(preview_directory_import(
+                    data.get("path", ""), data.get("reports"), data.get("report_confirmation") or {}))
             if path == "/api/data-quality/export":
                 return self.json_response(import_audit.export_quality(sys.modules[__name__],
                     int(data["batch_id"]) if data.get("batch_id") else None, data.get("category", "")))

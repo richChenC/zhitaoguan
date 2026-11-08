@@ -315,13 +315,39 @@ def quality_snapshot(db, batch_id=None):
 
 def quality(server, batch_id=None, category="", page=1, size=50):
     page, size = max(1, int(page)), max(1, min(200, int(size)))
+    start = (page - 1) * size
     with server.connect() as db:
-        data = quality_snapshot(db, batch_id)
+        predicates, args = [], []
+        if batch_id:
+            predicates.append("batch_id=?")
+            args.append(batch_id)
+        code_where = " WHERE " + " AND ".join(predicates) if predicates else ""
+        codes = [row[0] for row in db.execute(
+            "SELECT DISTINCT code FROM validation_issues" + code_where + " ORDER BY code", args)]
+        if category:
+            predicates.append("code=?")
+            args.append(category)
+        where = " WHERE " + " AND ".join(predicates) if predicates else ""
+        totals = {"issues": db.execute("SELECT COUNT(*) FROM validation_issues" + where, args).fetchone()[0]}
+        data = {"issues": [dict(row) for row in db.execute(
+            "SELECT * FROM validation_issues" + where + " ORDER BY id DESC LIMIT ? OFFSET ?",
+            [*args, size, start])]}
+        batch_args = [batch_id] if batch_id else []
+        artifacts_from = (" FROM import_batch_artifacts ba JOIN file_artifacts a ON a.id=ba.artifact_id"
+                          + (" WHERE ba.batch_id=?" if batch_id else ""))
+        versions_from = (" FROM import_batch_reports br JOIN report_versions v ON v.id=br.version_id"
+                         + (" WHERE br.batch_id=?" if batch_id else ""))
+        totals["artifacts"] = db.execute("SELECT COUNT(*)" + artifacts_from, batch_args).fetchone()[0]
+        totals["versions"] = db.execute("SELECT COUNT(*)" + versions_from, batch_args).fetchone()[0]
+        data["artifacts"] = [dict(row) for row in db.execute(
+            "SELECT ba.batch_id,a.*" + artifacts_from + " ORDER BY ba.batch_id DESC,a.id LIMIT ? OFFSET ?",
+            [*batch_args, size, start])]
+        data["versions"] = [dict(row) for row in db.execute(
+            "SELECT br.batch_id,br.selected batch_selected,v.*" + versions_from
+            + " ORDER BY br.batch_id DESC,v.id LIMIT ? OFFSET ?", [*batch_args, size, start])]
         batches = [dict(row) for row in db.execute("SELECT * FROM import_batches ORDER BY id DESC LIMIT 200")]
         batch_total = db.execute("SELECT COUNT(*) FROM import_batches").fetchone()[0]
         legacy = db.execute("SELECT COUNT(*) FROM findings WHERE is_deleted=0 AND import_batch_id IS NULL").fetchone()[0]
-    if category:
-        data["issues"] = [row for row in data["issues"] if row["code"] == category]
     for issue_row in data["issues"]:
         if issue_row["code"] != "MAPPING_ERROR":
             continue
@@ -348,12 +374,9 @@ def quality(server, batch_id=None, category="", page=1, size=50):
             }
         except (TypeError, ValueError, json.JSONDecodeError):
             continue
-    totals = {key: len(data[key]) for key in ("issues", "artifacts", "versions")}
-    codes = sorted({row["code"] for row in data["issues"]})
-    start = (page - 1) * size
     return {
         "batches": batches, "batch_total": batch_total,
-        **{key: data[key][start:start + size] for key in totals},
+        **data,
         "totals": totals, "codes": codes, "page": page, "size": size, "legacy_rows": legacy,
     }
 

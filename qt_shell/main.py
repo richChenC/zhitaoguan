@@ -9,19 +9,20 @@ import atexit
 import os
 import sys
 import tempfile
-import threading
-import time
 from pathlib import Path
 
-from .constants import APP_ICON, BACKEND_EXE, CHROMIUM_FLAGS, DATA_DIR, PRODUCT_NAME, RUNTIME, USER_DATA
+from .constants import APP_ICON, BACKEND_EXE, DATA_DIR, PRODUCT_NAME, RUNTIME, USER_DATA
 
-# ---- 必须在 QApplication / QWebEngine 初始化之前 -----------------------
+# Configure native graphics before QApplication initialization.
 os.environ.setdefault("QT_SCALE_FACTOR", "1")
 os.environ.setdefault("QT_AUTO_SCREEN_SCALE_FACTOR", "0")
 os.environ.setdefault("QT_ENABLE_HIGHDPI_SCALING", "0")
-os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = " ".join(CHROMIUM_FLAGS)
-os.environ.setdefault("THIMBLE_NATIVE_QT", "1")
-# 保证 PyInstaller onefile 后端与 QtWebEngine 的解包目录在可控位置
+os.environ["THIMBLE_NATIVE_QT"] = "1"
+if os.name == "nt" and os.environ.get("THIMBLE_NATIVE_QT") == "1":
+    # The threaded scene-graph loop can deadlock when an embedded
+    # QtQuick3D window is closed on Windows.
+    os.environ.setdefault("QSG_RENDER_LOOP", "basic")
+# Keep the frozen backend's temporary directory predictable.
 os.environ.setdefault("TMP", tempfile.gettempdir())
 os.environ.setdefault("TEMP", tempfile.gettempdir())
 
@@ -40,7 +41,7 @@ from .single_instance import (  # noqa: E402
 
 
 def _run_native_qt(app, backend, wake_server=None) -> int:
-    """Run the Widgets implementation behind an explicit migration switch."""
+    """Run the native application and release graphics before stopping its service."""
     from .native_client import NativeClient
     from .native_login import NativeLoginWindow
     from .native_windows import NativeMainWindow
@@ -52,20 +53,35 @@ def _run_native_qt(app, backend, wake_server=None) -> int:
     def show_login() -> None:
         if state["closing"]:
             return
-        if state["main"] is not None:
-            state["main"].deleteLater()
-            state["main"] = None
+        previous = state["main"]
+        state["main"] = None
+        login.password.clear()
+        login.confirm_password.clear()
+        login.message.clear()
         login.show()
+        if previous is not None:
+            previous.close()
+            previous.deleteLater()
+        login._set_busy(True)
+        client.get("/api/auth/status", login._on_status)
         login.raise_()
         login.activateWindow()
 
     def show_main(user: dict) -> None:
         if state["closing"]:
             return
-        window = NativeMainWindow(client, user)
+        try:
+            window = NativeMainWindow(client, user)
+        except Exception as exc:
+            import traceback
+            ServiceLog().write("[native] main window initialization failed\n" + traceback.format_exc())
+            login.show()
+            login._set_busy(False)
+            login.message.setText(f"工作区初始化失败：{exc}。请查看运行日志后重新登录。")
+            return
         state["main"] = window
         window.logoutRequested.connect(show_login)
-        window.closed.connect(lambda: app.quit())
+        window.closed.connect(lambda: app.quit() if state["main"] is window else None)
         login.hide()
         window.showMaximized()
 
@@ -79,49 +95,21 @@ def _run_native_qt(app, backend, wake_server=None) -> int:
         window.activateWindow()
 
     login.authenticated.connect(show_main)
+    login.cancelled.connect(app.quit)
     if wake_server is not None:
         wake_server.wake_requested.connect(restore)
     app.aboutToQuit.connect(lambda: state.__setitem__("closing", True))
     login.show()
-    code = app.exec()
-    backend.stop()
-    return code
-
-
-def _make_hard_exit(shell, backend, lock):
-    """QtWebEngine 的 app.quit() 在本机不返回、也不发 aboutToQuit。
-
-    退出统一由守护线程收尾：留 0.6s 给 WebEngine 落盘 Cookie/缓存，
-    再停后端并 os._exit，彻底避开 Qt 内部等待渲染进程的死锁。
-    """
-    state = {"called": False}
-
-    def hard_exit(code: int = 0) -> None:
-        if state["called"]:
-            return
-        state["called"] = True
-        shell.quitting = True
-        if shell.tray is not None:
-            shell.tray.hide()
-
-        def runner() -> None:
-            time.sleep(0.6)
-            try:
-                backend.stop()
-            except Exception:  # noqa: BLE001  退出阶段不再抛错
-                pass
-            _release_single_instance(lock)
-            try:
-                if sys.stdout:
-                    sys.stdout.flush()
-                if sys.stderr:
-                    sys.stderr.flush()
-            finally:
-                os._exit(code)
-
-        threading.Thread(target=runner, name="qt-hard-exit", daemon=True).start()
-
-    return hard_exit
+    try:
+        return app.exec()
+    finally:
+        client.abort_all()
+        if state["main"] is not None:
+            state["main"].deleteLater()
+        login.deleteLater()
+        from PySide6.QtCore import QCoreApplication, QEvent
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        backend.stop()
 
 
 def _single_instance() -> QLockFile | None:
@@ -140,7 +128,7 @@ def _single_instance() -> QLockFile | None:
     # launch, so an abandoned lock from a crashed process is recovered at once.
     lock.setStaleLockTime(0)
     if not lock.tryLock(0):
-        # The first process owns the lock before its backend and WebEngine
+        # The first process owns the lock before its backend and native
         # window are ready. Give that normal startup window time to publish
         # the wake server before reporting a real recovery failure.
         if not wake_existing_until_ready():
@@ -178,92 +166,6 @@ def _install_staged_backend(log) -> None:
         log.write(f"[desktop] staged backend not installed: {exc}\n")
 
 
-_SMOKE_JS = r"""(function () {
-  var nav = document.querySelectorAll('nav button[data-view]');
-  return JSON.stringify({
-    href: location.href,
-    title: document.title,
-    desktopAPI: typeof window.desktopAPI,
-    apiMethodCount: window.desktopAPI ? Object.keys(window.desktopAPI).length : 0,
-    bridgeReady: window.__qtBridgeReady === true,
-    channelProbe: window.__qtProbeResult || null,
-    navCount: nav.length,
-    navLabels: Array.prototype.map.call(nav, function (b) { return b.textContent.trim(); }),
-    viewCount: document.querySelectorAll('section.view').length,
-    activeView: (document.querySelector('.view.active') || {}).id || '',
-    stylesheets: document.styleSheets.length,
-    scripts: document.scripts.length,
-    bodyFont: getComputedStyle(document.body).fontFamily,
-    bodyBg: getComputedStyle(document.body).backgroundColor,
-    hasImportmap: !!(window.HTMLScriptElement && HTMLScriptElement.supports('importmap')),
-    hasDvh: CSS.supports('height', '100dvh'),
-    hasSelector: CSS.supports('selector(:has(*))'),
-    randomUUID: typeof crypto.randomUUID
-  });
-})()"""
-
-
-def _smoke_check(app, shell) -> None:
-    """无人值守启动自检：截图 + 页面状态 + QWebChannel 往返，然后自动退出。"""
-    import json
-    from datetime import datetime
-
-    from PySide6.QtCore import QTimer
-
-    from .constants import VERIFY_DIR
-
-    VERIFY_DIR.mkdir(parents=True, exist_ok=True)
-    report = {"generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-              "base_url": RUNTIME.base_url}
-    window = shell.main_window
-    if window is None:
-        report["error"] = "main window missing"
-    else:
-        report["window"] = {
-            "title": window.windowTitle(),
-            "width": window.width(), "height": window.height(),
-            "url": window.page.url().toString(),
-        }
-        try:
-            window.grab().save(str(VERIFY_DIR / "启动冒烟截图.png"))
-            report["screenshot"] = "启动冒烟截图.png"
-        except Exception as exc:
-            report["screenshot_error"] = str(exc)
-        window.page.runJavaScript(
-            "window.__qtChannelProbe ? window.__qtChannelProbe()"
-            ".then(function(r){window.__qtProbeResult=r;})"
-            ".catch(function(e){window.__qtProbeResult={error:String(e)};}) : null;",
-            lambda _: None,
-        )
-
-    def finish(extra: dict | None = None) -> None:
-        if report.get("finished"):
-            return
-        report["finished"] = True
-        if extra:
-            report["page"] = extra
-        report["blocked_requests"] = shell.profile.blocked_report()
-        report["session_cookie_present"] = bool(shell.profile.cookie_header())
-        (VERIFY_DIR / "启动冒烟.json").write_text(
-            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        if sys.stdout:
-            print("SMOKE_REPORT", json.dumps(report, ensure_ascii=False))
-            sys.stdout.flush()
-        shell.request_exit()
-
-    def collect() -> None:
-        if window is None:
-            finish()
-            return
-        window.page.runJavaScript(_SMOKE_JS, lambda raw: finish(
-            json.loads(raw) if isinstance(raw, str) and raw.startswith("{") else {"raw": raw}
-        ))
-
-    QTimer.singleShot(1500, collect)
-    QTimer.singleShot(10000, lambda: finish())
-
-
 def main() -> int:
     if os.name == "nt":
         try:
@@ -278,7 +180,7 @@ def main() -> int:
     app.setOrganizationName("ThimbleInspection")
     if APP_ICON.is_file():
         app.setWindowIcon(QIcon(str(APP_ICON)))
-    # 关闭最后一个窗口不再交给 Qt 自动 quit（会卡在 WebEngine 清理），改由 Shell 统一硬退出。
+    # Login/logout deliberately replace the visible top-level window.
     app.setQuitOnLastWindowClosed(False)
     lock = _single_instance()
     if lock is None and os.environ.get("THIMBLE_ALLOW_MULTI_INSTANCE") != "1":
@@ -316,49 +218,12 @@ def main() -> int:
         return 1
     atexit.register(backend.stop)
 
-    if os.environ.get("THIMBLE_NATIVE_QT") == "1":
-        try:
-            code = _run_native_qt(app, backend, wake_server)
-        finally:
-            _release_single_instance(lock)
-        return code
-
-    # Compatibility-only path for the previous WebEngine shell. Native Qt is
-    # the default and keeps WebEngine imports out of its startup path.
-    from .desktop_api import DesktopAPI
-    from .web_profile import ShellProfile
-    from .windows import Shell
-
-    profile_holder: list[ShellProfile | None] = [None]
-    api = DesktopAPI(lambda: profile_holder[0])
-    profile = ShellProfile(api)
-    profile.set_base_url(RUNTIME.base_url)
-    profile_holder[0] = profile
-
-    shell = Shell(app, profile, api, log)
-    shell.request_exit = _make_hard_exit(shell, backend, lock)
-    if wake_server is not None:
-        wake_server.wake_requested.connect(shell.restore_main)
-    shell.show_main()
-
-    smoke_seconds = os.environ.get("THIMBLE_QT_SMOKE")
-    if smoke_seconds:
-        from PySide6.QtCore import QTimer
-        QTimer.singleShot(int(smoke_seconds) * 1000, lambda: _smoke_check(app, shell))
-
     try:
-        code = app.exec()
+        return _run_native_qt(app, backend, wake_server)
     finally:
-        shell.shutdown()
         backend.stop()
         _release_single_instance(lock)
-        if sys.stdout:
-            sys.stdout.flush()
-        if sys.stderr:
-            sys.stderr.flush()
-    return code
 
 
 if __name__ == "__main__":
-    # 不走 sys.exit 的解释器析构：QWebEngineProfile/Page 在 Python GC 阶段释放会挂起或崩溃。
-    os._exit(main())
+    sys.exit(main())

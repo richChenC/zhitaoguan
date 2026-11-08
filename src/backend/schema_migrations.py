@@ -12,6 +12,14 @@ except ImportError:
 
 VERSION = 5
 class ClosingConnection(sqlite3.Connection):
+    def close(self):
+        try:
+            return super().close()
+        finally:
+            if getattr(self, '_gate_held', False):
+                self._gate_held = False
+                GATE.leave()
+
     def __exit__(self, *args):
         try:
             return super().__exit__(*args)
@@ -66,9 +74,23 @@ def inspect_version(db):
 
 
 def readonly(path):
-    db = sqlite3.connect(Path(path).resolve().as_uri() + '?mode=ro', uri=True, factory=ClosingConnection)
-    db.execute('PRAGMA query_only=ON')
-    return db
+    GATE.enter()
+    db = None
+    try:
+        db = sqlite3.connect(
+            Path(path).resolve().as_uri() + '?mode=ro',
+            uri=True, factory=ClosingConnection, timeout=30,
+        )
+        db._gate_held = True
+        db.execute('PRAGMA busy_timeout=30000')
+        db.execute('PRAGMA query_only=ON')
+        return db
+    except Exception:
+        if db is not None:
+            db.close()
+        else:
+            GATE.leave()
+        raise
 
 
 def validate(path, current=False):

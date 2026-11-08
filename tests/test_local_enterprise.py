@@ -62,6 +62,32 @@ class LocalEnterpriseTests(unittest.TestCase):
                 if permission is None:continue
                 with self.subTest(path=path):self.assertEqual(self.request(path,method,{} if method=='POST' else None)[0],401)
 
+    def test_audit_pagination_and_export_require_read_and_export_permissions(self):
+        with server.connect() as db:
+            for index in range(205):
+                db.execute("INSERT INTO security_events(event_id,created_at,actor_id,operator,event_type,outcome,resource)"
+                           " VALUES(?,?,?,?,?,?,?)",
+                           (str(index), '2026-11-08', 'system', '=FORMULA()', 'regression', 'success', str(index)))
+        status, first, _ = self.request('/api/security/events?page=1&size=100', cookie=self.cookie)
+        status2, second, _ = self.request('/api/security/events?page=2&size=100', cookie=self.cookie)
+        self.assertEqual((status, status2), (200, 200))
+        self.assertEqual(len(first['items']), 100)
+        self.assertEqual(len(second['items']), 100)
+        self.assertFalse({r['id'] for r in first['items']} & {r['id'] for r in second['items']})
+        _, reporter, _ = self.user('reporter')
+        _, reviewer, _ = self.user('reviewer')
+        self.assertEqual(self.request('/api/audits/export', 'POST', {}, reporter)[0], 403)
+        self.assertEqual(self.request('/api/audits/export', 'POST', {}, reviewer)[0], 403)
+        status, result, _ = self.request('/api/audits/export', 'POST', {}, self.cookie)
+        self.assertEqual(status, 200, result)
+        book = load_workbook(result['file_path'])
+        try:
+            self.assertGreater(book['安全审计'].max_row, 205)
+            formula = next(cell for row in book['安全审计'] for cell in row if cell.value == '=FORMULA()')
+            self.assertEqual(formula.data_type, 's')
+        finally:
+            book.close()
+
     def test_state_direction_setting_enforces_roles_and_preserves_saved_value(self):
         _, viewer_cookie, _ = self.user('viewer')
         _, editor_cookie, _ = self.user('editor')

@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from .constants import APP_ICON, PRODUCT_NAME
 from .native_client import NativeClient
+from .native_components import Preferences, icon, workspace_styles
 
 
 class NativeLoginWindow(QMainWindow):
@@ -27,10 +28,11 @@ class NativeLoginWindow(QMainWindow):
     def __init__(self, client: NativeClient, parent=None) -> None:
         super().__init__(parent)
         self.client = client
+        self.preferences = Preferences(self)
         self.initialized = True
         self.setWindowTitle(f"{PRODUCT_NAME} - 本地登录")
         self.setMinimumSize(460, 360)
-        self.resize(560, 430)
+        self.resize(620, 510)
         if APP_ICON.is_file():
             from PySide6.QtGui import QIcon
             self.setWindowIcon(QIcon(str(APP_ICON)))
@@ -41,14 +43,30 @@ class NativeLoginWindow(QMainWindow):
         outer = QVBoxLayout(root)
         outer.setContentsMargins(46, 36, 46, 36)
         outer.setSpacing(16)
+        brand = QHBoxLayout()
+        if APP_ICON.is_file():
+            from PySide6.QtGui import QIcon
+            logo = QLabel()
+            logo.setPixmap(QIcon(str(APP_ICON)).pixmap(46, 46))
+            brand.addWidget(logo)
+        brand.addStretch()
+        self.theme_toggle = QPushButton()
+        self.theme_toggle.setIcon(icon("settings"))
+        self.theme_toggle.setToolTip("切换日间/夜间外观")
+        self.theme_toggle.setFixedWidth(36)
+        self.theme_toggle.clicked.connect(self._toggle_theme)
+        brand.addWidget(self.theme_toggle)
+        outer.addLayout(brand)
         title = QLabel(PRODUCT_NAME)
+        title.setWordWrap(True)
         title.setObjectName("loginTitle")
-        subtitle = QLabel("原生 Qt 工作区")
+        subtitle = QLabel("本地账户登录")
         subtitle.setObjectName("loginSubtitle")
         outer.addWidget(title)
         outer.addWidget(subtitle)
+        self.subtitle = subtitle
 
-        form = QFormLayout()
+        form = self.form = QFormLayout()
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         self.username = QLineEdit()
         self.username.setPlaceholderText("2-64 位字母、数字、点、下划线或短横线")
@@ -76,22 +94,36 @@ class NativeLoginWindow(QMainWindow):
         buttons.addWidget(self.submit)
         outer.addLayout(buttons)
         outer.addStretch(1)
-        self.setStyleSheet(
-            """
-            QMainWindow { background: #f4f7f8; }
-            #loginRoot { background: #f4f7f8; }
-            #loginTitle { color: #16324f; font-size: 22px; font-weight: 700; }
-            #loginSubtitle { color: #5b6b7a; font-size: 13px; }
-            QLabel { color: #2c3e50; }
-            QLineEdit { min-height: 34px; border: 1px solid #c7d1da; border-radius: 4px; padding: 0 10px; background: white; }
-            QPushButton { min-height: 36px; padding: 0 24px; border-radius: 4px; background: #1769aa; color: white; font-weight: 600; }
-            QPushButton:hover { background: #12568d; }
-            """
-        )
+        self.service_status = QLabel("正在检查本机服务…")
+        self.service_status.setObjectName("muted")
+        outer.addWidget(self.service_status)
+        self._apply_theme()
         self.username.returnPressed.connect(self._submit)
         self.password.returnPressed.connect(self._submit)
         self._set_busy(True)
         self.client.get("/api/auth/status", self._on_status)
+
+    def _apply_theme(self):
+        theme = self.preferences.values["theme"]
+        if theme == "system":
+            from PySide6.QtGui import QGuiApplication
+            theme = "dark" if QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark else "light"
+        self.setStyleSheet(workspace_styles(theme) + """
+            #loginTitle { font-size:21px; font-weight:600; }
+            #loginSubtitle { font-size:13px; }
+            QLineEdit { min-height:34px; }
+        """)
+        self.theme_toggle.setText("")
+        self.theme_toggle.setIcon(icon("settings", theme))
+        self.theme_toggle.setToolTip("切换为日间外观" if theme == "dark" else "切换为夜间外观")
+
+    def _toggle_theme(self):
+        dark = self.preferences.values["theme"] == "dark"
+        try:
+            self.preferences.save(theme="light" if dark else "dark")
+            self._apply_theme()
+        except OSError as exc:
+            self.message.setText(str(exc))
 
     def _set_busy(self, busy: bool) -> None:
         self.submit.setEnabled(not busy)
@@ -101,10 +133,15 @@ class NativeLoginWindow(QMainWindow):
         if error or not data:
             self._set_busy(False)
             self.message.setText(error or "无法读取本地账户状态")
+            self.service_status.setText("本机服务连接失败")
             return
         self.initialized = bool(data.get("initialized"))
+        self.service_status.setText("本机服务已连接 · 本地账户")
+        self.subtitle.setText("本地账户登录" if self.initialized else "首次使用 · 创建管理员")
         self.display_name.setVisible(not self.initialized)
         self.confirm_password.setVisible(not self.initialized)
+        self.form.labelForField(self.display_name).setVisible(not self.initialized)
+        self.form.labelForField(self.confirm_password).setVisible(not self.initialized)
         self._set_busy(False)
 
     def _submit(self) -> None:
@@ -140,6 +177,16 @@ class NativeLoginWindow(QMainWindow):
             return
         if data.get("user"):
             self.authenticated.emit(data["user"])
-            self.close()
+        elif not self.initialized and data.get("ok"):
+            self._on_status({"initialized": True}, None)
+            self._set_busy(True)
+            self.message.setText("账户已创建，正在登录…")
+            self.client.post("/api/auth/login", {"username": self.username.text().strip(),
+                                                "password": self.password.text()}, self._on_auth)
         else:
-            QMessageBox.warning(self, PRODUCT_NAME, "账户初始化完成，请重新登录。")
+            self.message.setText("账户响应缺少登录信息，请重试")
+
+    def closeEvent(self, event):
+        if self.isVisible():
+            self.cancelled.emit()
+        super().closeEvent(event)

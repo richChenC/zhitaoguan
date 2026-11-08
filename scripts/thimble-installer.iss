@@ -1,4 +1,4 @@
-﻿﻿; 在役检查系统-指套管数据管理工具 安装包脚本（Inno Setup 6）
+﻿; 在役检查系统-指套管数据管理工具 安装包脚本（Inno Setup 6）
 ;
 ; 构建前准备：
 ;   1. powershell -File scripts\build-backend.ps1   （后端 exe）
@@ -8,7 +8,7 @@
 ; 产物输出到 07_软件发布包\installer\。
 
 #define MyAppName "在役检查系统-指套管数据管理工具"
-#define MyAppVersion "2026.11.06.9"
+#define MyAppVersion "2026.11.09.1"
 #define MyAppPublisher "ThimbleInspection"
 #define MyAppExeName "在役检查系统-指套管数据管理工具.exe"
 ; 本脚本位于 scripts\ 下，相对路径以脚本所在目录为基准解析
@@ -54,11 +54,10 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 Source: "{#THIMBLE_SHELL_SOURCE}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; 后端数据服务
 Source: "{#THIMBLE_BACKEND_SOURCE}"; DestDir: "{app}\build\backend"; Flags: ignoreversion
-; 业务资源（与 constants.QT_ROOT 冻结布局保持一致）
-Source: "..\src\*"; DestDir: "{app}\src"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\docs\*"; DestDir: "{app}\docs"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "..\.vendor\*"; DestDir: "{app}\.vendor"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 仅安装运行时白名单资源；业务 UI、模板和 Python 依赖已由后端冻结包携带。
+Source: "..\docs\使用手册\*"; DestDir: "{app}\docs\使用手册"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\assets\report-templates\*"; DestDir: "{app}\assets\report-templates"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\assets\app-icon.ico"; DestDir: "{app}\assets"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -76,10 +75,8 @@ Type: files; Name: "{app}\data-location.json"
 ; 只清程序目录：{app} 根部的 data-location.json 与用户数据目录不受影响。
 Type: filesandordirs; Name: "{app}\_internal"
 Type: filesandordirs; Name: "{app}\build"
-Type: filesandordirs; Name: "{app}\src"
 Type: filesandordirs; Name: "{app}\docs"
 Type: filesandordirs; Name: "{app}\assets"
-Type: filesandordirs; Name: "{app}\.vendor"
 
 [Code]
 var

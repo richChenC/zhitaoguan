@@ -13,11 +13,12 @@
   -> .venv-qt/Scripts/pythonw.exe -m qt_shell.main
 ```
 
-日常启动默认使用原生 PySide6 Qt Widgets 界面（`THIMBLE_NATIVE_QT=1`），通过
-`QNetworkAccessManager` 连接本地数据服务。数据工作台、状态处理、可视化摘要、
-报告中心和设置均使用原生控件；三维和尚未迁移的专用页面仍保留 WebEngine 回退路径。
-排查或回退时可在启动前设置 `THIMBLE_NATIVE_QT=0`。`启动Qt版-调试.cmd` 使用同一
-Qt 环境并显示退出信息，供本机排查启动问题。
+日常入口固定使用 PySide6 Qt Widgets，通过 `QNetworkAccessManager` 连接本机
+SQLite 数据服务。图表使用 Qt Charts，三维使用 Qt Quick 3D 与原工程几何资源；
+正式运行不加载 HTML 工作区、Qt WebEngine 或 Electron。`THIMBLE_NATIVE_QT=0`
+不再切换回浏览器界面。`启动Qt版-调试.cmd` 使用同一 Qt 环境，供本机排查启动问题。
+
+原生操作指南见 `docs/使用手册/原生Qt版操作指南_2026-11-09.md`。
 
 ## 数据与隔离
 
@@ -30,6 +31,23 @@ Qt 版数据库和运行状态保存在 `user-data/`。它与旧 Electron 版用
 安装包是纯软件包，只包含 Qt 冻结桌面程序、冻结后端程序、用户手册、报告模板和应用图标。`user-data/`、数据库、运行日志、导出文件、测试与验证资料、源码、开发记录和构建目录均不会进入安装包；安装后数据库和日志仍按安装向导选择的位置单独创建。
 
 ## 开发与测试
+
+原生实现按职责划分：
+
+| 位置 | 职责 |
+| --- | --- |
+| `qt_shell/main.py`、`native_login.py`、`native_client.py`、`backend_service.py` | 启动、账户会话、异步请求、本地服务生命周期 |
+| `qt_shell/native_windows.py`、`native_components.py` | 五个工作区、共享范围、表格、管板与通用原生控件 |
+| `qt_shell/native_import.py`、`native_report_view.py`、`native_review.py` | 导入向导、纸张与表内编辑、跨组复核 |
+| `qt_shell/native_charts.py`、`native_analysis_data.py` | Qt Charts 和统计展示口径 |
+| `qt_shell/native_model.qml`、`native_geometry.py`、`native_model_data.py`、`model_assets/`、`shaders/` | 原工程参考几何、检测记录定位及三维渲染 |
+| `qt_shell/native_settings.py`、`native_notifications.py` | 独立设置窗口与统一任务中心 |
+| `src/backend/` | SQLite、检测解析、维护状态、报告、分析、权限、审计与恢复 |
+| `tests/qt/`、`tests/` | 原生界面与业务回归；生成数据统一放项目根目录测试产物区 |
+
+恢复与验收进展见 `docs/开发与验收记录/原生Qt逐项恢复结果_2026-11-09.md`；
+发布测试、性能指标和安装包校验值见 `docs/开发与验收记录/原生Qt发布验收记录_2026-11-09.md`。
+2026-11-08 的旧对照表保留为修复前差距记录。
 
 - Qt 桌面壳：`qt_shell/`
 - 业务源码：`src/backend/`、`src/desktop-ui/`；`src/desktop/` 为原桌面实现基线
@@ -58,10 +76,10 @@ Qt 版数据库和运行状态保存在 `user-data/`。它与旧 Electron 版用
 | 目录 | 用途 | 备注 |
 | --- | --- | --- |
 | `src/` | 前端、后端和工具源码 | 运行时核心，不放测试产物 |
-| `qt_shell/` | PySide6/Qt WebEngine 桌面壳 | Qt 启动实现 |
+| `qt_shell/` | Qt Widgets、Qt Charts、Qt Quick 3D | 正式原生实现；旧 WebEngine 文件仅供追溯 |
 | `tests/` | 单元测试、桌面回归和 Qt 验证脚本 | 测试输出不写回源码目录 |
 | `scripts/` | 启动、构建、打包和维护脚本 | 构建缓存统一放 `build/` |
-| `assets/`、`.vendor/` | 应用资源和构建依赖 | 发布时仅取报告模板和应用图标 |
+| `assets/`、`.vendor/` | 应用资源和构建依赖 | 模板、图标、模型和必要依赖按冻结与安装白名单发布 |
 | `config/` | 本地配置模板 | 不保存正式用户数据库 |
 | `build/`、`打包/` | 可重建构建和发布材料 | 由构建脚本使用 |
 | `user-data/` | Qt 正式运行数据库、日志、导出和缓存 | 业务数据，禁止测试清理 |

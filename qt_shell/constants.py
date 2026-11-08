@@ -67,6 +67,8 @@ BACKEND_EXE = QT_ROOT / "build" / "backend" / "thimble-backend.exe"
 BACKEND_SOURCE = QT_ROOT / "src" / "backend" / "server.py"
 VENDOR_DIR = QT_ROOT / ".vendor"
 UI_DIR = QT_ROOT / "src" / "desktop-ui"
+if _is_frozen():
+    UI_DIR = Path(sys._MEIPASS) / "native_resources"
 DOCS_DIR = QT_ROOT / "docs"
 APP_ICON = QT_ROOT / "assets" / "app-icon.ico"
 CONFIG_DIR = QT_ROOT / "config"

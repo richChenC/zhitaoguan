@@ -20,9 +20,9 @@
 
 ## 架构基线
 
-- `qt_shell/` 是 Qt 桌面壳实现区，使用 PySide6 与 Qt WebEngine。
+- `qt_shell/` 是原生 Qt 实现区，使用 PySide6 Qt Widgets、Qt Charts 和 Qt Quick 3D；正式入口不加载 Qt WebEngine 或 HTML 工作区。
 - `src/`、`scripts/`、`tests/`、`docs/`、`assets/`、`.vendor/` 和 `build/backend/thimble-backend.exe` 中有与旧 Electron 版保持一致的基线副本；如需修改这些共享业务或前端内容，先用测试、接口对拍及基线记录确认影响，避免无意偏离。
-- 桌面运行保持本地离线；用户数据、Qt WebEngine 缓存和导出保存在 Qt 版自己的 `user-data/` 下。
+- 桌面运行保持本地离线；用户数据和导出保存在 Qt 版自己的 `user-data/` 下。
 
 ## 验证
 

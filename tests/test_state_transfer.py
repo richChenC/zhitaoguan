@@ -308,6 +308,19 @@ class StateTransferTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             state_transfer.validate_rows(server, [self.row(state="normal", offset=42)])
 
+    def test_preview_pending_policy_does_not_guess_unsigned_direction(self):
+        text = "管号,状态,位移量,备注\n1,移位,42,人工记录\n2,移位,-25,已明确方向\n"
+        payload = dict(filename="state.csv", content=base64.b64encode(text.encode("utf-8-sig")).decode(),
+                       outage="D117", unit_id=1)
+        default_rows = state_transfer.preview(server, payload)["rows"]
+        pending_rows = state_transfer.preview(server, {**payload, "direction_policy": "pending"})["rows"]
+        self.assertEqual(default_rows[0]["offset_mm"], 42)
+        self.assertIsNone(pending_rows[0]["offset_mm"])
+        self.assertEqual(pending_rows[0]["unsigned_offset_mm"], 42)
+        self.assertEqual(pending_rows[1]["offset_mm"], -25)
+        with self.assertRaisesRegex(ValueError, "方向策略"):
+            state_transfer.preview(server, {**payload, "direction_policy": "invalid"})
+
     def test_export_reimport_preserves_notes_without_reclassifying_history(self):
         notes = {
             1: "  历史曾移位４２ｍｍ；\n本次人工确认正常（原文）。　 ",
