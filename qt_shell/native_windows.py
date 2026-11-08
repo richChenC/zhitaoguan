@@ -187,7 +187,7 @@ class DataWorkbench(QWidget):
         self.model.selectionChanged.connect(self._selection_changed)
         self._query_number = 0
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setContentsMargins(18, 16, 18, 16)
         title = QLabel("数据工作台")
         title.setObjectName("pageTitle")
         layout.addWidget(title)
@@ -270,7 +270,12 @@ class DataWorkbench(QWidget):
         map_layout.addWidget(button("勾选本页 / 取消本页", "check-check", self.toggle_page))
         map_layout.addWidget(button("清除全部勾选", "x", self.clear_selection))
         self.splitter.addWidget(map_host)
-        self.splitter.setSizes([940, 380])
+        # TRAE workbench keeps the table and inspection map closer to a 3:2
+        # split on wide screens, so the map remains readable instead of being
+        # squeezed into a narrow side rail.
+        self.splitter.setStretchFactor(0, 3)
+        self.splitter.setStretchFactor(1, 2)
+        self.splitter.setSizes([900, 600])
         layout.addWidget(self.splitter, 1)
         self.core_rows = []
         bottom = QHBoxLayout()
@@ -893,7 +898,7 @@ class SimpleApiPage(QWidget):
         self.client = client
         self.endpoint = endpoint
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setContentsMargins(18, 16, 18, 16)
         heading = QLabel(title)
         heading.setObjectName("pageTitle")
         layout.addWidget(heading)
@@ -1104,7 +1109,7 @@ class NativeStatePage(QWidget):
         self.model = StateModel(self)
         self.current: dict[str, Any] | None = None
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setContentsMargins(18, 16, 18, 16)
         title = QLabel("状态处理")
         title.setObjectName("pageTitle")
         layout.addWidget(title)
@@ -1688,7 +1693,7 @@ class NativeAnalyticsPage(QWidget):
         self.permissions = None if user is None else set(user.get("permissions", []))
         self._analysis_request = 0
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setContentsMargins(18, 16, 18, 16)
         title = QLabel("数据可视化")
         title.setObjectName("pageTitle")
         layout.addWidget(title)
@@ -2066,7 +2071,7 @@ class NativeReportsPage(QWidget):
         self.editable_cells: list[dict[str, Any]] = []
         self._preview_number = 0
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setContentsMargins(18, 16, 18, 16)
         title = QLabel("报告中心")
         title.setObjectName("pageTitle")
         layout.addWidget(title)
@@ -3753,7 +3758,7 @@ class SettingsPage(QWidget):
     def __init__(self, user: dict[str, Any], parent=None) -> None:
         super().__init__(parent)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setContentsMargins(18, 16, 18, 16)
         title = QLabel("设置")
         title.setObjectName("pageTitle")
         layout.addWidget(title)

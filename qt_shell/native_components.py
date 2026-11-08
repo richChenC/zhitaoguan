@@ -441,32 +441,70 @@ class PlateMap(QWidget):
 def workspace_styles(theme="light", density="comfortable"):
     dark = theme == "dark"
     bg, surface, text, line, muted = (
-        ("#202427", "#292f33", "#e7edef", "#495359", "#a8b6bc") if dark else
-        ("#f3f6f7", "#ffffff", "#30434f", "#d8e1e6", "#72848f"))
-    height = 26 if density == "compact" else 32
+        ("#111719", "#1c2527", "#e5eeec", "#3b4c4d", "#a8b8b5") if dark else
+        ("#f2f5f7", "#ffffff", "#263842", "#d8e1e6", "#647580"))
+    accent = "#3fb3a6" if dark else "#087d79"
+    accent_soft = "#1b3234" if dark else "#e9f5f4"
+    control = "#2b393b" if dark else "#f8fafb"
+    hover = "#283737" if dark else "#f2f8fa"
+    selected = "#22404a" if dark else "#e9f5f4"
+    table_zebra = "#1d2629" if dark else "#fafcfd"
+    height = 28 if density == "compact" else 34
     return f"""
-        QWidget {{ color:{text}; font-family:"Microsoft YaHei UI"; font-size:12px; }}
+        QWidget {{ color:{text}; font-family:"Microsoft YaHei","Microsoft YaHei UI","Segoe UI",sans-serif; font-size:12px; }}
         QMainWindow, QDialog {{ background:{bg}; }}
         QWidget#topNavigation {{ background:{surface}; border-bottom:1px solid {line}; }}
-        QLabel#pageTitle {{ font-size:19px; font-weight:600; }}
+        QLabel#pageTitle {{ color:{text}; font-size:20px; font-weight:600; padding-top:2px; }}
         QLabel#muted {{ color:{muted}; }}
-        QPushButton, QToolButton {{ min-height:{height}px; padding:0 10px;
+        QPushButton, QToolButton {{ min-height:{height}px; padding:0 12px;
             background:{surface}; border:1px solid {line}; border-radius:4px; }}
-        QPushButton:hover, QToolButton:hover {{ border-color:#168e94; background:{'#344447' if dark else '#eff8f7'}; }}
-        QPushButton:checked {{ color:{'#8cdbd5' if dark else '#087780'}; background:{'#304c4e' if dark else '#e5f4f2'}; border-color:#82bdb9; }}
-        QPushButton:disabled, QToolButton:disabled {{ color:{muted}; }}
+        QPushButton:hover, QToolButton:hover {{ border-color:{accent}; background:{hover}; }}
+        QPushButton:pressed, QToolButton:pressed {{ background:{accent_soft}; }}
+        QPushButton:checked {{ color:{accent}; background:{accent_soft}; border-color:{accent}; font-weight:600; }}
+        QPushButton:disabled, QToolButton:disabled {{ color:{muted}; background:{control}; }}
         QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{ min-height:{height}px;
-            background:{surface}; border:1px solid {line}; border-radius:4px; padding:0 6px; }}
+            background:{surface}; border:1px solid {line}; border-radius:4px; padding:0 8px; }}
+        QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus,
+        QPlainTextEdit:focus, QTextEdit:focus {{ border:1px solid {accent}; }}
+        QComboBox::drop-down {{ width:24px; border:0; }}
+        QComboBox QAbstractItemView {{ background:{surface}; border:1px solid {line};
+            selection-background-color:{selected}; selection-color:{text}; padding:4px; }}
         QAbstractItemView, QTextEdit, QPlainTextEdit, QTextBrowser {{ background:{surface};
-            alternate-background-color:{bg}; border:1px solid {line}; selection-background-color:#c4e7e2;
-            selection-color:#173c40; }}
-        QHeaderView::section {{ background:{bg}; border:0; border-bottom:1px solid {line};
-            padding:8px 6px; font-weight:500; }}
-        QTabWidget::pane {{ border:1px solid {line}; background:{surface}; }}
-        QTabBar::tab {{ background:{surface}; padding:9px 18px; border-bottom:2px solid transparent; }}
-        QTabBar::tab:selected {{ color:{'#8cdbd5' if dark else '#087780'}; border-bottom-color:#168e94; }}
-        QGroupBox {{ border:1px solid {line}; border-radius:4px; margin-top:12px; padding:12px; }}
+            alternate-background-color:{table_zebra}; border:1px solid {line};
+            selection-background-color:{selected}; selection-color:{text}; }}
+        QTableView {{ gridline-color:{line}; border:1px solid {line}; border-radius:5px;
+            background:{surface}; alternate-background-color:{table_zebra};
+            selection-background-color:{selected}; selection-color:{text}; }}
+        QTableView::item {{ padding:5px 7px; border-bottom:1px solid {line}; }}
+        QTableView::item:hover {{ background:{hover}; }}
+        QHeaderView::section {{ background:{control}; color:{text}; border:0;
+            border-bottom:1px solid {line}; padding:8px 7px; font-weight:600; }}
+        QTabWidget::pane {{ border:1px solid {line}; border-radius:5px; background:{surface}; top:-1px; }}
+        QTabBar::tab {{ background:{surface}; color:{muted}; padding:10px 18px;
+            border:0; border-bottom:2px solid transparent; }}
+        QTabBar::tab:hover {{ color:{accent}; background:{hover}; }}
+        QTabBar::tab:selected {{ color:{accent}; border-bottom-color:{accent}; font-weight:600; }}
+        QGroupBox {{ background:{surface}; border:1px solid {line}; border-radius:5px;
+            margin-top:14px; padding:16px 12px 12px; }}
         QGroupBox::title {{ subcontrol-origin:margin; left:10px; padding:0 5px; }}
-        QSplitter::handle {{ background:{bg}; }}
-        QStatusBar {{ background:{surface}; border-top:1px solid {line}; }}
+        QListWidget {{ background:{surface}; border:1px solid {line}; border-radius:6px; padding:6px; }}
+        QListWidget::item {{ min-height:34px; padding:7px 10px; border-radius:4px; color:{text}; }}
+        QListWidget::item:hover {{ background:{hover}; }}
+        QListWidget::item:selected {{ background:{accent_soft}; color:{accent}; font-weight:600;
+            border-left:3px solid {accent}; padding-left:7px; }}
+        QDialog QWidget#settingsStack {{ background:{surface}; border:1px solid {line}; border-radius:6px; }}
+        QDialog QWidget#settingsPage {{ background:{surface}; }}
+        QDialog QWidget#settingsPage QLabel {{ color:{text}; }}
+        QDialog QWidget#settingsPage QLabel#muted {{ color:{muted}; }}
+        QDialog QWidget#settingsPage QFormLayout {{ spacing:12px; }}
+        QSplitter::handle {{ background:{line}; }}
+        QSplitter::handle:hover {{ background:{accent}; }}
+        QCheckBox {{ spacing:7px; }}
+        QCheckBox::indicator {{ width:16px; height:16px; border:1px solid {line}; border-radius:3px;
+            background:{surface}; }}
+        QCheckBox::indicator:checked {{ background:{accent}; border-color:{accent}; }}
+        QScrollBar:vertical {{ width:10px; background:{control}; margin:2px; }}
+        QScrollBar::handle:vertical {{ min-height:30px; background:{line}; border-radius:5px; }}
+        QScrollBar::handle:vertical:hover {{ background:{accent}; }}
+        QStatusBar {{ color:{muted}; background:{surface}; border-top:1px solid {line}; }}
     """
