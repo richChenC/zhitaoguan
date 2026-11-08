@@ -3413,8 +3413,19 @@ class NativeThreeDPage(QWidget):
         layout.addLayout(views)
         tools = QGridLayout()
         self.camera_preset = QComboBox()
-        for label, angles in (("等轴视角", (0, -34)), ("正视", (0, 0)),
-                               ("侧视", (90, 0)), ("俯视", (0, -89))):
+        # Keep the seven standard engineering views available as explicit
+        # camera presets.  The old four-entry selector made it impossible to
+        # reproduce the rear/left/bottom inspection orientations without
+        # manually dragging the model.
+        for label, angles in (
+            ("等轴视角", (0, -34)),
+            ("正视", (0, 0)),
+            ("后视", (180, 0)),
+            ("左视", (-90, 0)),
+            ("右视", (90, 0)),
+            ("俯视", (0, -89)),
+            ("仰视", (0, 89)),
+        ):
             self.camera_preset.addItem(label, angles)
         self.camera_preset.currentIndexChanged.connect(self._camera_changed)
         tools.addWidget(self.camera_preset, 0, 0)

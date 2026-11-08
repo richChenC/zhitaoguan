@@ -508,6 +508,7 @@ class NativeQtTests(unittest.TestCase):
         page.view.rootObject().tubeSelected.emit(1)
         self.assertIn("堵管", page.detail.text())
         page.scope.setCurrentIndex(0)
+
         self.assertEqual(page.rows, {})
         page.scope.setCurrentIndex(2)
         plate[1]["position"] = plate[0]["position"]
@@ -517,6 +518,25 @@ class NativeQtTests(unittest.TestCase):
         page.close()
         page.deleteLater()
         self.drain_qt_events()
+
+    def test_three_d_exposes_seven_standard_camera_views(self):
+        class Client:
+            def get(self, _path, _callback):
+                return None
+
+        page = NativeThreeDPage(Client())
+        labels = [page.camera_preset.itemText(index)
+                  for index in range(page.camera_preset.count())]
+        self.assertEqual(
+            labels,
+            ["等轴视角", "正视", "后视", "左视", "右视", "俯视", "仰视"],
+        )
+        angles = [page.camera_preset.itemData(index)
+                  for index in range(page.camera_preset.count())]
+        self.assertEqual(angles[2], (180, 0))
+        self.assertEqual(angles[3], (-90, 0))
+        self.assertEqual(angles[6], (0, 89))
+        page.close()
 
     def test_report_draft_is_part_of_snapshot_payload(self):
         class Client:

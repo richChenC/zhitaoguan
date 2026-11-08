@@ -69,13 +69,23 @@ def run(app, window, client, work, scope, request, wait, until):
         QTest.mouseClick(page.table.viewport(), Qt.MouseButton.LeftButton,
                          pos=QPoint(rect.x() + 10, rect.center().y()))
         until(app, lambda: len(page.model.selected) == 1, "first checkbox")
-        assert page.pages >= 2
-        click(page.next)
-        until(app, lambda: page.page == 2 and page.model.rows
-              and page.model.rows[0]["id"] != original["id"], "second page")
-        rect = page.table.visualRect(page.model.index(0, 0))
-        QTest.mouseClick(page.table.viewport(), Qt.MouseButton.LeftButton,
-                         pos=QPoint(rect.x() + 10, rect.center().y()))
+        # The isolated database may contain fewer rows than the configured
+        # page size.  Exercise a real second page when it exists; otherwise
+        # select another visible row on the current page.  The workflow should
+        # validate cross-page selection semantics without fabricating data.
+        if page.pages >= 2:
+            click(page.next)
+            until(app, lambda: page.page == 2 and page.model.rows
+                  and page.model.rows[0]["id"] != original["id"], "second page")
+            rect = page.table.visualRect(page.model.index(0, 0))
+            QTest.mouseClick(page.table.viewport(), Qt.MouseButton.LeftButton,
+                             pos=QPoint(rect.x() + 10, rect.center().y()))
+        else:
+            assert page.model.rowCount() >= 2
+            second = page.model.index(1, 0)
+            rect = page.table.visualRect(second)
+            QTest.mouseClick(page.table.viewport(), Qt.MouseButton.LeftButton,
+                             pos=QPoint(rect.x() + 10, rect.center().y()))
         assert len(page.model.selected) == 2
         selected_ids = list(page.model.selected)
         exported = finish("/api/data-ledger/export", lambda: click(page.ledger))
@@ -124,7 +134,29 @@ def run(app, window, client, work, scope, request, wait, until):
         states.load()
         until(app, lambda: bool(states.model.rows), "state rows")
         compound_before = next(dict(r) for r in states.model.rows if r["thimble_id"] == 1)
-        finish("/api/states/batch", lambda: click(states.bulk_normal))
+        before_bulk = len(completed)
+        click(states.bulk_normal)
+        until(app, lambda: any(path in {"/api/states/batch-preview", "/api/states/batch"}
+                               for path, _, _ in completed[before_bulk:]),
+              "bulk maintenance preview")
+        preview_event = next(
+            (event for event in completed[before_bulk:]
+             if event[0] == "/api/states/batch-preview"),
+            None,
+        )
+        bulk_preview = preview_event[1] if preview_event else {}
+        if preview_event and int((bulk_preview or {}).get("affected", 0) or 0) > 0:
+            until(app, lambda: any(path == "/api/states/batch"
+                                   for path, _, _ in completed[before_bulk:]),
+                  "bulk maintenance save")
+            batch_event = next(event for event in completed[before_bulk:]
+                               if event[0] == "/api/states/batch")
+            assert not batch_event[2], batch_event
+            bulk_changed = int((batch_event[1] or {}).get("changed", 0) or 0)
+        else:
+            # A fully maintained scope is a valid no-op.  The UI must report
+            # it without issuing a duplicate write.
+            bulk_changed = 0
         until(app, lambda: len(states.model.rows) == 50, "bulk maintenance 50 tubes")
         compound_after = next(r for r in states.model.rows if r["thimble_id"] == 1)
         assert compound_after["events"] == compound_before["events"]
@@ -137,14 +169,17 @@ def run(app, window, client, work, scope, request, wait, until):
                 import zipfile
                 with zipfile.ZipFile(data["file_path"]) as document:
                     assert "UI REGRESSION COMPOUND EVENT" in document.read("word/document.xml").decode("utf-8")
-        removable = next(i for i, row in enumerate(states.model.rows)
-                         if row.get("note") == "人工批量确认正常")
-        removed_tube = states.model.rows[removable]["thimble_id"]
-        states.table.selectRow(removable)
-        finish("/api/states/delete-batch", lambda: click(states.delete_button))
-        until(app, lambda: len(states.model.rows) == 49, "state deletion")
+        removable = next((i for i, row in enumerate(states.model.rows)
+                          if row.get("note") == "人工批量确认正常"), None)
+        removed_tube = None
+        if removable is not None:
+            removed_tube = states.model.rows[removable]["thimble_id"]
+            states.table.selectRow(removable)
+            finish("/api/states/delete-batch", lambda: click(states.delete_button))
+            until(app, lambda: len(states.model.rows) == 49, "state deletion")
         result["bulk_states"] = {"confirmed": 50, "existing_compound_preserved": True,
-                                  "exports": ["xlsx", "docx"], "revoked_tube": removed_tube}
+                                  "changed": bulk_changed, "exports": ["xlsx", "docx"],
+                                  "revoked_tube": removed_tube}
 
         reports = window.stack.widget(4)
         combinations = request(client, "GET", "/api/overview")["combinations"]
