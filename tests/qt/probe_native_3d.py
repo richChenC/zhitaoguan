@@ -683,6 +683,148 @@ def verify_annotations(page, root, work):
             "theme_background_pixels_match": True}
 
 
+def verify_axes(page, root, work):
+    from array import array
+    from PySide6.QtCore import QObject
+    from PySide6.QtTest import QSignalSpy
+    from qt_shell.native_components import workspace_styles
+    from qt_shell.native_geometry import geometry_data
+
+    page.section.setChecked(False)
+    page.explode.setValue(0)
+    page.dimensions.setChecked(False)
+    page.stations.setChecked(False)
+    page.mode_tabs.setCurrentIndex(0)
+    page.scene_settings_button.setChecked(False)
+    page.data_details_button.setChecked(False)
+    page.axes.setChecked(True)
+    gizmo = root.findChild(QQuickItem, "axisGizmo")
+    canvas = root.findChild(QQuickItem, "axisGizmoCanvas")
+    camera = root.findChild(QObject, "perspectiveCamera")
+    helper = root.findChild(QObject, "detailAxisHelper")
+    assert gizmo and canvas and camera and helper
+    poses, actual, layouts = [], [], []
+
+    def record(name):
+        wait(100)
+        quaternion = camera.property("sceneRotation")
+        poses.append({"quaternion": [quaternion.x(), quaternion.y(), quaternion.z(), quaternion.scalar()],
+                      "mirrored": bool(root.property("mirroredActive")),
+                      "axes": page.axes.isChecked(), "mode": root.property("displayMode")})
+        actual.append({"name": name, "axes": root.property("axisProjection").toVariant(),
+                       "visible": gizmo.property("visible")})
+
+    for width, height, theme, settings in (
+        (800, 650, "dark", False), (1024, 768, "light", False),
+        (1480, 920, "dark", True), (800, 650, "light", True),
+    ):
+        page.resize(width, height)
+        page.setStyleSheet(workspace_styles(theme))
+        page.set_theme(theme)
+        page.scene_settings_button.setChecked(settings)
+        wait(180)
+        for index in range(7):
+            page.camera_buttons[index].click()
+            record(f"{width}-{theme}-{settings}-{index}")
+            assert gizmo.property("visible"), (
+                width, settings, index, root.property("displayMode"), root.property("showAxes"),
+                root.width(), root.height(), root.property("coveredLeft"), root.property("coveredRight"),
+                gizmo.width(), gizmo.parentItem().property("visible"))
+            expected_size = 58 if page.view.width() <= 600 else 68 if page.view.width() <= 900 else 76
+            assert gizmo.width() == expected_size
+            assert gizmo.x() == root.property("coveredLeft")+12
+            assert 0 <= gizmo.y() < gizmo.y()+gizmo.height() <= page.view.height()
+            footer = page.scene_footer.geometry()
+            box = gizmo.mapRectToScene(gizmo.boundingRect())
+            assert not box.intersects(footer), (width, settings, box, footer)
+            assert gizmo.x()+gizmo.width() < page.view.width()-root.property("coveredRight")
+            assert not helper.property("visible")
+        frame = page.view.grabWindow()
+        page.axes.setChecked(False)
+        record(f"{width}-disabled")
+        without = page.view.grabWindow()
+        changed = sum(a != b for a, b in zip(pixels(frame, 1), pixels(without, 1)))
+        assert changed > 100, ("Coordinate switch did not change actual pixels", changed)
+        page.axes.setChecked(True)
+        wait(120)
+        page.grab().save(str(work / f"axis-gizmo-{width}-{theme}-{settings}.png"))
+        layouts.append({"width": width, "theme": theme, "settings": settings,
+                        "bounds": [gizmo.x(), gizmo.y(), gizmo.width(), gizmo.height()],
+                        "changed_pixels": changed})
+
+    page.scene_settings_button.setChecked(False)
+    page.camera_buttons[0].click()
+    wait(100)
+    before = root.property("axisProjection").toVariant()
+    QTest.mousePress(page.view, Qt.MouseButton.LeftButton, pos=QPoint(250, 200))
+    QTest.mouseMove(page.view, QPoint(350, 250), 50)
+    QTest.mouseRelease(page.view, Qt.MouseButton.LeftButton, pos=QPoint(350, 250))
+    record("free-drag")
+    assert before != root.property("axisProjection").toVariant()
+    page.auto_rotate.setChecked(True)
+    wait(150)
+    record("auto-rotation")
+    assert actual[-1]["axes"] != actual[-2]["axes"]
+    page.auto_rotate.setChecked(False)
+    wait(150)
+    painted = QSignalSpy(canvas.painted)
+    wait(350)
+    idle_repaints = painted.count()
+    assert idle_repaints == 0, ("Idle gizmo repaints", idle_repaints)
+
+    page.mode_tabs.setCurrentIndex(1)
+    record("joint")
+    assert not gizmo.property("visible")
+    before = page.view.grabWindow()
+    page.detail_axis.setChecked(True)
+    wait(120)
+    assert helper.property("visible") and helper.property("y") == -root.property("detailTarget")
+    after = page.view.grabWindow()
+    helper_change = sum(a != b for a, b in zip(pixels(before, 1), pixels(after, 1)))
+    assert helper_change > 100, ("Detail axes and grid not rendered", helper_change)
+    page.grab().save(str(work / "detail-axes-grid.png"))
+    for mode in ("socket", "full", "assembly"):
+        page.display_mode.setCurrentIndex(page.display_mode.findData(mode))
+        record(mode)
+        assert bool(helper.property("visible")) == (mode != "assembly")
+        assert bool(gizmo.property("visible")) == (mode == "assembly")
+    page.detail_axis.setChecked(False)
+    wait(100)
+    assert not helper.property("visible")
+
+    reference = Path(__file__).resolve().parents[3] / "10_TRAEqt优化版"
+    result = subprocess.run(
+        ["node", "--no-warnings", str(Path(__file__).with_name("reference_axis_gizmo.mjs")), str(reference)],
+        input=json.dumps(poses), capture_output=True, text=True, encoding="utf-8", check=True)
+    expected = json.loads(result.stdout)
+    for own, source in zip(actual, expected["outputs"], strict=True):
+        assert own["visible"] == source["visible"], (own, source)
+        if not own["visible"]:
+            continue
+        assert [a["text"] for a in own["axes"]] == [a["text"] for a in source["axes"]], (own, source)
+        for a, b in zip(own["axes"], source["axes"], strict=True):
+            assert a["color"] == b["dot"]["fill"]
+            assert abs(a["x"]-float(b["dot"]["cx"])) < .051, (own["name"], a, b)
+            assert abs(a["y"]-float(b["dot"]["cy"])) < .051, (own["name"], a, b)
+    for name, source in zip(("detail-grid", "detail-axes"), expected["helpers"], strict=True):
+        vertices, indices, bounds = geometry_data(name)
+        values = array("f")
+        values.frombytes(vertices)
+        assert list(array("I", range(len(values)//10))) == list(array("I", indices))
+        assert len(values)//10 == len(source["positions"])//3
+        for index in range(len(values)//10):
+            assert list(values[index*10:index*10+3]) == source["positions"][index*3:index*3+3]
+            for j in range(3):
+                assert abs(values[index*10+6+j]-source["colors"][index*3+j]) < 1e-6, (name,index,j)
+            assert values[index*10+9] == 1
+    assert expected["helpersRemoved"]
+    page._reset_three_d_view()
+    return {"reference_cases": len(poses), "three_revision": expected["revision"],
+            "layouts": layouts, "helper_changed_pixels": helper_change,
+            "helpers_match_actual_reference_handler": True, "idle_repaints": idle_repaints,
+            "drag_and_auto_rotation_update": True}
+
+
 def real_data_probe(database):
     project = Path(__file__).resolve().parents[2]
     test_root = (project.parent / "05_测试与验证" / "03_自动化临时产物").resolve()
@@ -742,11 +884,13 @@ def real_data_probe(database):
     work = test_root / ("native-3d-widget-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     work.mkdir()
     image.save(str(work / "assembly.png"))
-    if "--annotations-only" not in sys.argv:
+    if "--annotations-only" not in sys.argv and "--axes-only" not in sys.argv:
         output["cameras"] = verify_camera_views(page, root, work)
         output["coloring"] = verify_tube_colors(page, root, work, data)
         output["parts"] = verify_parts(page, root, work)
-    output["annotations"] = verify_annotations(page, root, work)
+    if "--axes-only" not in sys.argv:
+        output["annotations"] = verify_annotations(page, root, work)
+    output["axes"] = verify_axes(page, root, work)
     image = page.view.grabWindow()
     page.plate_view.setChecked(True)
     wait(400)

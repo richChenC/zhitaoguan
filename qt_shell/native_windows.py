@@ -5719,11 +5719,15 @@ class NativeThreeDPage(QWidget):
         self.color_legend_layout = ToolFlowLayout(self.color_legend)
         assembly_settings.addWidget(self.color_legend)
         self._sync_color_legend()
-        display_settings = section("显示")
-        self.axes = QCheckBox("坐标轴")
-        self.axes.setToolTip("X红 / Y绿 / Z蓝")
+        self.axes = QCheckBox("XYZ 坐标轴")
+        self.axes.setChecked(True)
+        self.axes.setToolTip("X 红 / Y 绿 / Z 蓝，随视角旋转")
         self.axes.toggled.connect(lambda v: self._set_scene_property("showAxes", v))
-        display_settings.addWidget(self.axes)
+        assembly_settings.addWidget(self.axes)
+        display_settings = section("显示")
+        self.detail_axis = QCheckBox("轴线 / 坐标")
+        self.detail_axis.toggled.connect(lambda v: self._set_scene_property("showDetailAxis", v))
+        display_settings.addWidget(self.detail_axis)
         self.dimensions = QCheckBox("尺寸标注")
         self.dimensions.setChecked(True)
         self.dimensions.toggled.connect(lambda checked: self._update_model_annotations())
@@ -5976,6 +5980,10 @@ class NativeThreeDPage(QWidget):
         content_height = (content.heightForWidth(settings.viewport().width()) if content.hasHeightForWidth()
                           else content.sizeHint().height())
         available_height = max(150, self.scene_host.height() - self.scene_footer.height() - 16)
+        expanded_detail = self.part_info_host.isVisible() or self.data_details_button.isChecked()
+        margins = self.scene_detail_host.layout().contentsMargins()
+        self.scene_detail_host.setFixedWidth(322 if expanded_detail else
+                                             self.data_details_button.sizeHint().width()+margins.left()+margins.right())
         self.scene_detail_host.setMaximumHeight(available_height)
         if self.part_info_host.isVisible():
             body = self.part_info_body
@@ -5990,6 +5998,9 @@ class NativeThreeDPage(QWidget):
                                  if self.scene_detail_host.isVisible() else 0)
         self._set_scene_property("coveredBottom", self.scene_footer.height() + 16
                                  if self.scene_footer.isVisible() else 0)
+        footer = self.scene_footer.geometry()
+        self._set_scene_property("footerBounds", [footer.left(), footer.top(), footer.right(), footer.bottom()]
+                                 if self.scene_footer.isVisible() else [0, 0, 0, 0])
         self._set_scene_property("suppressScale", self.scene_settings_host.isVisible()
                                  or self.part_info_host.isVisible() or self.data_details_button.isChecked()
                                  or self.detection_filter_button.isChecked())
@@ -6124,6 +6135,7 @@ class NativeThreeDPage(QWidget):
         self.ghost.setEnabled(not assembly)
         self.dimensions.setEnabled(not assembly)
         self.stations.setEnabled(not assembly)
+        self.detail_axis.setEnabled(not assembly)
         enlarge = self.visibility_checks["enlargeTubes"]
         mode = self.display_mode.currentData()
         if mode in ("assembly", "full") and not enlarge.isChecked():

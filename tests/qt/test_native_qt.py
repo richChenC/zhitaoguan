@@ -564,6 +564,30 @@ class NativeQtTests(unittest.TestCase):
         self.assertFalse(root.property("mirrorTop"))
         page.close()
 
+    def test_three_d_axis_controls_keep_assembly_and_detail_independent(self):
+        class Client:
+            def get(self, _path, _callback):
+                return None
+
+        page = NativeThreeDPage(Client())
+        root = page.view.rootObject()
+        self.assertTrue(page.axes.isChecked())
+        self.assertFalse(page.detail_axis.isChecked())
+        page.display_mode.setCurrentIndex(page.display_mode.findData("joint"))
+        self.assertTrue(page.detail_axis.isEnabled())
+        page.detail_axis.click()
+        self.assertTrue(root.property("showDetailAxis"))
+        page.display_mode.setCurrentIndex(page.display_mode.findData("assembly"))
+        self.assertFalse(page.detail_axis.isEnabled())
+        self.assertTrue(page.detail_axis.isChecked())
+        page.axes.click()
+        self.assertFalse(root.property("showAxes"))
+        self.assertTrue(root.property("showDetailAxis"))
+        page.display_mode.setCurrentIndex(page.display_mode.findData("socket"))
+        self.assertTrue(page.detail_axis.isChecked())
+        self.assertFalse(root.property("showAxes"))
+        page.close()
+
     def test_three_d_rotation_fit_and_shutdown_keep_camera_controls_consistent(self):
         class Client:
             def get(self, _path, _callback):
@@ -638,6 +662,14 @@ class NativeQtTests(unittest.TestCase):
         page.scene_settings_button.click()
         self.app.processEvents()
         self.assertEqual(page.view.rootObject().property("coveredLeft"), 0)
+        collapsed_width = page.scene_detail_host.width()
+        self.assertLess(collapsed_width, 322)
+        page.data_details_button.click()
+        QTest.qWait(30)
+        self.assertEqual(page.scene_detail_host.width(), 322)
+        page.data_details_button.click()
+        QTest.qWait(30)
+        self.assertEqual(page.scene_detail_host.width(), collapsed_width)
         page.close()
 
     def test_three_d_coloring_modes_filters_and_live_severity(self):

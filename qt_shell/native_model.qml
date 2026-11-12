@@ -68,6 +68,7 @@ Rectangle {
     property real coveredRight: 0
     property real coveredLeft: 0
     property real coveredBottom: 0
+    property var footerBounds: [0,0,0,0]
     property var geometryBounds: ({})
     property var framing: ({center: Qt.vector3d(0, 0, 0), distance: 6934, magnification: .1,
                             minimum: assemblyMinimum, maximum: assemblyMaximum})
@@ -78,7 +79,21 @@ Rectangle {
     property bool showNdd: true
     property bool showMissing: true
     property string tubeType: ""
-    property bool showAxes: false
+    property bool showAxes: true
+    property bool showDetailAxis: false
+    readonly property var axisProjection: {
+        const rotation = perspectiveCamera.sceneRotation
+        const definitions = [
+            {direction: Qt.vector3d(1,0,0), color:"#d0453e", text:"X"},
+            {direction: Qt.vector3d(0,1,0), color:"#2e9c62", text:"Y"},
+            {direction: Qt.vector3d(0,0,1), color:"#2b6fb8", text:"Z"}
+        ]
+        return definitions.map(axis => {
+            const vector = perspectiveCamera.mapDirectionFromScene(axis.direction)
+            return {text:axis.text, color:axis.color,
+                    x:69+vector.x*42*(mirroredActive ? -1 : 1), y:69-vector.y*42, z:vector.z}
+        }).sort((a,b) => a.z-b.z)
+    }
     property bool showPlateOverlay: false
     property int plateUnit: 0
     property real explode: 0
@@ -505,18 +520,24 @@ Rectangle {
             }
         }
         Node {
-            visible: root.showAxes
+            objectName: "detailAxisHelper"
+            visible: root.singleMode && root.showDetailAxis
+            y: -root.detailTarget
             Model {
-                source: "#Cube"; position: Qt.vector3d(500,0,0); scale: Qt.vector3d(10,.035,.035)
-                materials: PrincipledMaterial { baseColor:"#c45b4e" }
+                geometry: ReferenceGeometry { partId: "detail-grid" }
+                materials: DefaultMaterial {
+                    lighting: DefaultMaterial.NoLighting
+                    diffuseColor: "#ffffff"
+                    vertexColorsEnabled: true
+                }
             }
             Model {
-                source: "#Cube"; position: Qt.vector3d(0,500,0); scale: Qt.vector3d(.035,10,.035)
-                materials: PrincipledMaterial { baseColor:"#639247" }
-            }
-            Model {
-                source: "#Cube"; position: Qt.vector3d(0,0,500); scale: Qt.vector3d(.035,.035,10)
-                materials: PrincipledMaterial { baseColor:"#387fb1" }
+                geometry: ReferenceGeometry { partId: "detail-axes" }
+                materials: DefaultMaterial {
+                    lighting: DefaultMaterial.NoLighting
+                    diffuseColor: "#ffffff"
+                    vertexColorsEnabled: true
+                }
             }
         }
         Model {
@@ -577,6 +598,68 @@ Rectangle {
                 if (tube) { root.selectedTube=tube; root.tubeSelected(tube) }
             }
             onDoubleClicked: root.resetView()
+        }
+    }
+    Rectangle {
+        id: axisGizmo
+        objectName: "axisGizmo"
+        Accessible.role: Accessible.StaticText
+        Accessible.name: "XYZ 坐标轴"
+        Accessible.description: "X 红 / Y 绿 / Z 蓝，随视角旋转"
+        visible: root.showAxes && root.displayMode === "assembly" && width <= root.width-root.coveredLeft-root.coveredRight-24
+        width: root.width <= 600 ? 58 : root.width <= 900 ? 68 : 76
+        height: width
+        x: root.coveredLeft+12
+        readonly property real preferredY: root.height-height-(root.width <= 600 ? 132 : 12)
+        y: x < root.footerBounds[2]+8 && x+width+8 > root.footerBounds[0] &&
+            preferredY+height+8 > root.footerBounds[1] && preferredY < root.footerBounds[3] ?
+                root.footerBounds[1]-height-8 : preferredY
+        radius: 7
+        color: root.darkTheme ? "#f71c2527" : "#d6ffffff"
+        border.color: root.darkTheme ? "#3b4c4d" : "#cfdcea"
+        Canvas {
+            id: axisCanvas
+            objectName: "axisGizmoCanvas"
+            anchors.fill: parent
+            onVisibleChanged: if (visible) requestPaint()
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+            Connections {
+                target: root
+                function onAxisProjectionChanged() { if (axisGizmo.visible) axisCanvas.requestPaint() }
+            }
+            onPaint: {
+                const context = getContext("2d")
+                context.reset()
+                const round = value => Math.round(value*10)/10
+                const axes = root.axisProjection.map(axis => ({
+                    text:axis.text, color:axis.color, x:round(axis.x), y:round(axis.y),
+                    stubX:round(69-(axis.x-69)*.42), stubY:round(69-(axis.y-69)*.42)
+                }))
+                let minX=66.4, minY=66.4, maxX=71.6, maxY=71.6
+                for (const axis of axes) {
+                    minX=Math.min(minX,axis.x-8,axis.stubX); maxX=Math.max(maxX,axis.x+8,axis.stubX)
+                    minY=Math.min(minY,axis.y-8,axis.stubY); maxY=Math.max(maxY,axis.y+8,axis.stubY)
+                }
+                const size=Math.max(maxX-minX,maxY-minY)+32
+                context.scale(width/size,height/size)
+                context.translate(size/2-(minX+maxX)/2,size/2-(minY+maxY)/2)
+                context.fillStyle="#7b8ea6"
+                context.beginPath(); context.arc(69,69,2.6,0,Math.PI*2); context.fill()
+                context.lineCap="round"
+                for (const axis of axes) {
+                    context.strokeStyle=axis.color
+                    context.lineWidth=1.3; context.globalAlpha=.38; context.setLineDash([2,3])
+                    context.beginPath(); context.moveTo(69,69); context.lineTo(axis.stubX,axis.stubY); context.stroke()
+                    context.lineWidth=2.6; context.globalAlpha=1; context.setLineDash([])
+                    context.beginPath(); context.moveTo(69,69); context.lineTo(axis.x,axis.y); context.stroke()
+                    context.fillStyle=axis.color; context.strokeStyle="#ffffff"; context.lineWidth=1.6
+                    context.beginPath(); context.arc(axis.x,axis.y,8,0,Math.PI*2); context.fill(); context.stroke()
+                    context.font='bold 10.5px "Segoe UI"'
+                    context.textAlign="center"; context.textBaseline="middle"; context.fillStyle="#ffffff"
+                    context.fillText(axis.text,axis.x,axis.y+.5)
+                }
+            }
         }
     }
     Canvas {

@@ -338,6 +338,9 @@ try {
                 if ($cameraControl.Count -ne 1) { throw "Native camera control missing: $cameraName" }
                 Activate-Control $cameraControl[0]
                 Start-Sleep -Milliseconds 300
+                $axisGizmo = @(Find-Control $window ([System.Windows.Automation.ControlType]::Text) 'XYZ 坐标轴' |
+                    Where-Object { -not $_.Current.IsOffscreen })
+                if ($axisGizmo.Count -ne 1) { throw "Native rotating axis indicator missing in $cameraName" }
                 Capture ('frozen-three-d-camera-' + $result.three_d_camera_views.Count)
                 $result.three_d_camera_views += $cameraName
             }
@@ -365,6 +368,19 @@ try {
             if ($modelPanel.Count -ne 1 -or $modelPanel[0].Current.IsOffscreen) {
                 throw 'Native floating model settings panel did not open'
             }
+            $axisToggle = Find-Control $window ([System.Windows.Automation.ControlType]::CheckBox) 'XYZ 坐标轴'
+            if ($axisToggle.Count -ne 1) { throw 'Native assembly axis toggle missing' }
+            Activate-Control $axisToggle[0]
+            Start-Sleep -Milliseconds 150
+            $axisGizmo = @(Find-Control $window ([System.Windows.Automation.ControlType]::Text) 'XYZ 坐标轴' |
+                Where-Object { -not $_.Current.IsOffscreen })
+            if ($axisGizmo.Count -ne 0) { throw 'Native assembly axis toggle failed to hide indicator' }
+            Activate-Control $axisToggle[0]
+            Start-Sleep -Milliseconds 150
+            $axisGizmo = @(Find-Control $window ([System.Windows.Automation.ControlType]::Text) 'XYZ 坐标轴' |
+                Where-Object { -not $_.Current.IsOffscreen })
+            if ($axisGizmo.Count -ne 1) { throw 'Native assembly axis toggle failed to restore indicator' }
+            $result.steps += 'native-rotating-axis-toggle-and-seven-views'
             $result.three_d_color_controls = @()
             foreach ($colorName in @('按管长着色', '按型号着色', '按检测数据着色（最大磨损）')) {
                 $colorControl = Find-NamedControl $window $colorName
@@ -429,6 +445,18 @@ try {
                 Start-Sleep -Milliseconds 100
                 Activate-Control $annotationControl[0]
             }
+            $detailAxis = Find-Control $window ([System.Windows.Automation.ControlType]::CheckBox) '轴线 / 坐标'
+            if ($detailAxis.Count -ne 1 -or -not $detailAxis[0].Current.IsEnabled) {
+                throw 'Native detail axis and grid toggle missing or disabled'
+            }
+            Activate-Control $detailAxis[0]
+            Start-Sleep -Milliseconds 150
+            Capture 'frozen-three-d-detail-axes-grid'
+            Activate-Control $detailAxis[0]
+            $axisGizmo = @(Find-Control $window ([System.Windows.Automation.ControlType]::Text) 'XYZ 坐标轴' |
+                Where-Object { -not $_.Current.IsOffscreen })
+            if ($axisGizmo.Count -ne 0) { throw 'Assembly axis indicator leaked into detail mode' }
+            $result.steps += 'native-independent-detail-axis-and-grid'
             $partClose = Find-NamedControl $window '关闭零件详情'
             Activate-Control $partClose[0]
             $fullTab = Find-Control $window ([System.Windows.Automation.ControlType]::TabItem) '整管视图'

@@ -24,6 +24,29 @@ def model_parts():
 
 @lru_cache(maxsize=160)
 def geometry_data(part_id):
+    if part_id in ("detail-grid", "detail-axes"):
+        vertices = array("f")
+        if part_id == "detail-grid":
+            def linear(value):
+                return value / 12.92 if value <= .04045 else ((value + .055) / 1.055) ** 2.4
+
+            for step in range(21):
+                coordinate = -200 + step * 20
+                color = tuple(linear(int(value, 16) / 255)
+                              for value in (("c9", "d7", "e6") if step == 10 else ("e4", "ec", "f5")))
+                for point in ((-200, 0, coordinate), (200, 0, coordinate),
+                              (coordinate, 0, -200), (coordinate, 0, 200)):
+                    vertices.extend((*point, 0, 1, 0, *color, 1))
+            bounds = ([-200, 0, -200], [200, 0, 200])
+        else:
+            for point, color in (
+                ((0, 0, 0), (1, 0, 0)), ((90, 0, 0), (1, .6, 0)),
+                ((0, 0, 0), (0, 1, 0)), ((0, 90, 0), (.6, 1, 0)),
+                ((0, 0, 0), (0, 0, 1)), ((0, 0, 90), (0, .6, 1)),
+            ):
+                vertices.extend((*point, 0, 1, 0, *color, 1))
+            bounds = ([0, 0, 0], [90, 90, 90])
+        return vertices.tobytes(), array("I", range(len(vertices) // 10)).tobytes(), bounds
     if part_id in ("station-ring", "station-ring-enlarged"):
         radius, thickness = (27, 1.2) if part_id.endswith("-enlarged") else (6.6, .55)
         vertices, indices = array("f"), array("I")
@@ -94,13 +117,17 @@ class ReferenceGeometry(QQuick3DGeometry):
         vertices, indices, bounds = geometry_data(value)
         self.setVertexData(QByteArray(vertices))
         self.setIndexData(QByteArray(indices))
-        self.setStride(32 if value == "plateOverlay" else 24)
-        self.setPrimitiveType(QQuick3DGeometry.PrimitiveType.Triangles)
+        helper = value in ("detail-grid", "detail-axes")
+        self.setStride(40 if helper else 32 if value == "plateOverlay" else 24)
+        self.setPrimitiveType(QQuick3DGeometry.PrimitiveType.Lines if helper
+                              else QQuick3DGeometry.PrimitiveType.Triangles)
         attribute = QQuick3DGeometry.Attribute
         self.addAttribute(attribute.Semantic.PositionSemantic, 0, attribute.ComponentType.F32Type)
         self.addAttribute(attribute.Semantic.NormalSemantic, 12, attribute.ComponentType.F32Type)
         if value == "plateOverlay":
             self.addAttribute(attribute.Semantic.TexCoord0Semantic, 24, attribute.ComponentType.F32Type)
+        if helper:
+            self.addAttribute(attribute.Semantic.ColorSemantic, 24, attribute.ComponentType.F32Type)
         self.addAttribute(attribute.Semantic.IndexSemantic, 0, attribute.ComponentType.U32Type)
         self.setBounds(QVector3D(*bounds[0]), QVector3D(*bounds[1]))
         self.update()
