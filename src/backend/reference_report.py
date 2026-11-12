@@ -17,6 +17,10 @@ import shutil
 from typing import Any
 from xml.etree import ElementTree as ET
 from zipfile import ZIP_DEFLATED, ZipFile
+try:
+    from .report_forms import fit_form_labels, wrapped_note_height
+except ImportError:
+    from report_forms import fit_form_labels, wrapped_note_height
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 NS = {"w": W}
@@ -33,7 +37,7 @@ def _normalize_docx_fonts(parts):
             root = ET.fromstring(raw)
         except ET.ParseError:
             continue
-        changed = False
+        changed = fit_form_labels(root)
         for run in root.findall(".//w:r", NS):
             properties = run.find("w:rPr", NS)
             if properties is None:
@@ -208,8 +212,9 @@ def _inspection_rows(snapshot):
             # metadata field in the current source form and is not a ninth cell.
             values = values[:8]
         displayed = [_display(value) for value in values]
-        if len(displayed) >= 8 and displayed[3] == "NDD":
-            displayed[4:8] = ["/"] * 4
+        for column, spec in ((4, ".2f"), (5, "g")):
+            if column < len(values) and isinstance(values[column], (int, float)):
+                displayed[column] = format(values[column], spec)
         rows.append(displayed)
     return rows
 
@@ -378,6 +383,7 @@ def prepare(service, snapshot: dict, payload: dict | None = None) -> dict:
             table_index = min(11 + page_no, 15)
             edit_index = table_index if page_no < 5 else f"{table_index}p{page_no + 1}"
             source_table = source_tables[table_index]
+            _normalize_inspection_data_rows(source_table)
             rows, page_cells = _table_model(edit_index, source_table)
             # Validation derives from the generated value, never old source data.
             for cell in page_cells:
@@ -400,7 +406,8 @@ def prepare(service, snapshot: dict, payload: dict | None = None) -> dict:
             row0 = rows[0]
             for ci in (0, 2):
                 if ci < len(row0):
-                    row0[ci] = str(metadata.get("设备/部件编号" if ci == 0 else "报告单编码", "") or "")
+                    label = "设备/部件编号" if ci == 0 else "报告单编码"
+                    row0[ci] = f"{label}：{metadata.get(label, '') or ''}"
             meta_fields = {
                 1: {1: metadata.get("电厂名称", ""), 3: str(snapshot.get("unit", "")), 5: metadata.get("检查类型", "")},
                 2: {1: metadata.get("设备/部件名称", "指套管"), 3: metadata.get("安全等级", ""), 5: metadata.get("房间号", "")},
@@ -438,8 +445,8 @@ def prepare(service, snapshot: dict, payload: dict | None = None) -> dict:
         _blank_data_rows(source_rows, 2, len(source_rows) - 1)
         values = _comparison_rows(snapshot)
         header, footer = source_rows[:2], source_rows[-1:]
-        if snapshot.get("coverage") and footer:
-            footer[0][0] = "备注：\n" + service.comparison_note(snapshot.get("summary") or {})
+        if footer:
+            footer[0][0] = "备注：\n" + service.comparison_note({**(snapshot.get("summary") or {}), "NDD": 0})
         source_rows = header + values + footer
     else:
         groups = sorted({row.get("calgroup") for row in database_rows if row.get("calgroup")})
@@ -508,7 +515,7 @@ def prepare(service, snapshot: dict, payload: dict | None = None) -> dict:
         expected = _comparison_rows(snapshot)
         actual = source_rows[2:-1]
         if len(actual) != len(expected) or any(row[:3] != original[:3] for row, original in zip(actual, expected)):
-            raise ValueError("对比报告序号、通道编号和堆芯位置必须保留全部50根管，不允许删改管号或行序")
+            raise ValueError("对比报告序号、通道编号和堆芯位置必须保留当前显示记录，不允许删改管号或行序")
     result = dict(snapshot)
     result.update({
         "template_id": template["key"], "reference_schema_version": SCHEMA_VERSION,
@@ -541,6 +548,8 @@ def _selected_table_documents(service, snapshot):
         # layout, but retain independent data and editing locators.
         source_index = min(table_index, 15) if snapshot.get("template_id") == "inspection" else table_index
         table = deepcopy(tables[source_index])
+        if snapshot.get("template_id") == "inspection":
+            _normalize_inspection_data_rows(table)
         table_values = values
         if snapshot.get("template_id") == "inspection":
             table_values = (snapshot.get("reference_page_rows") or [])[page_number]
@@ -569,6 +578,8 @@ def _selected_table_documents(service, snapshot):
                     _set_text(cell, "/" if value == "-" else value)
         if snapshot.get("template_id") == "inspection":
             _merge_inspection_groups(table, table_values)
+            if page_number == len(used) - 1:
+                _mark_inspection_blank_rows(table, table_values)
         elif snapshot.get("template_id") == "comparison":
             try:
                 from .report_forms import comparison_layout
@@ -631,6 +642,59 @@ def _selected_table_documents(service, snapshot):
             content_types.remove(item)
     out["[Content_Types].xml"] = ET.tostring(content_types, encoding="utf-8", xml_declaration=True)
     return _normalize_docx_fonts(out)
+
+
+def _normalize_inspection_data_rows(table):
+    """Restore standard columns where the archived form used a blank marker."""
+    rows = table.findall("w:tr", NS)
+    if len(rows) < 30:
+        return
+    standard = rows[10].findall("w:tc", NS)
+    spans = [int(_field(cell, "w:tcPr/w:gridSpan", default="1")) for cell in standard]
+    for row in rows[10:30]:
+        cells = row.findall("w:tc", NS)
+        current_spans = [int(_field(cell, "w:tcPr/w:gridSpan", default="1")) for cell in cells]
+        if len(cells) == len(standard) and current_spans == spans:
+            continue
+        properties = row.find("w:trPr", NS)
+        for child in list(row):
+            row.remove(child)
+        if properties is not None:
+            row.append(properties)
+        for cell in standard:
+            row.append(deepcopy(cell))
+
+
+def _mark_inspection_blank_rows(table, table_values):
+    blank = next((ri for ri in range(10, min(30, len(table_values)))
+                  if all(not str(value).strip() for value in table_values[ri])), None)
+    if blank is None:
+        return
+    rows = table.findall("w:tr", NS)
+    if blank >= len(rows):
+        return
+    marker = rows[blank]
+    cells = marker.findall("w:tc", NS)
+    if len(cells) < 2:
+        return
+    first, second = cells[:2]
+    properties = first.find("w:tcPr", NS)
+    if properties is None:
+        properties = ET.Element(f"{{{W}}}tcPr")
+        first.insert(0, properties)
+    span = sum(int(_field(cell, "w:tcPr/w:gridSpan", default="1")) for cell in (first, second))
+    grid_span = properties.find("w:gridSpan", NS)
+    if grid_span is None:
+        grid_span = ET.SubElement(properties, f"{{{W}}}gridSpan")
+    grid_span.set(f"{{{W}}}val", str(span))
+    width = sum(int(_field(cell, "w:tcPr/w:tcW", "w", "0") or 0) for cell in (first, second))
+    tc_width = properties.find("w:tcW", NS)
+    if tc_width is None:
+        tc_width = ET.SubElement(properties, f"{{{W}}}tcW")
+    tc_width.set(f"{{{W}}}w", str(width))
+    tc_width.set(f"{{{W}}}type", "dxa")
+    marker.remove(second)
+    _set_text(first, "以下空白")
 
 
 def _merge_inspection_groups(table, values):
@@ -924,6 +988,10 @@ def workbook(service, snapshot: dict, filename: str):
             family, size, bold, align = _font_properties(_source_cell(manifest, index, ri, ci, snapshot))
             target.font = service.Font(name=family, size=size, bold=bold)
             target.alignment = service.Alignment(horizontal=align if align in {"left", "right", "center", "justify"} else "center", vertical="center", wrap_text=True)
+            if snapshot["template_id"] == "comparison" and ri == len(table.findall("w:tr", NS)) - 1:
+                sheet.row_dimensions[ri + 1].height = max(
+                    sheet.row_dimensions[ri + 1].height,
+                    wrapped_note_height(text, sum(grid) / 20, size))
             target.border = service.Border(**{edge: service.Side(style="thin", color="000000") for edge in ("left", "right", "top", "bottom")})
             if span > 1 or rowspan > 1:
                 sheet.merge_cells(start_row=ri + 1, end_row=ri + rowspan, start_column=column + 1, end_column=column + span)

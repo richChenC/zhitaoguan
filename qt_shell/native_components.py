@@ -258,6 +258,7 @@ class Preferences(QObject):
     defaults = {"theme": "light", "density": "comfortable", "animations": True,
                 "start_page": 0, "remember_page": True, "last_page": 0,
                 "auto_ndd": True, "notification_duration": 3000, "notification_sound": False,
+                "ndd_zero": True, "point_labels": False,
                 "report_policy": "manual", "source_path": "", "login_username": "",
                 "depth_levels": [30, 50], "depth_colors": ["#79b98c", "#e5a83b", "#df4b45"]}
 
@@ -294,7 +295,7 @@ class Preferences(QObject):
         for key, choices in options.items():
             if data.get(key) in choices:
                 values[key] = data[key]
-        for key in ("animations", "remember_page", "auto_ndd", "notification_sound"):
+        for key in ("animations", "remember_page", "auto_ndd", "notification_sound", "ndd_zero", "point_labels"):
             if isinstance(data.get(key), bool):
                 values[key] = data[key]
         if type(data.get("notification_duration")) is int and data["notification_duration"] in (0, 3000, 5000):
@@ -1024,6 +1025,17 @@ def workspace_styles(theme="light", density="comfortable"):
         QProgressBar#unitMeter {{ border:0; border-radius:0; background:{control}; min-height:4px; max-height:4px; }}
         QProgressBar#unitMeter::chunk {{ background:{accent}; border:0; border-radius:0; }}
         QWidget#filterBand, QWidget#workspacePanel {{ background:{surface}; border:1px solid {line}; border-radius:6px; }}
+        QWidget#reportScopeBand {{ background:{surface}; border:1px solid {line};
+            border-top:3px solid {accent}; border-radius:4px; }}
+        QWidget#reportDraftPanel {{ background:{surface}; border-left:1px solid {line}; }}
+        QWidget#reportDraftContents {{ background:{surface}; }}
+        QWidget#reportDraftEntry {{ border-bottom:1px solid {line}; }}
+        QWidget#settingsSidebar {{ background:{surface}; border:1px solid {line}; border-radius:7px; }}
+        QListWidget#settingsNav {{ border:0; padding:0; }}
+        QListWidget#settingsNav::item {{ padding:0; min-height:66px; }}
+        QWidget#settingsSection {{ background:{surface}; border:1px solid {line}; border-radius:6px; }}
+        QLabel#settingsSectionTitle {{ font-size:14px; font-weight:600; padding:8px 0 12px;
+            border-bottom:1px solid {line}; }}
         QWidget#stateActionBand {{ background:{control}; border:1px solid {line}; border-radius:4px; }}
         QWidget#taskDrawer {{ background:{surface}; border:1px solid {line}; border-radius:6px; }}
         QLabel#drawerTitle {{ font-size:16px; font-weight:600; }}
@@ -1100,7 +1112,7 @@ def workspace_styles(theme="light", density="comfortable"):
         QListWidget::item:hover {{ background:{hover}; }}
         QListWidget::item:selected {{ background:{accent_soft}; color:{accent}; font-weight:600;
             border-left:3px solid {accent}; padding-left:7px; }}
-        QDialog QWidget#settingsStack {{ background:{surface}; border:1px solid {line}; border-radius:6px; }}
+        QDialog QWidget#settingsStack {{ background:transparent; border:0; }}
         QDialog QWidget#settingsPage {{ background:{surface}; }}
         QDialog QWidget#settingsPage QLabel {{ color:{text}; }}
         QDialog QWidget#settingsPage QLabel#muted {{ color:{muted}; }}

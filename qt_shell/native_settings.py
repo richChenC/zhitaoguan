@@ -1,14 +1,44 @@
 """Native settings categories, sharing the live account and maintenance pages."""
 from __future__ import annotations
 
-from PySide6.QtCore import QTimer, Qt, Signal
+from PySide6.QtCore import QSize, QSignalBlocker, QTimer, Qt, Signal
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox, QColorDialog, QComboBox, QDialog, QFileDialog, QFormLayout,
     QHBoxLayout, QLabel, QListWidget, QMessageBox, QPushButton, QSpinBox,
     QStackedWidget, QVBoxLayout, QWidget, QLineEdit, QGroupBox, QScrollArea, QTableWidget, QTableWidgetItem,
+    QListWidgetItem, QStyledItemDelegate, QStyle, QStyleOptionViewItem, QTabWidget,
 )
 
 from .native_components import button
+
+
+class SettingsNavigationDelegate(QStyledItemDelegate):
+    def sizeHint(self, option, index):
+        return QSize(204, 66)
+
+    def paint(self, painter, option, index):
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.text = ""
+        opt.widget.style().drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, opt.widget)
+        painter.save()
+        painter.setPen(opt.palette.text().color())
+        title = QFont(opt.font)
+        title.setBold(True)
+        painter.setFont(title)
+        rect = opt.rect.adjusted(16, 8, -8, -8)
+        painter.drawText(rect.adjusted(0, 0, 0, -22), Qt.AlignmentFlag.AlignVCenter,
+                         index.data(Qt.ItemDataRole.DisplayRole))
+        subtitle = QFont(opt.font)
+        subtitle.setPointSize(max(8, subtitle.pointSize() - 1))
+        painter.setFont(subtitle)
+        color = opt.palette.text().color()
+        color.setAlpha(180)
+        painter.setPen(color)
+        painter.drawText(rect.adjusted(0, 24, 0, 0), Qt.AlignmentFlag.AlignVCenter,
+                         index.data(Qt.ItemDataRole.UserRole) or "")
+        painter.restore()
 
 
 class SettingsDialog(QDialog):
@@ -42,19 +72,48 @@ class SettingsDialog(QDialog):
         heading.addWidget(source)
         root.addLayout(heading)
         body = QHBoxLayout()
-        body.setSpacing(14)
+        body.setSpacing(22)
+        sidebar = QWidget()
+        sidebar.setObjectName("settingsSidebar")
+        sidebar_layout = QVBoxLayout(sidebar)
+        sidebar_layout.setContentsMargins(10, 12, 10, 14)
+        caption = QLabel("偏好与维护")
+        caption.setObjectName("muted")
+        sidebar_layout.addWidget(caption)
         self.nav = QListWidget()
         self.nav.setObjectName("settingsNav")
-        self.nav.setFixedWidth(210)
+        self.nav.setItemDelegate(SettingsNavigationDelegate(self.nav))
+        sidebar.setFixedWidth(236)
+        sidebar_layout.addWidget(self.nav)
+        local = QLabel("本地 SQLite")
+        local.setObjectName("muted")
+        sidebar_layout.addWidget(local)
+        sidebar_layout.addStretch()
         self.stack = QStackedWidget()
         self.stack.setObjectName("settingsStack")
-        body.addWidget(self.nav)
+        body.addWidget(sidebar)
         body.addWidget(self.stack, 1)
         root.addLayout(body, 1)
 
         # Move the existing pages into categories without changing their clients.
         account_page.tabs.removeTab(account_page.tabs.indexOf(account_page.source))
-        self.add_page("数据存储", account_page.source)
+        storage = QWidget()
+        storage_layout = QVBoxLayout(storage)
+        storage_layout.addWidget(account_page.source)
+        account_page.source.show()
+        quick_heading = QLabel("常用操作")
+        quick_heading.setObjectName("settingsSectionTitle")
+        storage_layout.addWidget(quick_heading)
+        self.quick_actions = {}
+        quick_actions = QHBoxLayout()
+        for text, index, name in (("导入与显示", 2, "upload"), ("对比规则", 3, "arrow-right-left"),
+                                  ("备份与维护", 5, "archive-restore")):
+            jump = button(text, name, lambda _checked=False, target=index: self.nav.setCurrentRow(target))
+            self.quick_actions[index] = jump
+            quick_actions.addWidget(jump, 1)
+        storage_layout.addLayout(quick_actions)
+        storage_layout.addStretch()
+        self.add_page("数据存储", storage, subtitle="本地数据库", title="当前数据库", scroll=True)
         flow = QWidget()
         flow_layout = QVBoxLayout(flow)
         self.save_status = QLabel("偏好已保存")
@@ -74,6 +133,21 @@ class SettingsDialog(QDialog):
         self.theme.addItem("夜间", "dark")
         self.theme.addItem("跟随系统", "system")
         self.theme.setCurrentIndex(max(0, self.theme.findData(preferences.values["theme"])))
+        self.theme.hide()
+        theme_host = QWidget()
+        theme_layout = QHBoxLayout(theme_host)
+        theme_layout.setContentsMargins(0, 0, 0, 0)
+        theme_layout.setSpacing(0)
+        self.theme_choices = {}
+        for text, value, name in (("跟随系统", "system", None), ("日间", "light", "sun"), ("夜间", "dark", "moon")):
+            choice = button(text, name, lambda _checked=False, key=value: self.theme.setCurrentIndex(self.theme.findData(key)))
+            choice.setCheckable(True)
+            choice.setChecked(value == self.theme.currentData())
+            self.theme_choices[value] = choice
+            theme_layout.addWidget(choice)
+        self.theme.currentIndexChanged.connect(self._theme_selected)
+        self.theme.setParent(theme_host)
+        self.theme.hide()
         self.density = QComboBox()
         self.density.addItem("标准", "comfortable")
         self.density.addItem("紧凑", "compact")
@@ -81,15 +155,22 @@ class SettingsDialog(QDialog):
         self.animations = QCheckBox()
         self.animations.setChecked(preferences.values["animations"])
         self.start = QComboBox()
-        self.start.addItems(["数据工作台", "三维缺陷模型", "数据可视化", "报告中心", "状态处理"])
-        self.start.setCurrentIndex(int(preferences.values["start_page"]))
+        self.start.addItem("恢复上次工作区", -1)
+        for index, text in enumerate(("数据工作台", "三维缺陷模型", "数据可视化", "报告中心", "状态处理")):
+            self.start.addItem(text, index)
+        self.start.setCurrentIndex(self.start.findData(-1 if preferences.values["remember_page"]
+                                                       else int(preferences.values["start_page"])))
         self.remember = QCheckBox()
         self.remember.setChecked(preferences.values["remember_page"])
         self.direction = QComboBox()
         for text, value in (("正向（+）", "1"), ("负向（-）", "-1"), ("留待核对", "pending")):
             self.direction.addItem(text, value)
+        self.policy = QComboBox()
+        for name, value in (("手动选择 RPT", "manual"), ("预选最新并逐组确认", "latest")):
+            self.policy.addItem(name, value)
+        self.policy.setCurrentIndex(max(0, self.policy.findData(preferences.values["report_policy"])))
         form = group("界面显示")
-        for label, widget in (("外观", self.theme), ("工作区密度", self.density), ("交互动画", self.animations)):
+        for label, widget in (("外观模式", theme_host), ("工作区密度", self.density), ("交互动画", self.animations)):
             form.addRow(label, widget)
         form = group("操作通知")
         self.notification_duration = QComboBox()
@@ -107,16 +188,18 @@ class SettingsDialog(QDialog):
         form = group("状态与导入默认值")
         self.auto_ndd = QCheckBox("自动识别无磨损信息的空白结论为 NDD")
         self.auto_ndd.setChecked(preferences.values["auto_ndd"])
-        for label, widget in (("无符号移位默认方向", self.direction), ("检测结论", self.auto_ndd)):
+        for label, widget in (("无符号移位默认方向", self.direction),):
             form.addRow(label, widget)
         flow_layout.addWidget(button("恢复默认偏好", "rotate-ccw", self.reset_preferences))
         flow_layout.addStretch()
-        for control in (self.theme, self.density, self.start, self.notification_duration):
+        for control in (self.theme, self.density, self.notification_duration):
             control.currentIndexChanged.connect(self._queue_preferences)
-        for control in (self.animations, self.remember, self.notification_sound, self.auto_ndd):
+        for control in (self.animations, self.notification_sound, self.auto_ndd):
             control.toggled.connect(self._queue_preferences)
+        self.start.currentIndexChanged.connect(self._startup_selected)
+        self.remember.toggled.connect(self._remember_selected)
         self.direction.activated.connect(self.save_direction)
-        self.add_page("界面与工作流", flow, scroll=True)
+        self.add_page("界面与工作流", flow, subtitle="偏好设置", scroll=True)
         client.get("/api/settings/state-direction", self._direction_loaded)
         display = QWidget()
         display_layout = QVBoxLayout(display)
@@ -129,11 +212,6 @@ class SettingsDialog(QDialog):
         row.addWidget(self.source_path, 1)
         row.addWidget(select)
         form.addRow("默认导入目录", row)
-        self.policy = QComboBox()
-        for name, value in (("手动确认 Report", "manual"), ("每组最新 Report", "latest")):
-            self.policy.addItem(name, value)
-        self.policy.setCurrentIndex(max(0, self.policy.findData(preferences.values["report_policy"])))
-        form.addRow("Report 使用策略", self.policy)
         self.scan_source = button("扫描来源目录", "search", self.scan_sources)
         form.addRow(self.scan_source)
         self.source_results = QTableWidget(0, 3)
@@ -145,6 +223,10 @@ class SettingsDialog(QDialog):
         self.scan_status = QLabel()
         self.scan_status.setWordWrap(True)
         form.addRow(self.scan_status)
+        parsing_group = QGroupBox("文件解析")
+        parsing_form = QFormLayout(parsing_group)
+        parsing_form.addRow("RPT 选择策略", self.policy)
+        display_layout.addWidget(parsing_group)
         depth_group = QGroupBox("磨损显示分级")
         form = QFormLayout(depth_group)
         display_layout.addWidget(depth_group)
@@ -168,15 +250,25 @@ class SettingsDialog(QDialog):
             colors.addWidget(swatch)
         colors.addStretch()
         form.addRow("深度色阶", colors)
+        self.point_labels = QCheckBox("在趋势与分布图数据点旁显示数值")
+        self.point_labels.setChecked(preferences.values["point_labels"])
+        self.ndd_zero = QCheckBox("NDD 记 0 深度")
+        self.ndd_zero.setToolTip("前次明确 NDD 按 0 基线计算匹配增量；关闭后留空。判定值，非实测。")
+        self.ndd_zero.setChecked(preferences.values["ndd_zero"])
+        form.addRow("图表数值标注", self.point_labels)
+        form.addRow("检测结论", self.auto_ndd)
+        form.addRow("NDD 深度基线", self.ndd_zero)
         self.display_status = QLabel("导入与显示设置已保存")
         self.display_status.setObjectName("muted")
         display_layout.addWidget(self.display_status)
         display_layout.addStretch()
         self.source_path.editingFinished.connect(self.save_display)
         self.policy.currentIndexChanged.connect(self._queue_display)
+        self.point_labels.toggled.connect(self._queue_display)
+        self.ndd_zero.toggled.connect(self._queue_display)
         for control in self.levels:
             control.valueChanged.connect(self._queue_display)
-        self.add_page("导入与显示", display, scroll=True)
+        self.add_page("导入与显示", display, subtitle="来源与可视化", scroll=True)
         rules = QWidget()
         rules_layout = QVBoxLayout(rules)
         self.rules_text = QLabel()
@@ -186,9 +278,9 @@ class SettingsDialog(QDialog):
         self.create_rule.setEnabled("settings.manage" in self.permissions)
         rules_layout.addWidget(self.create_rule)
         rules_layout.addStretch()
-        self.add_page("对比规则", rules)
+        self.add_page("对比规则", rules, subtitle="历次结果匹配")
         client.get("/api/analysis-rules", self._rules_loaded)
-        self.add_page("账户与权限", account_page)
+        self.add_page("账户与权限", account_page, subtitle="个人账户、角色与密码")
         maintenance = QWidget()
         maintenance_layout = QVBoxLayout(maintenance)
         # Account and runtime logs remain in their existing native tabs.
@@ -216,16 +308,31 @@ class SettingsDialog(QDialog):
         policy_row.addWidget(self.deduplicate_button)
         policy_row.addStretch()
         maintenance_layout.addLayout(policy_row)
-        self.add_page("备份与维护", maintenance)
-        self.add_page("质量与操作审计", maintenance_page)
+        self.maintenance_tabs = QTabWidget()
+        self.maintenance_tabs.addTab(maintenance, "备份与恢复")
+        self.maintenance_tabs.addTab(maintenance_page, "质量与操作审计")
+        self.add_page("备份与维护", self.maintenance_tabs, subtitle="安全与审计")
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
+        self.nav.setMinimumHeight(self.nav.count() * 66 + 8)
         self.nav.setCurrentRow(0)
         if "backup.manage" in self.permissions:
             client.get("/api/backup-policy", self._policy_loaded)
 
-    def add_page(self, text, widget, *, scroll=False):
+    def add_page(self, text, widget, *, subtitle="", title=None, scroll=False):
         widget.setObjectName(widget.objectName() or "settingsPage")
-        self.nav.addItem(text)
+        item = QListWidgetItem(text)
+        item.setData(Qt.ItemDataRole.UserRole, subtitle)
+        item.setToolTip(f"{text} · {subtitle}")
+        self.nav.addItem(item)
+        panel = QWidget()
+        panel.setObjectName("settingsSection")
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(16, 12, 16, 16)
+        heading = QLabel(title or text)
+        heading.setObjectName("settingsSectionTitle")
+        layout.addWidget(heading)
+        layout.addWidget(widget, 1)
+        widget = panel
         if scroll:
             host = QScrollArea()
             host.setWidgetResizable(True)
@@ -233,6 +340,21 @@ class SettingsDialog(QDialog):
             host.setWidget(widget)
             widget = host
         self.stack.addWidget(widget)
+
+    def _theme_selected(self, *_):
+        for key, choice in self.theme_choices.items():
+            choice.setChecked(key == self.theme.currentData())
+
+    def _startup_selected(self, *_):
+        with QSignalBlocker(self.remember):
+            self.remember.setChecked(self.start.currentData() == -1)
+        self._queue_preferences()
+
+    def _remember_selected(self, checked):
+        with QSignalBlocker(self.start):
+            value = -1 if checked else self.preferences.values["start_page"]
+            self.start.setCurrentIndex(self.start.findData(value))
+        self._queue_preferences()
 
     def choose_source(self):
         path = QFileDialog.getExistingDirectory(self, "选择默认导入目录", self.source_path.text())
@@ -261,7 +383,8 @@ class SettingsDialog(QDialog):
         for control, key in ((self.theme, "theme"), (self.density, "density"),
                              (self.notification_duration, "notification_duration")):
             control.setCurrentIndex(control.findData(defaults[key]))
-        self.start.setCurrentIndex(defaults["start_page"])
+        self.start.setCurrentIndex(self.start.findData(-1 if defaults["remember_page"] else defaults["start_page"]))
+        self.policy.setCurrentIndex(self.policy.findData(defaults["report_policy"]))
         for control, key in ((self.animations, "animations"), (self.remember, "remember_page"),
                              (self.notification_sound, "notification_sound"), (self.auto_ndd, "auto_ndd")):
             control.setChecked(defaults[key])
@@ -292,7 +415,9 @@ class SettingsDialog(QDialog):
     def save_preferences(self):
         try:
             self.preferences.save(theme=self.theme.currentData(), density=self.density.currentData(),
-                                  animations=self.animations.isChecked(), start_page=self.start.currentIndex(),
+                                  animations=self.animations.isChecked(),
+                                  start_page=(self.start.currentData() if self.start.currentData() != -1
+                                              else self.preferences.values["start_page"]),
                                   remember_page=self.remember.isChecked(), auto_ndd=self.auto_ndd.isChecked(),
                                   notification_duration=self.notification_duration.currentData(),
                                   notification_sound=self.notification_sound.isChecked())
@@ -308,7 +433,8 @@ class SettingsDialog(QDialog):
             return
         try:
             self.preferences.save(source_path=self.source_path.text(), report_policy=self.policy.currentData(),
-                                  depth_levels=levels, depth_colors=self.color_values)
+                                  depth_levels=levels, depth_colors=self.color_values,
+                                  point_labels=self.point_labels.isChecked(), ndd_zero=self.ndd_zero.isChecked())
             self.preferencesChanged.emit()
             self.display_status.setText("导入与显示设置已保存")
         except OSError as exc:

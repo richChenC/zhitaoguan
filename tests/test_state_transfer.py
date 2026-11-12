@@ -439,9 +439,9 @@ class StateTransferTests(unittest.TestCase):
         self.assertIsNone(maintained["unsigned_offset_mm"])
         result = server.compare("F101", "F102", 1)
         item = next(row for row in result["items"] if row.get("thimble_id") == 1)
-        self.assertEqual(result["summary"]["NI"], 1)
+        self.assertEqual(result["summary"]["待确认"], 1)
         self.assertEqual(item["shift_mm"], 42)
-        self.assertEqual(item["comparison"], "NI")
+        self.assertEqual(item["comparison"], "待确认")
         server.save_tube_state({**base, "offset_mm": 0})
         self.assertEqual(server.compare("F101", "F102", 1)["summary"]["R"], 1)
 

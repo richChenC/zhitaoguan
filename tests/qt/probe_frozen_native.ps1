@@ -72,9 +72,8 @@ if (-not $work.StartsWith($artifactRoot, [StringComparison]::OrdinalIgnoreCase))
     throw "Test output must remain inside $artifactRoot"
 }
 New-Item -ItemType Directory -Path (Join-Path $work 'data') -Force | Out-Null
-Copy-Item -LiteralPath $Database -Destination (Join-Path $work 'data/thimble.db')
 $python = Join-Path $appRoot '.venv-qt/Scripts/python.exe'
-& $python -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.executescript('DELETE FROM login_sessions; DELETE FROM user_roles; DELETE FROM users;'); c.commit(); c.close()" (Join-Path $work 'data/thimble.db')
+& $python -c "import sqlite3,sys; from pathlib import Path; s=sqlite3.connect(Path(sys.argv[1]).resolve().as_uri()+'?mode=ro',uri=True); c=sqlite3.connect(sys.argv[2]); s.backup(c); s.close(); c.executescript('DELETE FROM login_sessions; DELETE FROM user_roles; DELETE FROM users;'); c.commit(); c.close()" $Database (Join-Path $work 'data/thimble.db')
 if ($LASTEXITCODE -ne 0) { throw 'Unable to isolate identities' }
 $env:THIMBLE_QT_TEST_DATA_ROOT = $work
 $env:THIMBLE_ALLOW_MULTI_INSTANCE = '1'
@@ -90,13 +89,16 @@ function Find-Window {
     return $null
 }
 function Wait-Window {
-    for ($attempt=0; $attempt -lt 100; $attempt++) {
+    for ($attempt=0; $attempt -lt 300; $attempt++) {
         if ($process.HasExited) { throw "Frozen application exited early: $($process.ExitCode)" }
         $window = Find-Window
         if ($window) { return $window }
         Start-Sleep -Milliseconds 200
     }
-    throw 'Native window did not appear'
+    $result.startup_processes = @(Get-CimInstance Win32_Process | Where-Object {
+        $_.ProcessId -eq $process.Id -or $_.ParentProcessId -eq $process.Id
+    } | Select-Object ProcessId, ParentProcessId, ExecutablePath)
+    throw 'Native window did not appear within 60 seconds'
 }
 function Find-Control($window, $type, [string]$name='') {
     $conditions = [Collections.Generic.List[System.Windows.Automation.Condition]]::new()

@@ -108,8 +108,8 @@ class SourceReportTests(unittest.TestCase):
         note_font = note_paragraphs[1].find("w:r/w:rPr/w:rFonts", reference_report.NS)
         self.assertEqual(reference_report._attr(note_font, "eastAsia"), "宋体")
         self.assertEqual(reference_report._attr(note_paragraphs[1].find("w:r/w:rPr/w:sz", reference_report.NS), "val"), "21")
-        self.assertEqual(reference_report._text(rows[0].findall("w:tc", reference_report.NS)[0]), "COMP-1")
-        self.assertEqual(reference_report._text(rows[0].findall("w:tc", reference_report.NS)[2]), "REPORT-2")
+        self.assertEqual(reference_report._text(rows[0].findall("w:tc", reference_report.NS)[0]), "设备/部件编号：COMP-1")
+        self.assertEqual(reference_report._text(rows[0].findall("w:tc", reference_report.NS)[2]), "报告单编码：REPORT-2")
         for column, expected in ((3, "SERIAL-3"), (5, "CAL-4")):
             self.assertEqual(reference_report._text(rows[4].findall("w:tc", reference_report.NS)[column]), expected)
         for column in (1, 2):
@@ -169,6 +169,36 @@ class SourceReportTests(unittest.TestCase):
                 self.assertEqual(reference_report._attr(generated_font, "eastAsia"), "宋体")
         finally:
             output.unlink(missing_ok=True)
+
+    def test_full_continuation_pages_restore_all_eight_data_columns(self):
+        with patch.object(reference_report, "_selected_rows", return_value=[]):
+            snapshot = reference_report.prepare(server, self.snapshot(100), {"template_id": "inspection"})
+        parts = reference_report._selected_table_documents(server, snapshot)
+        document = ET.fromstring(parts["word/document.xml"])
+        tables = document.findall("w:body/w:tbl", reference_report.NS)
+        self.assertEqual(len(tables), 5)
+        for page, table in enumerate(tables):
+            rows = table.findall("w:tr", reference_report.NS)[10:30]
+            self.assertEqual(len(rows), 20)
+            for offset, row in enumerate(rows):
+                cells = row.findall("w:tc", reference_report.NS)
+                self.assertEqual(len(cells), 8, (page, offset))
+                self.assertEqual(reference_report._text(cells[0]), str(page * 20 + offset + 1))
+                self.assertEqual(reference_report._text(cells[7]), "M1")
+        self.assertNotIn("以下空白", "".join(document.itertext()))
+
+    def test_last_page_blank_marker_is_presentation_only_and_does_not_erase_data(self):
+        with patch.object(reference_report, "_selected_rows", return_value=[]):
+            snapshot = reference_report.prepare(server, self.snapshot(21), {"template_id": "inspection"})
+        parts = reference_report._selected_table_documents(server, snapshot)
+        document = ET.fromstring(parts["word/document.xml"])
+        tables = document.findall("w:body/w:tbl", reference_report.NS)
+        last = tables[-1].findall("w:tr", reference_report.NS)
+        self.assertEqual(reference_report._text(last[10].findall("w:tc", reference_report.NS)[0]), "21")
+        marker = last[11].findall("w:tc", reference_report.NS)
+        self.assertEqual(len(marker), 7)
+        self.assertEqual(reference_report._text(marker[0]), "以下空白")
+        self.assertTrue(all(not value for value in snapshot["reference_page_rows"][-1][11]))
 
     def test_inspection_pages_keep_template_geometry_and_export_all_pages(self):
         with patch.object(reference_report, "_selected_rows", return_value=[]):

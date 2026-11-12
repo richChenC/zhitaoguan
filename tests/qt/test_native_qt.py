@@ -93,7 +93,7 @@ class NativeQtTests(unittest.TestCase):
         self.assertIsInstance(window.stack.widget(4), NativeReportsPage)
         self.assertIsInstance(window.maintenance, NativeMaintenancePage)
         self.assertIsInstance(window.settings_page, NativeSettingsPage)
-        self.assertEqual(window.settings_dialog.nav.count(), 7)
+        self.assertEqual(window.settings_dialog.nav.count(), 6)
         self.app.processEvents()
         self.assertIsNotNone(window.stack.widget(2).view.status())
         window.close()

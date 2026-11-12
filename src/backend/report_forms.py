@@ -1,7 +1,9 @@
 """Populate sanitized original report forms without rebuilding their formatting."""
 from copy import deepcopy
 import html
+import math
 import re
+import unicodedata
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile, ZIP_DEFLATED
 
@@ -10,6 +12,39 @@ NS = {'w': W}
 ET.register_namespace('w', W)
 
 FONT_NAME = "宋体"
+
+
+def fit_form_labels(root):
+    changed = False
+    for index, cell in enumerate(root.findall(".//w:tc", NS), 1):
+        label = "".join(node.text or "" for node in cell.findall(".//w:t", NS))
+        if label != "设备/部件名称":
+            continue
+        width = cell.find("w:tcPr/w:tcW", NS)
+        if width is None:
+            continue
+        set_text(cell, label)
+        run = cell.find("w:p/w:r", NS)
+        properties = run.find("w:rPr", NS)
+        if properties is None:
+            properties = ET.Element(f"{{{W}}}rPr")
+            run.insert(0, properties)
+        for old in properties.findall("w:fitText", NS):
+            properties.remove(old)
+        ET.SubElement(properties, f"{{{W}}}fitText", {
+            f"{{{W}}}val": str(max(1, int(width.get(f"{{{W}}}w")) - 216)),
+            f"{{{W}}}id": str(index),
+        })
+        changed = True
+    return changed
+
+
+def wrapped_note_height(text, width_points, size):
+    usable = max(size, (width_points - 14) * .9)
+    lines = sum(max(1, math.ceil(sum(size * (1 if unicodedata.east_asian_width(char) in "WF" else .6)
+                                   for char in line) / usable))
+                for line in str(text).split("\n"))
+    return lines * size * 1.35 + 6
 
 
 def _normalize_docx_fonts(parts):
@@ -21,7 +56,7 @@ def _normalize_docx_fonts(parts):
             root = ET.fromstring(raw)
         except ET.ParseError:
             continue
-        changed = False
+        changed = fit_form_labels(root)
         for run in root.findall(".//w:r", NS):
             properties = run.find("w:rPr", NS)
             if properties is None:
@@ -141,10 +176,6 @@ def documents(service, snapshot):
         for column in ((4, 5) if kind == 'inspection' else (3, 4, 6, 7)):
             if isinstance(row[column], (float, int)):
                 row[column] = f'{row[column]:.2f}' if column in ((4,) if kind == 'inspection' else (3, 6)) else f'{row[column]:g}'
-    if kind == 'inspection':
-        for row in values:
-            if row[3] == 'NDD':
-                row[4:8] = ['/', '/', '/', '/']
     page_size = 20 if kind == 'inspection' else max(1, len(values))
     pages = [values[i:i + page_size] for i in range(0, len(values), page_size)] or [[]]
     fields = {**snapshot['metadata'], '机组': snapshot['unit'], '本次大修': snapshot['outage'],
@@ -263,6 +294,10 @@ def workbook(service, snapshot, filename):
                 bold = run.find('w:rPr/w:b', NS) if run is not None else None
                 target.font = service.Font(name=font, size=size, bold=bold is not None and bold.get(f'{{{W}}}val', '1') != '0')
                 target.alignment = service.Alignment(horizontal='center', vertical='center', wrap_text=True)
+                if snapshot['kind'] == 'comparison' and ri - offset == len(table.findall('w:tr', NS)):
+                    sheet.row_dimensions[ri].height = max(
+                        sheet.row_dimensions[ri].height or 0,
+                        wrapped_note_height(text, sum(grid) / 20, size))
                 target.border = service.Border(**{edge: service.Side(style='thin', color='000000') for edge in ('left', 'right', 'top', 'bottom')})
                 if span > 1:
                     sheet.merge_cells(start_row=ri, end_row=ri, start_column=ci, end_column=ci + span - 1)

@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 from PySide6.QtCore import QPoint, QTimer, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
-    QApplication, QDialogButtonBox, QFileDialog, QLineEdit, QMessageBox, QPushButton, QWizard,
+    QApplication, QDialogButtonBox, QFileDialog, QLineEdit, QMessageBox, QPushButton, QWizard, QPlainTextEdit,
 )
 
 
@@ -173,14 +173,12 @@ def run(app, window, client, work, scope, request, wait, until):
     wait(app, 100)
     QTest.mouseClick(table.viewport(), Qt.MouseButton.LeftButton, pos=rect.center())
     QTest.mouseDClick(table.viewport(), Qt.MouseButton.LeftButton, pos=rect.center())
-    until(app, lambda: any(e.isVisible() for e in table.findChildren(QLineEdit)), "native inline cell editor")
-    editor = next(e for e in table.findChildren(QLineEdit) if e.isVisible())
-    editor.setText("NATIVE_UI_VERIFIED")
+    until(app, lambda: any(e.isVisible() for e in table.findChildren(QPlainTextEdit)), "native inline cell editor")
+    editor = next(e for e in table.findChildren(QPlainTextEdit) if e.isVisible())
+    editor.setPlainText("NATIVE_UI_VERIFIED")
     QTest.keyClick(editor, Qt.Key.Key_Return)
     until(app, lambda: bool(reports.draft_edits), "inline draft")
     assert reports.snapshot_id is None
-    save = next(b for b in reports.findChildren(QPushButton) if b.text() == "保存修改并更新预览")
-    click(save)
     until(app, lambda: bool(reports.snapshot_id), "edited report snapshot")
     assert any(e["value"] == "NATIVE_UI_VERIFIED" for e in reports.preview_payload["draft_edits"])
     exports = []

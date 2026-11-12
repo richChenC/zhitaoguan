@@ -5,9 +5,9 @@ from html.parser import HTMLParser
 from collections import OrderedDict
 import re
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFont, QTextDocument
-from PySide6.QtWidgets import (QScrollArea, QStyledItemDelegate, QStyle, QStyleOptionViewItem,
+from PySide6.QtCore import QEvent, QSignalBlocker, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QTextDocument
+from PySide6.QtWidgets import (QPlainTextEdit, QScrollArea, QStyledItemDelegate, QStyle, QStyleOptionViewItem,
                                QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 
@@ -69,6 +69,27 @@ class FormCellDelegate(QStyledItemDelegate):
         super().__init__(parent)
         self._documents = OrderedDict()
 
+    def createEditor(self, parent, option, index):
+        editor = QPlainTextEdit(parent)
+        editor.setAccessibleName("报告单元格")
+        editor.setTabChangesFocus(True)
+        return editor
+
+    def setEditorData(self, editor, index):
+        editor.setPlainText(index.data(Qt.ItemDataRole.EditRole) or "")
+        editor.selectAll()
+
+    def setModelData(self, editor, model, index):
+        model.setData(index, editor.toPlainText(), Qt.ItemDataRole.EditRole)
+
+    def eventFilter(self, editor, event):
+        if isinstance(editor, QPlainTextEdit) and event.type() == QEvent.Type.KeyPress:
+            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter) and not event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                self.commitData.emit(editor)
+                self.closeEditor.emit(editor)
+                return True
+        return super().eventFilter(editor, event)
+
     def paint(self, painter, option, index):
         html = index.data(Qt.ItemDataRole.UserRole + 1)
         if not html:
@@ -116,8 +137,11 @@ class ReportPreview(QScrollArea):
         self.pages.setSpacing(22)
         self.setWidget(self.host)
         self.tables = []
+        self.paper_widgets = []
         self.zoom = 1.
         self.editable_keys = set()
+        self._source_cells = {}
+        self._items = {}
         self.setPlainText("选择范围后生成报告预览")
 
     def _clear(self):
@@ -126,6 +150,8 @@ class ReportPreview(QScrollArea):
             item.widget().hide()
             item.widget().deleteLater()
         self.tables.clear()
+        self.paper_widgets.clear()
+        self._items.clear()
 
     def setPlainText(self, text):
         from PySide6.QtWidgets import QLabel
@@ -140,15 +166,21 @@ class ReportPreview(QScrollArea):
         self.pages.activate()
         if self.tables:
             margins = self.pages.contentsMargins()
-            width = max(table.width() for table in self.tables) + margins.left() + margins.right()
-            height = (sum(table.height() for table in self.tables) + margins.top() + margins.bottom()
+            width = max(paper.width() for paper in self.paper_widgets) + margins.left() + margins.right()
+            height = (sum(paper.height() for paper in self.paper_widgets) + margins.top() + margins.bottom()
                       + self.pages.spacing() * max(0, len(self.tables) - 1))
             self.host.setFixedSize(width, height)
         else:
             self.host.setFixedSize(self.pages.sizeHint())
 
-    def setHtml(self, html):
+    def setHtml(self, html, *, source_values=None, changed_keys=()):
+        horizontal = self.horizontalScrollBar().value()
+        vertical = self.verticalScrollBar().value()
+        selected = next((table.currentItem().data(Qt.ItemDataRole.UserRole) for table in self.tables
+                         if table.currentItem() is not None), None)
         self._clear()
+        source_values = source_values or {}
+        changed_keys = set(changed_keys)
         parser = FormParser()
         parser.feed(html)
         if not parser.tables:
@@ -172,7 +204,7 @@ class ReportPreview(QScrollArea):
             table = QTableWidget(len(rows), columns)
             table.setObjectName(f"reportPage{page_number + 1}")
             table.setStyleSheet("QTableWidget{background:white;color:#18232b;border:1px solid #b7bfc4;"
-                               "gridline-color:#58656e;} QTableWidget::item{padding:3px;color:#18232b;}")
+                               "border-radius:0;gridline-color:#58656e;} QTableWidget::item{padding:3px;color:#18232b;}")
             table.horizontalHeader().hide()
             table.horizontalHeader().setMinimumSectionSize(1)
             table.verticalHeader().hide()
@@ -187,15 +219,69 @@ class ReportPreview(QScrollArea):
                 item = QTableWidgetItem(cell["text"].strip())
                 item.setData(Qt.ItemDataRole.UserRole, cell["key"])
                 item.setData(Qt.ItemDataRole.UserRole + 1, cell["html"])
+                if cell["key"]:
+                    key = cell["key"]
+                    source = source_values.get(key, item.text())
+                    previous = self._source_cells.get(key)
+                    if previous is None or previous[0] != source:
+                        from html import escape
+                        markup = cell["html"] if key not in changed_keys else escape(
+                            str(source if source is not None and source != "" else "/"))
+                        text = item.text() if key not in changed_keys else str(source if source is not None else "/")
+                        self._source_cells[key] = (source, text, markup)
+                    self._items[key] = item
+                    if key in changed_keys:
+                        item.setBackground(QColor("#fff3cd"))
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 if not cell["key"] or cell["key"] not in self.editable_keys:
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 table.setItem(ri, ci, item)
             table.itemChanged.connect(self._edited)
             self.tables.append(table)
-            self.pages.addWidget(table)
+            paper = QWidget()
+            paper.setStyleSheet("background:white")
+            paper_layout = QVBoxLayout(paper)
+            paper_layout.setSpacing(0)
+            paper_layout.addWidget(table)
+            self.paper_widgets.append(paper)
+            self.pages.addWidget(paper)
             table.show()
         self.set_zoom(self.zoom)
+        if selected in self._items:
+            item = self._items[selected]
+            item.tableWidget().setCurrentItem(item)
+        self.horizontalScrollBar().setValue(horizontal)
+        self.verticalScrollBar().setValue(vertical)
+
+    def clear_sources(self):
+        self._source_cells.clear()
+
+    def set_cell_value(self, key, value, *, changed):
+        item = self._items.get(key)
+        if item is None:
+            return False
+        with QSignalBlocker(item.tableWidget()):
+            source = self._source_cells.get(key)
+            if not changed and source is not None:
+                item.setText(source[1])
+                item.setData(Qt.ItemDataRole.UserRole + 1, source[2])
+                item.setBackground(QBrush())
+            else:
+                item.setText("/" if value is None or value == "" else str(value))
+                item.setData(Qt.ItemDataRole.UserRole + 1, None)
+                item.setBackground(QColor("#fff3cd") if changed else QBrush())
+        return True
+
+    def locate_cell(self, key):
+        item = self._items.get(key)
+        if item is None:
+            return False
+        table = item.tableWidget()
+        table.setCurrentItem(item)
+        table.setFocus(Qt.FocusReason.OtherFocusReason)
+        point = table.viewport().mapTo(self.host, table.visualItemRect(item).center())
+        self.ensureVisible(point.x(), point.y(), 40, 60)
+        return True
 
     def _edited(self, item):
         key = item.data(Qt.ItemDataRole.UserRole)
@@ -209,10 +295,11 @@ class ReportPreview(QScrollArea):
     def set_zoom(self, value):
         self.zoom = max(.5, min(1.5, value))
         self.zoomChanged.emit(self.zoom)
-        width = int(850 * self.zoom)
-        for table in self.tables:
+        width = int(718 * self.zoom)
+        for table, paper in zip(self.tables, self.paper_widgets):
             table.setProperty("reportZoom", self.zoom)
-            font = QFont("SimSun", max(7, round(10 * self.zoom)))
+            font = QFont("SimSun")
+            font.setPointSizeF(10 * self.zoom)
             table.setFont(font)
             weights = table.source_spec["widths"]
             if len(weights) != table.columnCount() or not sum(weights):
@@ -233,7 +320,10 @@ class ReportPreview(QScrollArea):
                         height = max(height, (document.size().height() + 6) / table.rowSpan(row, column))
                 table.setRowHeight(row, int(height * self.zoom))
             table.setFixedSize(width, sum(table.rowHeight(r) for r in range(table.rowCount())) + 2)
+            paper.layout().setContentsMargins(round(38 * self.zoom), round(28 * self.zoom),
+                                              round(38 * self.zoom), round(28 * self.zoom))
+            paper.setFixedSize(round(794 * self.zoom), table.height() + round(56 * self.zoom))
         self._resize_host()
 
     def fit_width(self):
-        self.set_zoom((self.viewport().width() - 54) / 850)
+        self.set_zoom((self.viewport().width() - 54) / 794)

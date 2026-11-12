@@ -43,7 +43,10 @@ class ComparisonCoverageTests(unittest.TestCase):
         snapshot = reporting.report_snapshot(server, self.payload())
         self.assertEqual(len(snapshot["headers"]), 10)
         self.assertTrue(all(len(r) == 10 for r in snapshot["values"]))
-        self.assertEqual(snapshot["values"][1][5:10], ["NDD", None, None, "NDD", "NDD"])
+        self.assertEqual(len(snapshot["values"]), 1)
+        self.assertEqual(snapshot["values"][0][5:10], ["P1+127mm", 1.78, 28, "P1+127mm", "R"])
+        self.assertEqual(snapshot["detection_counts"][0]["ndd_tubes"], 49)
+        self.assertEqual(snapshot["detection_counts"][0]["war_records"], 1)
 
     def test_multiple_positions_and_unmatched_history_are_not_lost(self):
         self.complete()
@@ -69,7 +72,9 @@ class ComparisonCoverageTests(unittest.TestCase):
         self.assertEqual(row["comparison"], "待确认")
         self.assertNotEqual(row["indication"], "NDD")
         snapshot = reporting.report_snapshot(server, self.payload())
-        self.assertEqual(snapshot["values"][26][5], "缺少检测记录")
+        self.assertEqual(snapshot["detection_counts"][0]["missing_tubes"], [27])
+        self.assertEqual(snapshot["coverage"][0]["missing"], [27])
+        self.assertTrue(all(row[1] != 27 for row in snapshot["values"]))
         for fmt in ("docx", "xlsx", "csv"):
             with self.subTest(fmt=fmt), self.assertRaisesRegex(ValueError, "N108 缺少通道 27"):
                 reporting.export(server, {**self.payload(), "snapshot_id": snapshot["snapshot_id"], "format": fmt})
@@ -106,13 +111,15 @@ class ComparisonCoverageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "全部50根管"):
             reporting.report_snapshot(server, {**self.payload(), "finding_ids": [1]})
 
-    def test_original_form_keeps_50_tubes_merged_groups_and_10_columns(self):
+    def test_form_keeps_indications_merged_groups_and_checks_50_tube_coverage(self):
         self.complete()
         self.insert("N108", 1, "WAR", "P4", 35)
         snapshot = reporting.report_snapshot(server, self.payload())
         _, document = report_forms.documents(server, snapshot)
         rows = document.findall("w:body/w:tbl/w:tr", report_forms.NS)[2:-1]
-        self.assertEqual(len(rows), 51)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(snapshot["detection_counts"][0]["tubes"], 50)
+        self.assertTrue(snapshot["coverage_complete"])
         self.assertTrue(all(r.find('w:trPr/w:tblHeader', report_forms.NS) is not None
                             for r in document.findall('w:body/w:tbl/w:tr', report_forms.NS)[:2]))
         self.assertIn('表5 涡流检验结果比对表', ''.join(document.itertext()))
@@ -130,14 +137,14 @@ class ComparisonCoverageTests(unittest.TestCase):
                     data = doc.findall("w:body/w:tbl/w:tr", report_forms.NS)[2:-1]
                     tubes = {int(''.join(r.findall('w:tc', report_forms.NS)[1].itertext())) for r in data
                              if ''.join(r.findall('w:tc', report_forms.NS)[1].itertext()).isdigit()}
-                    self.assertEqual(tubes, set(range(1, 51)))
+                    self.assertEqual(tubes, {1})
 
     def test_source_form_draft_cannot_erase_a_tube(self):
         self.complete()
         payload = {**self.payload(), "template_id": "comparison"}
         snapshot = reporting.report_snapshot(server, payload)
         key = next(c["key"] for c in snapshot["editable_cells"] if c["label"] == "表8 第3行第2列")
-        with self.assertRaisesRegex(ValueError, "全部50根管"):
+        with self.assertRaisesRegex(ValueError, "保留当前显示记录"):
             reporting.report_snapshot(server, {**payload, "draft_edits": [{"key": key, "value": ""}]})
 
 

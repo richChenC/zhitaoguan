@@ -4,7 +4,7 @@
 - 初始默认规则在建立任何自定义规则前即生效；
 - 建立新规则后自动激活并停用旧版本；
 - 名称/容差校验拒绝非法输入；
-- 容差通过 compare 链路真实改变缺陷匹配结果（R / NI 翻转）。
+- 容差通过 compare 链路真实改变缺陷匹配结果（R / 待确认）。
 """
 import tempfile
 import unittest
@@ -64,7 +64,8 @@ class AnalysisRulesTests(unittest.TestCase):
             db.execute(_INSERT, before)
             db.execute(_INSERT, current)
         strict = server.compare("H101", "H102", 1)
-        self.assertEqual(strict["summary"]["NI"], 1)
+        self.assertEqual(strict["summary"]["待确认"], 1)
+        self.assertEqual(strict["summary"]["NI"], 0)
         self.assertEqual(strict["summary"]["R"], 0)
         server.create_analysis_rule("宽松容差", 0.05, "覆盖 0.02 mm 差异")
         loose = server.compare("H101", "H102", 1)

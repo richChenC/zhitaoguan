@@ -422,15 +422,40 @@ class VisualizationIncrementTests(unittest.TestCase):
         self.assertEqual(current["old_outage"], "F102")
         self.assertIsNone(current["total"], "Maintenance alone is not a detection baseline")
 
-    def test_ndd_or_new_indication_is_not_a_zero_baseline(self):
+    def test_ndd_can_be_disabled_and_new_indication_is_not_a_zero_baseline(self):
         data = self.build([self.record("F101", 1, indication="NDD", percent=None),
-                           self.record("F102", 2, percent=20)])
+                           self.record("F102", 2, percent=20)], {"ndd_zero": "0"})
         self.assertIsNone(data["increments"][1]["total"])
-        self.assertIn("不按零计算", data["increments"][1]["items"][0]["reason"])
+        self.assertIn("不按零起算", data["increments"][1]["items"][0]["reason"])
         data = self.build([self.record("F101", 1, indication="NDD", percent=None),
                            self.record("F102", 2, indication="NDD", percent=None)])
         self.assertEqual(data["increments"][1]["items"], [])
         self.assertIsNone(data["increments"][1]["total"])
+
+    def test_explicit_ndd_zero_preserves_evidence_and_never_promotes_blank_conclusions(self):
+        rows = [self.record("F101", 1, indication="NDD", percent=None),
+                self.record("F102", 2, percent=20)]
+        original = [row.copy() for row in rows]
+        current = self.build(rows)["increments"][1]
+        self.assertEqual((current["total"], current["ndd_baseline"]), (20, 1))
+        self.assertTrue(current["items"][0]["ndd_baseline"])
+        self.assertIn("非实测", current["items"][0]["note"])
+        self.assertIsNone(current["items"][0]["previous"])
+        self.assertEqual(rows, original)
+        for code in ("", "/", "NOS"):
+            with self.subTest(code=code):
+                rows[0].update(indication=code, percent=None, location="", datapoint=0, channel="")
+                result = self.build(rows)["increments"][1]
+                self.assertIsNone(result["total"])
+                self.assertEqual(result["ndd_baseline"], 0)
+        rows[0].update(indication="NDD")
+        for value in (None, -1, 101, float("nan")):
+            rows[1]["percent"] = value
+            self.assertIsNone(self.build(rows)["increments"][1]["total"])
+        rows[1]["percent"] = 20
+        for outage in ("F101", "F102"):
+            event = {"outage": outage, "thimble_id": 1, "state": "replaced"}
+            self.assertIsNone(self.build(rows, repairs=[event])["increments"][1]["total"])
 
     def test_invalid_depths_and_unparsed_positions_never_enter_increment(self):
         for value in (None, -1, 101, float("nan")):
@@ -460,8 +485,8 @@ class VisualizationIncrementTests(unittest.TestCase):
         self.assertEqual(current["unmatched_history"], 2)
 
     def test_shift_replacement_and_plugging_follow_confirmed_events(self):
-        rows = [self.record("F101", 1, location="P1+44", percent=20),
-                self.record("F102", 2, percent=30)]
+        rows = [self.record("F101", 1, percent=20),
+                self.record("F102", 2, location="P1+44", percent=30)]
         event = dict(outage="F101", thimble_id=1, state="shifted", offset_mm=42)
         result = self.build(rows, repairs=[event])["increments"][1]
         self.assertEqual(result["total"], 10)

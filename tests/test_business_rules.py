@@ -33,9 +33,9 @@ class BusinessRulesTests(unittest.TestCase):
             rules.compare(server, '', 'F102', 1)
 
     def test_shift_only_next_adjacent_inspection(self):
-        self.finding('F101', 'P1+42')
-        self.finding('F102')
-        self.finding('F103')
+        self.finding('F101')
+        self.finding('F102', 'P1+42')
+        self.finding('F103', 'P1+42')
         self.state('F101', 'shifted', 42)
         self.assertEqual(server.compare('F101', 'F102', 1)['summary']['R'], 1)
         self.assertEqual(server.compare('F101', 'F103', 1)['summary']['待确认'], 1)

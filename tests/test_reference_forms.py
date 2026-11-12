@@ -54,12 +54,18 @@ class ReferenceFormsTests(unittest.TestCase):
             self.assertNotIn('仿宋', rendered)
             self.assertEqual(before, hashlib.sha256((server.ROOT / 'assets/report-templates' / (kind + '.docx')).read_bytes()).hexdigest())
 
-    def test_ndd_and_empty_metadata_not_fabricated(self):
+    def test_explicit_ndd_measurements_are_preserved_and_missing_values_not_fabricated(self):
         snapshot = self.snapshot(count=1)
         snapshot['values'][0][3] = 'NDD'
         _, doc = report_forms.documents(server, snapshot)
         row = doc.findall('w:body/w:tbl/w:tr', report_forms.NS)[10]
-        self.assertEqual([''.join(c.itertext()) for c in row.findall('w:tc', report_forms.NS)][4:], ['/', '/', '/', '/'])
+        self.assertEqual([''.join(c.itertext()) for c in row.findall('w:tc', report_forms.NS)][4:],
+                         ['1.25', '25', 'P1+42', 'M1'])
+        snapshot['values'][0][4:8] = [None, None, '', '']
+        _, doc = report_forms.documents(server, snapshot)
+        row = doc.findall('w:body/w:tbl/w:tr', report_forms.NS)[10]
+        self.assertEqual([''.join(c.itertext()) for c in row.findall('w:tc', report_forms.NS)][4:],
+                         ['', '', '', ''])
 
     def test_missing_positions_do_not_merge_distinct_findings(self):
         snapshot = self.snapshot(count=2)

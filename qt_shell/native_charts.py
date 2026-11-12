@@ -32,6 +32,7 @@ class ChartPanel(QWidget):
         self.client = client
         self.theme = "light"
         self.animations = False
+        self.point_labels = False
         layout = QVBoxLayout(self)
         self.note = QLabel()
         self.note.setWordWrap(True)
@@ -96,6 +97,16 @@ class ChartPanel(QWidget):
         for label in getattr(chart, "_bar_value_labels", []):
             label.setBrush(QColor("#e5eeec" if theme == "dark" else "#23465b"))
 
+    def set_point_labels(self, enabled):
+        self.point_labels = bool(enabled)
+        for series in self.view.chart().series():
+            if isinstance(series, QScatterSeries):
+                series.setPointLabelsFormat("@yPoint")
+                series.setPointLabelsVisible(self.point_labels)
+                series.setPointLabelsClipping(False)
+            elif isinstance(series, QBarSeries):
+                series.setLabelsVisible(self.point_labels)
+
     def _new(self, title, note):
         self.note.setText(note)
         chart = QChart()
@@ -146,6 +157,9 @@ class ChartPanel(QWidget):
                 chart.addSeries(marker)
                 marker.setColor(QColor("#292f33" if self.theme == "dark" else "white") if incomplete else color)
                 marker.setBorderColor(color)
+                marker.setPointLabelsFormat("@yPoint")
+                marker.setPointLabelsVisible(self.point_labels)
+                marker.setPointLabelsClipping(False)
                 if incomplete:
                     for legend_marker in chart.legend().markers(marker):
                         legend_marker.setVisible(False)
@@ -191,6 +205,9 @@ class ChartPanel(QWidget):
         chart.addSeries(series)
         series.setColor(QColor(PALETTE[0]))
         series.setBorderColor(QColor("#15527f"))
+        series.setPointLabelsFormat("@yPoint")
+        series.setPointLabelsVisible(self.point_labels)
+        series.setPointLabelsClipping(False)
         chart.createDefaultAxes()
         for axis in chart.axes(Qt.Orientation.Horizontal):
             axis.setTitleText("通道编号")
@@ -207,7 +224,7 @@ class ChartPanel(QWidget):
         bar = QBarSet(y_title)
         bar.append([float(value or 0) for _, value in values])
         series.append(bar)
-        series.setLabelsVisible(len(values) <= 12)
+        series.setLabelsVisible(self.point_labels)
         chart.addSeries(series)
         bar.setColor(QColor(PALETTE[0]))
         axis = QBarCategoryAxis()
@@ -283,6 +300,7 @@ class VisualizationWorkspace(QTabWidget):
         self._longitudinal_cache = {}
         self._longitudinal_pending = set()
         self._longitudinal_request = 0
+        self.ndd_zero = True
         self._selected_tube = 1
         self._history_outages = None
         def panel():
@@ -1053,6 +1071,17 @@ class VisualizationWorkspace(QTabWidget):
         for panel in self.findChildren(ChartPanel):
             panel.set_theme(theme, animations)
 
+    def set_analysis_options(self, ndd_zero, point_labels):
+        changed = self.ndd_zero != ndd_zero
+        self.ndd_zero = bool(ndd_zero)
+        for panel in self.findChildren(ChartPanel):
+            panel.set_point_labels(point_labels)
+        if changed:
+            self._longitudinal_request += 1
+            self._longitudinal_cache.clear()
+            self._longitudinal_pending.clear()
+        return changed
+
     def set_severity(self, levels, colors):
         if self.severity_levels != levels or self.severity_colors != colors:
             self.severity_levels, self.severity_colors = list(levels), list(colors)
@@ -1158,7 +1187,9 @@ class VisualizationWorkspace(QTabWidget):
         self.total.lines(("群厂" if mode == "all" else "机组") +
                          (" WAR 匹配增量趋势" if increment else " WAR 报告深度趋势"), groups,
                          "按大修轮次汇总，不代表同期对比；空心点为部分数据；缺失不补零。"
-                         + ("仅计相邻轮次一对一可靠 WAR 匹配，保留负增量。" if increment else ""),
+                         + (("相邻轮次可靠 WAR 匹配，保留负增量；"
+                             + ("前次明确 NDD 按 0 基线起算（判定值，非实测）。"
+                                if self.ndd_zero else "NDD 记 0 已关闭。")) if increment else ""),
                          "匹配深度变化（百分点）" if increment else "报告深度合计（百分点）", partial=partial)
 
     def open_observation(self, unit, order):
@@ -1183,7 +1214,8 @@ class VisualizationWorkspace(QTabWidget):
                     for match in item.get("items") or []:
                         current, previous = match.get("current") or {}, match.get("previous") or {}
                         entries.append([f"{item['unit']}/{item['outage']}", match["tube"], "WAR",
-                                        current.get("percent"), previous.get("percent"),
+                                        current.get("percent"),
+                                        "NDD 0 基线（非实测）" if match.get("ndd_baseline") else previous.get("percent"),
                                         match["delta"] if match.get("delta") is not None else match.get("reason"),
                                         current.get("report_path") or current.get("source")])
         else:
@@ -1310,7 +1342,8 @@ class VisualizationWorkspace(QTabWidget):
             self._longitudinal_cache[key] = data
             self.draw_longitudinal()
         self.client.get("/api/analysis/tube-longitudinal?" + urlencode(
-            {"site": match[1], "unit": match[2], "jump": self.jump.value()}), loaded)
+            {"site": match[1], "unit": match[2], "jump": self.jump.value(),
+             "ndd_zero": int(self.ndd_zero)}), loaded)
 
     def draw_longitudinal(self, *_):
         current = self.current_snapshot()
@@ -1331,7 +1364,9 @@ class VisualizationWorkspace(QTabWidget):
                     breaks[prefix + title] = {p["order"] for p in series_points if p.get("break_before")}
         self.longitudinal.lines(f"{current['unit']} · " +
                                 ("全部管寿期曲线" if self.all_tubes.isChecked() else f"{self._selected_tube}号管寿期曲线"), groups,
-                                "完整机组历史 · 换管建立新寿期并断线；移位不清零；NDD 的零值有原始结论依据；缺测不补零",
+                                "完整机组历史 · 换管建立新寿期并断线；移位不清零；"
+                                + ("NDD 显示 0 基线（判定值，非实测）；" if self.ndd_zero else "NDD 不计深度；")
+                                + "缺测不补零",
                                 "最大深度（壁厚%）", breaks=breaks)
         if self.all_tubes.isChecked():
             self.longitudinal.view.chart().legend().hide()

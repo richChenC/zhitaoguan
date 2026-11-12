@@ -3014,6 +3014,10 @@ def comparison_note(summary: dict) -> str:
     notes = []
     if int(summary.get("R") or 0) > 0:
         notes.append("结果比对栏内“R”表示此次显示为原有显示")
+    if int(summary.get("R1") or 0) > 0:
+        notes.append("“R1”表示原显示被移位后新增显示覆盖")
+    if int(summary.get("R*") or 0) > 0:
+        notes.append("“R*”表示原有显示，历史位置误记已按官方报告核对，原始记录保留")
     if int(summary.get("NI") or 0) > 0:
         notes.append("结果比对栏内“NI”表示此次大修新发现的达到记录标准的显示")
     if int(summary.get("待确认") or 0) > 0 or summary.get("historical_unmatched") or summary.get("missing_tubes"):
@@ -3096,7 +3100,8 @@ def unit_evolution(site: str, unit: int) -> dict:
 TUBE_LONGITUDINAL_JUMP_DEFAULT = 15.0
 
 
-def tube_longitudinal(site: str, unit: int, jump: float = TUBE_LONGITUDINAL_JUMP_DEFAULT) -> dict:
+def tube_longitudinal(site: str, unit: int, jump: float = TUBE_LONGITUDINAL_JUMP_DEFAULT,
+                      ndd_zero: bool = True) -> dict:
     """跨大修纵向对比：同一根管逐次大修的最大报告深度序列、逐次变化与斜率突变标记。
 
     口径与可视化工作台保持一致：每管每次大修取可量化 WAR 的最大报告深度；
@@ -3177,7 +3182,7 @@ def tube_longitudinal(site: str, unit: int, jump: float = TUBE_LONGITUDINAL_JUMP
             conclusion = ("WAR" if any(str(row.get("indication") or "").strip().upper() == "WAR"
                                       for row in records) else "NDD" if all_ndd
                           else "待核对" if records else "无检测记录")
-            report_depth = max(depths) if depths else (0.0 if all_ndd else None)
+            report_depth = max(depths) if depths else (0.0 if all_ndd and ndd_zero else None)
             replaced = "replaced" in names
             max_depth = (None if lifecycle["needs_review"] else 0.0) if replaced else report_depth
             series.append({"outage": outage, "order": order, "max_depth": max_depth,
@@ -3649,9 +3654,10 @@ def export_comparison_excel(old: str, new: str, unit: int) -> dict:
         sheet.merge_cells(f"{column}2:{column}3")
     sheet.merge_cells("D2:F2")
     sheet.merge_cells("G2:I2")
-    for row in analysis_reporting.comparison_values(data["items"]):
+    formal_values = analysis_reporting.comparison_values(data["items"])
+    for row in formal_values:
         sheet.append(["/" if value is None or value == "" else value for value in row])
-    spans = report_tube_rowspans(data["items"])
+    spans = report_tube_rowspans([{"thimble_id": row[1], "position": row[2]} for row in formal_values])
     for offset, span in enumerate(spans, 4):
         if span > 1:
             sheet.merge_cells(start_row=offset, end_row=offset + span - 1, start_column=2, end_column=2)
@@ -4040,7 +4046,9 @@ def export_inspection_docx(outage: str, unit: int, metadata: dict, finding_ids: 
 def build_comparison_preview(old: str, new: str, unit: int) -> dict:
     data = compare(old, new, unit)
     body_rows = []
-    for row, values, rowspan in zip(data["items"], analysis_reporting.comparison_values(data["items"]), report_tube_rowspans(data["items"])):
+    formal_values = analysis_reporting.comparison_values(data["items"])
+    formal_rows = [{"thimble_id": row[1], "position": row[2]} for row in formal_values]
+    for row, values, rowspan in zip(formal_rows, formal_values, report_tube_rowspans(formal_rows)):
         tube_cells = ""
         if rowspan:
             span = f" rowspan='{rowspan}'" if rowspan > 1 else ""
@@ -4052,7 +4060,7 @@ def build_comparison_preview(old: str, new: str, unit: int) -> dict:
     summary_text = comparison_summary_text(data["summary"])
     note = comparison_note(data["summary"])
     preview = f"<article class='report-sheet comparison-sheet'><h1>{html.escape(title)}</h1><p class='report-lead'>本次大修（{html.escape(new)}）与历史大修（{html.escape(old)}）结果对比。{html.escape(summary_text)}。</p><div class='report-table-wrap'><table><caption>表 5　涡流检验结果比对表</caption><thead><tr><th rowspan='2'>序号</th><th rowspan='2'>通道编号</th><th rowspan='2'>堆芯位置</th><th colspan='3'>{html.escape(new)}</th><th colspan='3'>{html.escape(old)}</th><th rowspan='2'>结果比对</th></tr><tr><th>幅值（V）</th><th>磨损深度（壁厚%）</th><th>磨损位置（mm）</th><th>幅值（V）</th><th>磨损深度（壁厚%）</th><th>磨损位置（mm）</th></tr></thead><tbody>{body}</tbody></table></div><footer>备注：{html.escape(note)}</footer></article>"
-    return {"title": title, "rows": len(data["items"]), "html": preview, "coverage": data["coverage"],
+    return {"title": title, "rows": len(formal_values), "html": preview, "coverage": data["coverage"],
             "coverage_complete": data["coverage_complete"], "warnings": data["warnings"], **data["summary"]}
 
 
@@ -4074,8 +4082,8 @@ def export_comparison_docx(old: str, new: str, unit: int) -> dict:
         if page_index < len(pages):
             blocks.append(_w_page_break())
     result = _write_docx(artifact_naming.filename("历次大修对比报告", f"机组{unit}_{old}-{new}", "docx"), blocks, landscape=False)
-    return record_file_export("comparison_form", {**result, "rows": len(data["items"]), **data["summary"]}, {
-        "outage": new, "old": old, "new": new, "unit": unit, "rows": len(data["items"]),
+    return record_file_export("comparison_form", {**result, "rows": len(values), **data["summary"]}, {
+        "outage": new, "old": old, "new": new, "unit": unit, "rows": len(values),
         "summary": data["summary"], "note": comparison_note(data["summary"]),
         "finding_ids": [row.get("id") for row in data["items"]],
         "source_keys": sorted({str(row.get("source_key") or "") for row in data["items"]} - {""}),
@@ -5186,7 +5194,10 @@ class Handler(SimpleHTTPRequestHandler):
                 q = parse_qs(parsed.query); return self.json_response(unit_evolution(q.get("site", [""])[0], int(q.get("unit", ["0"])[0])))
             if parsed.path == "/api/analysis/tube-longitudinal":
                 q = parse_qs(parsed.query)
-                return self.json_response(tube_longitudinal(q.get("site", [""])[0], int(q.get("unit", ["0"])[0]), q.get("jump", [TUBE_LONGITUDINAL_JUMP_DEFAULT])[0]))
+                return self.json_response(tube_longitudinal(
+                    q.get("site", [""])[0], int(q.get("unit", ["0"])[0]),
+                    q.get("jump", [TUBE_LONGITUDINAL_JUMP_DEFAULT])[0],
+                    q.get("ndd_zero", ["1"])[0].strip().lower() not in ("0", "false")))
             if parsed.path == "/api/compare":
                 q = parse_qs(parsed.query)
                 if q.get("outages"):

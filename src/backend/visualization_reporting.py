@@ -18,10 +18,15 @@ def report_category(row):
         return "NDD"
     return "incomplete"
 
+def explicit_ndd(row):
+    """Zero baselines require a documented conclusion, never an inferred blank."""
+    return bool(analysis.no_defect_basis(row, auto_ndd=False))
+
 
 def matched_increments(service, grouped, repairs_by_tube, query):
     """Adjacent, one-to-one WAR pairs; never subtract independently summed reports."""
     sites, unit_code, outage_code = query["sites"], query["unit"], query["outage"]
+    allow_ndd_zero = str(query.get("ndd_zero", "1")).strip().lower() not in ("0", "false")
     rule_loader = getattr(service, "active_analysis_rules", None)
     rules = rule_loader() if callable(rule_loader) else analysis.DEFAULT_RULES
     rounds = {(site, unit, order): (outage, records)
@@ -48,6 +53,26 @@ def matched_increments(service, grouped, repairs_by_tube, query):
                    for event in repairs_by_tube[(site, unit, tube)]]
         compared = analysis.compare_rows(old, outage, unit, before, wear, repairs, rules=rules)["items"] if before else []
         old_rows = {row["id"]: row for row in before if row.get("id") is not None}
+        before_by_tube = defaultdict(list)
+        for row in before:
+            try:
+                before_by_tube[int(row.get("thimble_id"))].append(row)
+            except (TypeError, ValueError):
+                continue
+        ndd_baseline_tubes = {tube for tube, rows in before_by_tube.items()
+                              if rows and all(explicit_ndd(row) for row in rows)}
+
+        def replaced_between(tube):
+            for event in repairs_by_tube.get((site, unit, tube), []):
+                if "replaced" not in tube_lifecycle.events(event):
+                    continue
+                try:
+                    if analysis.sequence(event["outage"])[2] in (order - 1, order):
+                        return True
+                except ValueError:
+                    continue
+            return False
+
         # Independent current matches may reuse one historical indication. Neither
         # occurrence is a trustworthy one-to-one pair in that case.
         used = Counter(row["old_id"] for row in compared if row.get("old_id") is not None)
@@ -56,8 +81,14 @@ def matched_increments(service, grouped, repairs_by_tube, query):
             pair = compared[index] if compared else {}
             previous = old_rows.get(pair.get("old_id"))
             reason = ""
+            ndd_baseline = False
             if not before:
                 reason = "首次记录，无相邻上轮检测基准" if order == 1 else "缺少相邻上轮检测记录，不跨轮补算"
+            elif int(row["thimble_id"]) in ndd_baseline_tubes and not replaced_between(int(row["thimble_id"])):
+                if allow_ndd_zero:
+                    ndd_baseline = True
+                else:
+                    reason = "前次结论为 NDD；已关闭“NDD 记 0 深度”，不按零起算"
             elif pair.get("comparison") != "R":
                 reason = ("新显示或换管后新基准，无历史 WAR 配对，不按零计算"
                           if pair.get("comparison") == "NI" else pair.get("comparison_note") or "未形成确定匹配")
@@ -70,17 +101,23 @@ def matched_increments(service, grouped, repairs_by_tube, query):
             elif any(not analysis.numeric(value) or not 0 <= value <= 100
                      for value in (row.get("percent"), previous.get("percent"))):
                 reason = "前后深度缺失或超出 0–100%，不按零计算"
-            delta = None if reason else row["percent"] - previous["percent"]
+            if ndd_baseline and (not analysis.numeric(row.get("percent")) or not 0 <= row["percent"] <= 100):
+                ndd_baseline = False
+                reason = "本次深度缺失或超出 0–100%，不按零计算"
+            delta = (None if reason else
+                     row["percent"] if ndd_baseline else row["percent"] - previous["percent"])
             bucket = analysis.position_resolution(row)["position_bucket"]
             if delta is not None:
                 positions[bucket] += delta
             entries.append({"tube": int(row["thimble_id"]), "position_bucket": bucket,
                             "previous": evidence(previous), "current": evidence(row),
-                            "delta": delta, "reason": reason,
-                            "note": pair.get("comparison_note") or reason,
+                            "delta": delta, "reason": reason, "ndd_baseline": ndd_baseline,
+                            "note": ("前次结论为明确 NDD，按 0 深度起算（判定值，非实测）"
+                                     if ndd_baseline else pair.get("comparison_note") or reason),
                             "shift_mm": pair.get("shift_mm")})
         matched = [entry for entry in entries if entry["delta"] is not None]
-        matched_old = {entry["previous"]["id"] for entry in matched}
+        matched_old = {entry["previous"]["id"] for entry in matched
+                       if entry["previous"] and entry["previous"].get("id") is not None}
         unmatched_history = sum(str(row.get("indication") or "").strip().upper() == "WAR"
                                 and row.get("id") not in matched_old for row in before)
         partial = (len(matched) < len(wear) or unmatched_history > 0 or not before
@@ -91,6 +128,8 @@ def matched_increments(service, grouped, repairs_by_tube, query):
                        "old_outage": old, "total": sum(entry["delta"] for entry in matched) if matched else None,
                        "positions": dict(positions), "matched": len(matched), "wear_records": len(wear),
                        "excluded": len(wear) - len(matched), "unmatched_history": unmatched_history,
+                       "ndd_baseline": sum(1 for entry in matched if entry["ndd_baseline"]),
+                       "ndd_zero": allow_ndd_zero,
                        "partial": partial, "items": entries,
                        "rules": {"version": rules.get("version", 0), "name": rules.get("name", ""),
                                  "match_tolerance_mm": analysis.rule_tolerance(rules)}})
@@ -338,7 +377,8 @@ def build(service, query):
             "units": sorted(options, key=lambda x: x["code"]),
             "trends": trends,
             "increments": matched_increments(service, grouped, repairs_by_tube,
-                                             {"sites": sites, "unit": selected_unit, "outage": selected_outage}),
+                                             {"sites": sites, "unit": selected_unit, "outage": selected_outage,
+                                              "ndd_zero": query.get("ndd_zero", "1")}),
             "snapshots": snapshots, "comparison_baselines": comparison_baselines,
             "coverage": coverage, "map": map_stats,
             "summary": {"records": len(scoped), "units": len(latest), "outages": len(snapshots),

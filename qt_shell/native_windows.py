@@ -6,6 +6,7 @@ import os
 import uuid
 import base64
 import re
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -3390,7 +3391,7 @@ class NativeAnalyticsPage(QWidget):
         self._coverage_request += 1
         self._coverage_pending = True
         number = self._coverage_request
-        self.client.get("/api/analysis/visualization",
+        self.client.get("/api/analysis/visualization" + ("" if self.visualization.ndd_zero else "?ndd_zero=0"),
                         lambda data, error: self._coverage_loaded(data, error)
                         if number == self._coverage_request else None)
 
@@ -3541,12 +3542,13 @@ class NativeAnalyticsPage(QWidget):
             "sites": sites,
             "unit": selected_unit,
             "outage": outage,
+            "ndd_zero": int(self.visualization.ndd_zero),
         }
         self.complex_button.setEnabled(False)
         self.analysis_status.setText("正在计算趋势、相邻增量和覆盖质量...")
         self._analysis_request += 1
         number = self._analysis_request
-        if not any(params.values()) and getattr(self, "_coverage_pending", False):
+        if not any((sites, selected_unit, outage)) and getattr(self, "_coverage_pending", False):
             self._unfiltered_analysis_number = number
             return
         self.client.get("/api/analysis/visualization?" + urlencode(params),
@@ -3703,6 +3705,12 @@ class NativeReportsPage(QWidget):
         self.header_values = self._load_saved_header()
         self.draft_edits: list[dict[str, str]] = []
         self.editable_cells: list[dict[str, Any]] = []
+        self._draft_history = []
+        self._draft_source_changed = False
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.setInterval(400)
+        self._preview_timer.timeout.connect(self.preview_report)
         self._preview_number = 0
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 16, 18, 16)
@@ -3716,10 +3724,15 @@ class NativeReportsPage(QWidget):
         report_top.addWidget(self.workbench_scope)
         layout.addLayout(report_top)
         self.scope_bar = ScopeBar(client, stacked=True)
+        self.scope_bar.setObjectName("reportScopeBand")
+        self.scope_bar.reset.hide()
+        self.scope_bar.refresh.hide()
+        for label in self.scope_bar.findChildren(QLabel):
+            if label.text() == "大修":
+                label.setText("本次大修")
         self.scope_bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         layout.addWidget(self.scope_bar)
         self.scope_bar.changed.connect(self._scope_selected)
-        scope = QHBoxLayout()
         self.site = QLineEdit()
         self.site.setPlaceholderText("例如 N")
         self.unit = QSpinBox()
@@ -3736,22 +3749,57 @@ class NativeReportsPage(QWidget):
         self.report_tabs.currentChanged.connect(self.kind.setCurrentIndex)
         self.kind.currentIndexChanged.connect(self.report_tabs.setCurrentIndex)
         self.history_combo = QComboBox()
-        self.history_combo.setMinimumWidth(180)
+        self.history_combo.setMinimumWidth(110)
         self.history_combo.setEditable(False)
         self.history_combo.currentTextChanged.connect(self.old_outage.setText)
         self.old_outage.hide()
         self.history_label = QLabel("历史大修")
-        scope.addWidget(self.history_label)
-        scope.addWidget(self.history_combo)
+        self.history_field = QWidget()
+        history_layout = QVBoxLayout(self.history_field)
+        history_layout.setContentsMargins(0, 0, 0, 0)
+        history_layout.setSpacing(5)
+        history_layout.addWidget(self.history_label)
+        history_layout.addWidget(self.history_combo)
+        scope_layout = self.scope_bar.layout()
+        scope_layout.insertWidget(3, self.history_field, 1)
+        self.latest_outage = button("最新大修", None, self._latest_report_outage)
+        self.latest_outage.setEnabled(False)
+        scope_layout.insertWidget(4, self.latest_outage)
         for control in (self.site, self.unit, self.outage):
             control.hide()
-        scope.addStretch()
-        layout.addLayout(scope)
+        self.status = QLabel("正在读取报告模板...")
+        self.status.setWordWrap(True)
+        self.status.setObjectName("muted")
+        layout.addWidget(self.status)
+        self.count_toggle = button("数据库检测统计", "chevron-right")
+        self.count_toggle.setCheckable(True)
+        self.count_toggle.setEnabled(False)
+        layout.addWidget(self.count_toggle)
+        self.count_panel = QWidget()
+        count_layout = QVBoxLayout(self.count_panel)
+        count_layout.setContentsMargins(0, 0, 0, 0)
+        self.count_table = QTableWidget(0, 5)
+        self.count_table.setHorizontalHeaderLabels(
+            ["数据库统计", "全部", "WAR", "仅 NDD 管 / NDD 记录", "其他 / 待确认"])
+        self.count_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.count_table.verticalHeader().hide()
+        self.count_table.horizontalHeader().setSectionResizeMode(
+            self.count_table.horizontalHeader().ResizeMode.Stretch)
+        self.count_table.setAccessibleName("数据库检测结论统计")
+        count_layout.addWidget(self.count_table)
+        self.count_note = QLabel()
+        self.count_note.setWordWrap(True)
+        self.count_note.setObjectName("muted")
+        count_layout.addWidget(self.count_note)
+        self.count_panel.hide()
+        self.count_toggle.toggled.connect(self.count_panel.setVisible)
+        layout.addWidget(self.count_panel)
         actions = QHBoxLayout()
         self.preview_heading = QLabel("检验报告单预览")
         actions.addWidget(self.preview_heading)
         actions.addStretch()
-        self.preview = button("刷新报告", "refresh-cw")
+        self.preview = button("", "refresh-cw")
+        self.preview.setToolTip("刷新报告")
         report_top.addWidget(self.preview)
         self.export = button("导出检验报告单", "file-down")
         self.export.setProperty("primary", True)
@@ -3763,8 +3811,6 @@ class NativeReportsPage(QWidget):
         self.edit_draft = QPushButton("修改草稿")
         self.edit_draft.setEnabled(False)
         self.edit_draft.clicked.connect(self.edit_report)
-        clear_draft = QPushButton("清除报告修改")
-        clear_draft.clicked.connect(self.clear_report_draft)
         self.use_selected = QCheckBox("仅使用工作台勾选记录")
         header.clicked.connect(self.edit_header)
         self.preview.clicked.connect(self.preview_report)
@@ -3819,29 +3865,50 @@ class NativeReportsPage(QWidget):
         self.preview_text.cellEdited.connect(self._inline_report_edit)
         tools.addWidget(button("", "chevron-left", lambda: self.preview_text.horizontalScrollBar().triggerAction(
             self.preview_text.horizontalScrollBar().SliderAction.SliderPageStepSub)))
-        tools.addWidget(button("-", None, lambda: self.preview_text.set_zoom(self.preview_text.zoom - .1)))
+        zoom_out = button("-", None, lambda: self.preview_text.set_zoom(self.preview_text.zoom - .1))
+        zoom_out.setToolTip("缩小预览")
+        tools.addWidget(zoom_out)
         self.zoom_label = QLabel("100%")
         self.zoom_label.setMinimumWidth(42)
         self.zoom_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_text.zoomChanged.connect(lambda value: self.zoom_label.setText(f"{value:.0%}"))
         tools.addWidget(self.zoom_label)
-        tools.addWidget(button("+", None, lambda: self.preview_text.set_zoom(self.preview_text.zoom + .1)))
+        zoom_in = button("+", None, lambda: self.preview_text.set_zoom(self.preview_text.zoom + .1))
+        zoom_in.setToolTip("放大预览")
+        tools.addWidget(zoom_in)
         tools.addWidget(button("适宽", None, self.preview_text.fit_width))
         tools.addWidget(button("", "chevron-right", lambda: self.preview_text.horizontalScrollBar().triggerAction(
             self.preview_text.horizontalScrollBar().SliderAction.SliderPageStepAdd)))
-        tools.addWidget(button("保存修改并更新预览", "save", self.preview_report))
         tools.addStretch()
-        tools.addWidget(clear_draft)
         tools.addWidget(self.edit_draft)
         layout.addLayout(tools)
         document = QSplitter(Qt.Orientation.Horizontal)
         document.addWidget(self.preview_text)
-        self.draft_table = QTableWidget(0, 3)
-        self.draft_table.setHorizontalHeaderLabels(["单元格", "原始值", "修改值"])
-        self.draft_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.draft_table.hide()
-        document.addWidget(self.draft_table)
+        self.draft_panel = QWidget()
+        self.draft_panel.setObjectName("reportDraftPanel")
+        self.draft_panel.setMinimumWidth(250)
+        draft_layout = QVBoxLayout(self.draft_panel)
+        draft_layout.setContentsMargins(12, 12, 12, 12)
+        draft_layout.addWidget(QLabel("报告修改草稿"))
+        draft_actions = QHBoxLayout()
+        self.draft_count = QLabel("人工修改 0 项")
+        draft_actions.addWidget(self.draft_count, 1)
+        self.draft_undo = button("", "rotate-ccw", self.undo_report_draft)
+        self.draft_undo.setToolTip("撤销上次草稿修改")
+        self.draft_reset = button("", "rotate-ccw", self.clear_report_draft)
+        self.draft_reset.setToolTip("全部恢复")
+        draft_actions.addWidget(self.draft_undo)
+        draft_actions.addWidget(self.draft_reset)
+        draft_layout.addLayout(draft_actions)
+        self.draft_entries = QScrollArea()
+        self.draft_entries.setWidgetResizable(True)
+        draft_layout.addWidget(self.draft_entries, 1)
+        self.draft_panel.hide()
+        document.addWidget(self.draft_panel)
         document.setSizes([900, 300])
+        document.setCollapsible(0, False)
+        document.setCollapsible(1, False)
+        self._render_report_draft()
         layout.addWidget(document, 1)
         self.sources_text = QPlainTextEdit()
         self.sources_text.setReadOnly(True)
@@ -3853,8 +3920,6 @@ class NativeReportsPage(QWidget):
         footer.addWidget(self.export_copy)
         layout.addLayout(footer)
         layout.addWidget(self.sources_text)
-        self.status = QLabel("正在读取报告模板...")
-        layout.addWidget(self.status)
         self.warnings = QPlainTextEdit()
         self.warnings.setReadOnly(True)
         self.warnings.setMaximumHeight(100)
@@ -3866,21 +3931,30 @@ class NativeReportsPage(QWidget):
         self.load()
         self.kind.currentIndexChanged.connect(self._report_mode_changed)
         self.scope_bar.loaded.connect(lambda _scope: self._populate_history())
+        self.old_outage.textChanged.connect(self._report_history_changed)
+        self.use_selected.toggled.connect(self._report_history_changed)
         self._report_mode_changed()
 
     def _invalidate_report(self):
+        self._preview_timer.stop()
         self._preview_number += 1
         self.snapshot_id = None
+        self.export.setEnabled(False)
         self.preview.setEnabled(True)
         self.edit_draft.setEnabled(False)
         self.draft_edits = []
-        self.draft_table.setRowCount(0)
+        self._draft_history.clear()
+        self.editable_cells = []
+        self._render_report_draft()
+        self.preview_text.clear_sources()
         self.preview_text.setPlainText("选择范围后生成报告预览")
         self._draft_source_changed = False
 
     def source_data_changed(self):
+        self._preview_timer.stop()
         self._preview_number += 1
         self.snapshot_id = None
+        self.export.setEnabled(False)
         self.preview.setEnabled(True)
         self._draft_source_changed = bool(self.draft_edits)
         self.status.setText("业务数据已更新；报告草稿已保留，请核对来源后更新预览" if self.draft_edits
@@ -3895,12 +3969,12 @@ class NativeReportsPage(QWidget):
         self.header_button.setVisible(not comparison)
         if comparison:
             self.header_panel.hide()
-        self.history_label.setVisible(comparison)
-        self.history_combo.setVisible(comparison)
+        self.history_field.setVisible(comparison)
         self.export.setText("导出检验结果比对表" if comparison else "导出检验报告单")
         self.preview_heading.setText("检验结果比对表预览" if comparison else "检验报告单预览")
         self.history_combo.setEnabled(comparison and self.history_combo.count() > 1)
         self._invalidate_report()
+        self._queue_report_preview()
 
     def _use_workbench_scope(self):
         owner = self.window()
@@ -3917,6 +3991,7 @@ class NativeReportsPage(QWidget):
         self._populate_history()
         self._invalidate_report()
         self.status.setText("报告范围已更新，请生成预览")
+        self._queue_report_preview()
 
     def _populate_history(self):
         scope = {"site": self.site.text(), "unit": self.unit.value(), "outage": self.outage.text()}
@@ -3935,27 +4010,159 @@ class NativeReportsPage(QWidget):
         self.history_combo.blockSignals(False)
         self.old_outage.setText(self.history_combo.currentText())
         self.history_combo.setEnabled(self.kind.currentData() == "comparison" and self.history_combo.count() > 1)
+        self.latest_outage.setEnabled(bool(scope["site"] and scope["unit"]
+                                          and self.scope_bar.outage.count() > 1))
 
     def set_workspace_scope(self, scope):
         self.scope_bar.set_scope(scope)
         self._scope_selected(scope)
 
     def _inline_report_edit(self, key, value):
-        original = next((cell for cell in self.editable_cells if cell["key"] == key), {})
+        original = next((cell for cell in self.editable_cells if cell["key"] == key), None)
+        if original is None:
+            self.status.setText("当前单元格已变化，请刷新报告")
+            return
         changes = {edit["key"]: edit["value"] for edit in self.draft_edits}
-        if value == str(original.get("source_value") or ""):
+        source = self._report_source_text(original)
+        try:
+            value = self._normalise_report_value(original, value)
+        except ValueError as exc:
+            self.preview_text.set_cell_value(key, changes.get(key, source), changed=key in changes)
+            self.status.setText(str(exc))
+            return
+        remove = value == source
+        if original.get("type") == "number":
+            if value.strip() in {"", "/"} and source.strip() in {"", "/"}:
+                remove = True
+            elif re.fullmatch(r"[-+]?\d+(?:\.\d+)?", source.strip()) and value.strip() not in {"", "/", "-"}:
+                remove = Decimal(value.strip()) == Decimal(source.strip())
+        if remove:
             changes.pop(key, None)
         else:
             changes[key] = value
-        self.draft_edits = [{"key": k, "value": v} for k, v in changes.items()]
-        self.snapshot_id = None
-        self.draft_table.setRowCount(len(changes))
+        edits = [{"key": k, "value": v} for k, v in sorted(changes.items())]
+        if edits != self.draft_edits:
+            self._remember_report_draft()
+            self.draft_edits = edits
+            self._report_draft_changed()
+        else:
+            self.preview_text.set_cell_value(key, changes.get(key, source), changed=key in changes)
+
+    @staticmethod
+    def _report_source_text(cell):
+        value = cell.get("source_value", cell.get("value"))
+        return "" if value is None else str(value)
+
+    @staticmethod
+    def _normalise_report_value(cell, value):
+        value = "" if value is None else str(value)
+        if len(value) > 2000:
+            raise ValueError("单元格内容不能超过2000个字符")
+        if cell.get("type") == "number":
+            value = value.strip()
+            if value not in {"", "/", "-"}:
+                if not re.fullmatch(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)", value):
+                    raise ValueError("请输入有效数字；缺失值使用 /")
+                value = format(Decimal(value), "f")
+                if "." in value:
+                    value = value.rstrip("0").rstrip(".")
+        return value
+
+    def _remember_report_draft(self):
+        self._draft_history.append([dict(edit) for edit in self.draft_edits])
+        del self._draft_history[:-100]
+
+    def _render_report_draft(self):
+        self.draft_count.setText(f"人工修改 {len(self.draft_edits)} 项")
+        self.draft_undo.setEnabled(bool(self._draft_history))
+        self.draft_reset.setEnabled(bool(self.draft_edits))
+        host = QWidget()
+        host.setObjectName("reportDraftContents")
+        host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        entries = QVBoxLayout(host)
+        entries.setContentsMargins(0, 0, 0, 0)
         cells = {cell["key"]: cell for cell in self.editable_cells}
-        for row, (cell_key, cell_value) in enumerate(changes.items()):
-            cell = cells.get(cell_key) or {}
-            for col, text in enumerate((cell.get("label") or cell_key, cell.get("source_value") or "", cell_value)):
-                self.draft_table.setItem(row, col, QTableWidgetItem(str(text)))
-        self.status.setText(f"已修改 {len(changes)} 个单元格，请保存修改并更新预览")
+        for edit in self.draft_edits:
+            key = edit["key"]
+            cell = cells.get(key, {})
+            entry = QWidget()
+            entry.setObjectName("reportDraftEntry")
+            body = QVBoxLayout(entry)
+            body.setContentsMargins(4, 8, 4, 8)
+            caption = QLabel(str(cell.get("label") or key))
+            caption.setWordWrap(True)
+            body.addWidget(caption)
+            before = QLabel(self._report_source_text(cell) or "/")
+            before.setTextFormat(Qt.TextFormat.PlainText)
+            before.setObjectName("muted")
+            font = before.font()
+            font.setStrikeOut(True)
+            before.setFont(font)
+            before.setWordWrap(True)
+            body.addWidget(before)
+            after = QLabel(str(edit["value"]) if edit["value"] not in (None, "") else "/")
+            after.setTextFormat(Qt.TextFormat.PlainText)
+            after.setWordWrap(True)
+            body.addWidget(after)
+            actions = QHBoxLayout()
+            locate = button("", "search", lambda _checked=False, k=key: self.preview_text.locate_cell(k))
+            locate.setToolTip("定位到报告中的单元格")
+            restore = button("", "rotate-ccw", lambda _checked=False, k=key: self.restore_report_cell(k))
+            restore.setToolTip("恢复该单元格原值")
+            actions.addWidget(locate)
+            actions.addWidget(restore)
+            actions.addStretch()
+            body.addLayout(actions)
+            entries.addWidget(entry)
+        entries.addStretch()
+        previous = self.draft_entries.takeWidget()
+        self.draft_entries.setWidget(host)
+        if previous is not None:
+            previous.deleteLater()
+
+    def _report_draft_changed(self):
+        self.snapshot_id = None
+        self.export.setEnabled(False)
+        self._preview_number += 1
+        self.preview.setEnabled(True)
+        changes = {edit["key"]: edit["value"] for edit in self.draft_edits}
+        for cell in self.editable_cells:
+            key = cell["key"]
+            self.preview_text.set_cell_value(key, changes.get(key, self._report_source_text(cell)),
+                                             changed=key in changes)
+        self._render_report_draft()
+        self.status.setText(f"已修改 {len(changes)} 个单元格，正在同步报告草稿")
+        self._queue_report_preview()
+
+    def _queue_report_preview(self):
+        if self._draft_source_changed:
+            self.status.setText("来源数据已变化，草稿已保留；请核对来源后刷新报告")
+        elif (self.site.text() and self.unit.value() and self.outage.text()
+              and (self.kind.currentData() != "comparison" or self.old_outage.text())):
+            self._preview_timer.start()
+
+    def _report_history_changed(self, *_):
+        self._invalidate_report()
+        self._queue_report_preview()
+
+    def _latest_report_outage(self):
+        outages = [self.scope_bar.outage.itemData(i) for i in range(self.scope_bar.outage.count())
+                   if self.scope_bar.outage.itemData(i)]
+        if outages:
+            latest = max(outages, key=lambda code: int(re.search(r"\d+$", code)[0])
+                         if re.search(r"\d+$", code) else -1)
+            self.scope_bar.outage.setCurrentIndex(self.scope_bar.outage.findData(latest))
+
+    def undo_report_draft(self):
+        if self._draft_history:
+            self.draft_edits = self._draft_history.pop()
+            self._report_draft_changed()
+
+    def restore_report_cell(self, key):
+        if any(edit["key"] == key for edit in self.draft_edits):
+            self._remember_report_draft()
+            self.draft_edits = [edit for edit in self.draft_edits if edit["key"] != key]
+            self._report_draft_changed()
 
     @classmethod
     def _header_file(cls) -> Path:
@@ -4016,6 +4223,7 @@ class NativeReportsPage(QWidget):
         self.snapshot_id = None
         self._preview_number += 1
         self.status.setText("表头已保存，请更新预览")
+        self._queue_report_preview()
         return True
 
     def import_header_settings(self):
@@ -4037,6 +4245,7 @@ class NativeReportsPage(QWidget):
             self.snapshot_id = None
             self._preview_number += 1
             self.status.setText("表头设置已导入并保存，请更新预览")
+            self._queue_report_preview()
         except (OSError, ValueError, TypeError, AttributeError) as exc:
             QMessageBox.warning(self, PRODUCT_NAME, f"导入表头失败：{exc}")
 
@@ -4230,6 +4439,7 @@ class NativeReportsPage(QWidget):
         return payload
 
     def preview_report(self) -> None:
+        self._preview_timer.stop()
         if getattr(self, "_draft_source_changed", False):
             answer = QMessageBox.question(self, "核对报告草稿",
                 "来源数据已变化，当前草稿仍保留。确认将这些修改应用到当前来源并生成预览？",
@@ -4244,13 +4454,24 @@ class NativeReportsPage(QWidget):
                 return
         self.preview.setEnabled(False)
         self.snapshot_id = None
+        self.export.setEnabled(False)
         self.edit_draft.setEnabled(False)
         self.preview_payload = self._payload()
         self._preview_number += 1
         number = self._preview_number
         self.status.setText("正在生成预览...")
         self.client.post("/api/reports/preview", self.preview_payload,
-                         lambda data, error: self._on_preview(data, error) if number == self._preview_number else None)
+                         lambda data, error: self._accept_report_preview(number, data, error))
+
+    def _accept_report_preview(self, number, data, error):
+        if number != self._preview_number:
+            return
+        from PySide6.QtWidgets import QApplication
+        focus = QApplication.focusWidget()
+        if isinstance(focus, QPlainTextEdit) and self.preview_text.isAncestorOf(focus):
+            QTimer.singleShot(80, self, lambda: self._accept_report_preview(number, data, error))
+            return
+        self._on_preview(data, error)
 
     def _on_preview(self, data: dict[str, Any] | None, error: str | None) -> None:
         self.preview.setEnabled(True)
@@ -4265,7 +4486,36 @@ class NativeReportsPage(QWidget):
                                if isinstance(cell, dict) and cell.get("editable") and cell.get("key")]
         self.edit_draft.setEnabled(bool(self.editable_cells))
         self.preview_text.editable_keys = {cell["key"] for cell in self.editable_cells}
-        self.preview_text.setHtml(str(data.get("html") or ""))
+        self.preview_text.setHtml(str(data.get("html") or ""),
+                                  source_values={cell["key"]: self._report_source_text(cell)
+                                                 for cell in self.editable_cells},
+                                  changed_keys={edit["key"] for edit in self.draft_edits})
+        self._render_report_draft()
+        counts = data.get("detection_counts") or []
+        self.count_toggle.setEnabled(bool(counts))
+        self.count_toggle.setText(f"数据库检测统计  {len(counts)} 次大修")
+        self.count_table.setRowCount(len(counts))
+        for index, scope in enumerate(counts):
+            values = [f"{'本次' if index == 0 else '历史'} {scope.get('outage', '')}",
+                      f"{scope.get('tubes', 0)} 根 / {scope.get('records', 0)} 条"]
+            values.extend(f"{scope.get(kind + '_tubes', 0)} 根 / {scope.get(kind + '_records', 0)} 条"
+                          for kind in ("war", "ndd", "other"))
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(value)
+                if column >= 2:
+                    kind = ("war", "ndd", "other")[column - 2]
+                    cell.setToolTip("、".join(map(str, (scope.get("tube_ids") or {}).get(kind, []))))
+                self.count_table.setItem(index, column, cell)
+        self.count_table.setFixedHeight(34 + 30 * len(counts))
+        mixed = "；".join(f"{scope['outage']}：{'、'.join(map(str, scope['mixed_ndd_tubes']))}号管同时含 NDD 与其他记录"
+                         for scope in counts if scope.get("mixed_ndd_tubes"))
+        rules = data.get("rules") or {}
+        rule_note = (f"；匹配规则 v{rules.get('version', 0)}（{rules.get('name', '')}），"
+                     f"容差 ±{rules.get('match_tolerance_mm', '')} mm" if data.get("kind") == "comparison" else "")
+        self.count_note.setText("管数按 WAR、其他、仅 NDD 依次归类；记录数逐条统计"
+                                + ("；" + mixed if mixed else "") + rule_note
+                                + ("。报告草稿另有人工修改，以上统计以数据库为准。" if self.draft_edits else "。"))
+        self.count_panel.setVisible(bool(counts) and self.count_toggle.isChecked())
         self.sources_text.setPlainText("\n".join(" | ".join("" if value is None else str(value) for value in row)
                                                 for row in data.get("sources", [])))
         warnings = data.get("warnings") or []
@@ -4280,14 +4530,15 @@ class NativeReportsPage(QWidget):
         )
 
     def edit_report(self) -> None:
-        self.draft_table.setVisible(self.draft_table.isHidden())
+        opened = self.draft_panel.isHidden()
+        self.draft_panel.setVisible(opened)
+        self.edit_draft.setText("收起草稿" if opened else "修改草稿")
 
     def clear_report_draft(self) -> None:
         if self.draft_edits:
+            self._remember_report_draft()
             self.draft_edits = []
-            self.snapshot_id = None
-            self.edit_draft.setEnabled(False)
-            self.status.setText("报告修改已清除，请重新生成预览")
+            self._report_draft_changed()
 
     def export_report(self) -> None:
         if not self.snapshot_id or self.preview_payload != self._payload():
@@ -4751,10 +5002,11 @@ class NativeSettingsPage(QWidget):
         source_layout = QVBoxLayout(self.source)
         source_form = QFormLayout()
         self.source_fields = {}
-        for key, caption in (("engine", "数据库类型"), ("path", "业务库位置"),
-                             ("exists", "文件状态"), ("size", "文件大小"),
+        for key, caption in (("engine", "存储引擎"), ("size", "数据库大小"),
+                             ("path", "文件位置"), ("exists", "文件状态"),
                              ("integrity", "校验结果")):
             value = QLabel("正在读取…")
+            value.setTextFormat(Qt.TextFormat.PlainText)
             value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             value.setWordWrap(True)
             self.source_fields[key] = value
@@ -4767,14 +5019,19 @@ class NativeSettingsPage(QWidget):
                                        lambda: self.source_text.setVisible(self.source_text.isHidden())))
         source_layout.addWidget(self.source_text)
         source_actions = QHBoxLayout()
-        source_refresh = QPushButton("读取数据源")
-        source_validate = QPushButton("校验数据库")
-        source_refresh.clicked.connect(self.load_source)
-        source_validate.clicked.connect(self.validate_source)
-        source_validate.setEnabled("settings.manage" in permissions)
-        source_actions.addWidget(source_refresh)
-        source_actions.addWidget(source_validate)
-        source_actions.addStretch(1)
+        self.source_status = QLabel("正在读取本地数据库")
+        self.source_status.setWordWrap(True)
+        self.source_status.setObjectName("muted")
+        source_actions.addWidget(self.source_status, 1)
+        self.source_copy = button("", "files", self.copy_source_path)
+        self.source_copy.setToolTip("复制数据库文件路径")
+        self.source_copy.setEnabled(False)
+        self.source_refresh = button("刷新状态", "refresh-cw", self.load_source)
+        self.source_validate = button("校验数据库", "check-check", self.validate_source)
+        self.source_validate.setEnabled("settings.manage" in permissions)
+        source_actions.addWidget(self.source_copy)
+        source_actions.addWidget(self.source_refresh)
+        source_actions.addWidget(self.source_validate)
         source_layout.addLayout(source_actions)
         self.backups = JsonTablePage(client, "数据库备份", "/api/backups",
                                      [("name", "备份名称"), ("created_at", "时间"), ("size_bytes", "大小"), ("path", "路径"), ("note", "备注")],
@@ -4956,16 +5213,25 @@ class NativeSettingsPage(QWidget):
         self.load_users()
 
     def load_source(self) -> None:
+        self.source_refresh.setEnabled(False)
+        self.source_status.setText("正在读取本地数据库")
         self.client.get("/api/settings/data-source", lambda data, error: self._source_loaded(data, error))
 
     def _source_loaded(self, data: dict[str, Any] | None, error: str | None) -> None:
+        self.source_refresh.setEnabled(True)
+        self.source_validate.setEnabled("settings.manage" in self.user.get("permissions", []))
         if error:
             self.source_text.setPlainText(error)
+            self.source_status.setText(error)
             return
         import json
         self.source_text.setPlainText(json.dumps(data or {}, ensure_ascii=False, indent=2))
         active = (data or {}).get("active") or {}
-        values = {"engine": str(active.get("engine") or "").upper(),
+        self._source_path = active.get("path")
+        self.source_copy.setEnabled(bool(self._source_path))
+        self.source_status.setText((data or {}).get("message") or "所有业务数据保存在此本地数据库。")
+        values = {"engine": "SQLite · 本地文件" if str(active.get("engine") or "").lower() == "sqlite"
+                  else str(active.get("engine") or "").upper(),
                   "path": active.get("path") or "未提供",
                   "exists": "已存在" if active.get("exists") else "未找到",
                   "size": f"{active.get('size_bytes', 0) / 1024 / 1024:.2f} MB",
@@ -4974,8 +5240,16 @@ class NativeSettingsPage(QWidget):
             self.source_fields[key].setText(value)
 
     def validate_source(self) -> None:
+        self.source_validate.setEnabled(False)
+        self.source_status.setText("正在校验数据库")
         self.client.post("/api/settings/data-source/validate", {"target": "local"},
                          self._source_loaded)
+
+    def copy_source_path(self):
+        if getattr(self, "_source_path", None):
+            from PySide6.QtWidgets import QApplication
+            QApplication.clipboard().setText(self._source_path)
+            self.source_status.setText("数据库文件路径已复制")
 
     def create_backup(self) -> None:
         self.client.post("/api/backup", {"note": "原生 Qt 手动备份"}, lambda data, error: self._backup_done(data, error))
@@ -5797,6 +6071,8 @@ class NativeMainWindow(QMainWindow):
             self.apply_preferences()
 
     def open_settings(self, index=0):
+        self.settings_dialog.maintenance_tabs.setCurrentIndex(1 if index == 6 else 0)
+        index = 5 if index == 6 else index
         self.settings_dialog.nav.setCurrentRow(index)
         self.settings_dialog.show()
         self.settings_dialog.raise_()
@@ -5866,6 +6142,9 @@ class NativeMainWindow(QMainWindow):
         visualization = self.stack.widget(3).visualization
         visualization.set_theme(theme, prefs["animations"])
         visualization.set_severity(prefs["depth_levels"], prefs["depth_colors"])
+        if visualization.set_analysis_options(prefs["ndd_zero"], prefs["point_labels"]):
+            self.stack.widget(3).load()
+            self.stack.widget(3).load_complex_analysis()
         self.workbench.table.verticalHeader().setDefaultSectionSize(28 if prefs["density"] == "compact" else 37)
         if self.workbench.auto_ndd != prefs["auto_ndd"]:
             self.workbench.auto_ndd = prefs["auto_ndd"]

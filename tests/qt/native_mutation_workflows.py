@@ -197,7 +197,9 @@ def run(app, window, client, work, scope, request, wait, until):
         preview = finish("/api/reports/preview", lambda: click(reports.preview))
         assert preview["kind"] == "comparison"
         assert preview.get("coverage_complete") is True, preview
-        assert preview["rows"] >= 50
+        assert preview["rows"] > 0
+        assert all(scope["tubes"] == 50 and not scope["missing_tubes"]
+                   for scope in preview["detection_counts"])
         comparison_exports = []
         for fmt in ("docx", "xlsx"):
             reports.export_format.setCurrentIndex(reports.export_format.findData(fmt))

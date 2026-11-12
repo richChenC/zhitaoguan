@@ -42,6 +42,19 @@ class TubeLongitudinalTests(unittest.TestCase):
         self.assertEqual(series[1]["war_records"], 2)
         self.assertEqual(series[1]["records"], 2)
 
+    def test_disabled_ndd_zero_preserves_conclusion_and_breaks_depth_delta(self):
+        rows = [finding("N101", indication="NDD", percent=None),
+                finding("N102", percent=30)]
+        with patch.object(server.analysis_reporting, "rows_for", return_value=rows), patch.object(
+                server.analysis_reporting, "repairs_for", return_value=[]):
+            points = server.tube_longitudinal("N", 1, ndd_zero=False)["tubes"][0]["series"]
+        self.assertEqual(points[0]["conclusion"], "NDD")
+        self.assertTrue(points[0]["ndd"])
+        self.assertIsNone(points[0]["max_depth"])
+        self.assertIsNone(points[0]["report_max_depth"])
+        self.assertEqual(points[1]["max_depth"], 30)
+        self.assertIsNone(points[1]["delta"])
+
     def test_complete_findings_and_maintenance_are_preserved(self):
         rows = [finding("N101", percent=10, location="P1"),
                 finding("N101", percent=None, location="P4+20"),
