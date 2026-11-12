@@ -1076,6 +1076,97 @@ class NativeParityTests(unittest.TestCase):
         self.assertTrue(all(row[2].get("blank_indication_policy") == "check"
                             for row in client.requests if row[1] == "/api/import-excel"))
 
+    def test_import_workspace_fixed_dock_scroll_and_source_switch_invalidates_preview(self):
+        client = Client()
+        wizard = ImportWizard(client, DataWorkbench.MAPPING_FIELDS, {})
+        wizard.resize(700, 560)
+        wizard.show()
+        wizard.path.setText("first.xlsx")
+        wizard.next()
+        client.requests[-1][3]({"sheets": [{"name": "N101", "columns": [], "sample_rows": []}]}, None)
+        self.app.processEvents()
+        self.assertEqual(wizard.currentId(), 1)
+        self.assertTrue(wizard.source_tabs.isVisible())
+        self.assertTrue(wizard.dock.isVisible())
+        self.assertGreater(wizard.dock.geometry().top(), wizard.pages.geometry().bottom())
+        scroll = wizard.pages.currentWidget()
+        self.assertGreater(scroll.verticalScrollBar().maximum(), 0)
+        wizard.next()
+        client.requests[-1][3]({"parsed": 1, "source_sha256": "source-hash"}, None)
+        self.assertEqual(wizard.currentId(), 2)
+        self.assertTrue(wizard.ready_preview)
+        before = len(client.requests)
+        QTest.mouseClick(wizard.source_tabs, Qt.MouseButton.LeftButton,
+                         pos=wizard.source_tabs.tabRect(1).center())
+        self.app.processEvents()
+        self.assertEqual(wizard.currentId(), 0)
+        self.assertEqual(wizard.mode.currentData(), "directory")
+        self.assertFalse(wizard.ready_source)
+        self.assertFalse(wizard.ready_preview)
+        self.assertEqual(wizard.result, {})
+        self.assertEqual(len(client.requests), before)
+        wizard.next()
+        self.assertEqual(len(client.requests), before)
+        self.assertIn("请选择来源", wizard.source_status.text())
+        wizard.source_tabs.setCurrentIndex(0)
+        self.assertEqual(wizard.path.text(), "first.xlsx")
+        self.assertFalse(wizard.ready_source)
+        wizard.reject()
+
+    def test_import_workspace_result_metrics_check_only_and_finish(self):
+        client = Client()
+        wizard = ImportWizard(client, DataWorkbench.MAPPING_FIELDS, {})
+        wizard.show()
+        wizard.path.setText("first.xlsx")
+        wizard.next()
+        client.requests[-1][3]({"sheets": [{"name": "N101", "columns": []}]}, None)
+        wizard.policy.setCurrentIndex(wizard.policy.findData("check"))
+        wizard.next()
+        client.requests[-1][3]({"parsed": 1234, "source_sha256": "source-hash"}, None)
+        self.assertIn("不写入业务记录", wizard.action_hint.text())
+        self.assertTrue(wizard.source_tabs.isVisible())
+        wizard.next()
+        self.assertEqual(wizard.currentId(), 4)
+        self.assertEqual(wizard.metric_values["parsed"].text(), "1,234")
+        self.assertEqual(wizard.metric_values["inserted"].text(), "0")
+        self.assertFalse(wizard.result_details.isVisible())
+        self.assertFalse(wizard.button(QWizard.WizardButton.BackButton).isVisible())
+        QTest.mouseClick(wizard.result_disclosure, Qt.MouseButton.LeftButton)
+        self.assertTrue(wizard.result_details.isVisible())
+        QTest.mouseClick(wizard.button(QWizard.WizardButton.FinishButton), Qt.MouseButton.LeftButton)
+        self.assertFalse(wizard.isVisible())
+        self.assertTrue(wizard.closed)
+        self.assertEqual(len([entry for entry in client.requests if entry[1] == "/api/import-excel"]), 1)
+
+    def test_import_details_identify_file_sheet_and_row_without_exposing_payloads(self):
+        result = {
+            "files": [
+                {"source_path": "one.xlsx", "batch_id": 3, "parsed": 20, "inserted": 15, "skipped": 5,
+                 "sheets": [{"sheet": "N101", "invalid_rows": [3, 8]}], "invalid_rows": [3, 8],
+                 "source_sha256": "internal-hash", "preview_rows": [{"id": 123}]},
+                {"source_path": "two.xlsx", "parsed": 10, "errors": [
+                    {"sheet_name": "N102", "row_number": 0, "message": "<原始>机组不一致"}]},
+            ]}
+        lines = ImportWizard.issue_lines(result)
+        self.assertEqual(lines, ["one.xlsx · N101 · 待核对原始行：3、8",
+                                 "two.xlsx · N102 · 0：<原始>机组不一致"])
+        details = ImportWizard.result_description(result)
+        self.assertIn("导入批次：3", details)
+        self.assertIn("新增 15 条", details)
+        self.assertNotIn("internal-hash", details)
+        self.assertNotIn("preview_rows", details)
+
+    def test_stale_import_recognition_does_not_unlock_new_active_request(self):
+        wizard = ImportWizard(Client(), DataWorkbench.MAPPING_FIELDS, {})
+        wizard.path.setText("old.xlsx")
+        generation = wizard.generation
+        wizard.path.setText("new.xlsx")
+        wizard.set_busy(True)
+        wizard.source_loaded(generation, {"sheets": [{"name": "N101", "columns": []}]}, None)
+        self.assertTrue(wizard.busy)
+        self.assertFalse(wizard.source_tabs.isEnabled())
+        self.assertEqual(wizard.currentId(), 0)
+
     def test_folder_scan_is_recursive_bounded_and_skips_office_lock_files(self):
         with tempfile.TemporaryDirectory(dir=native_test_env.test_data.name) as folder:
             root = Path(folder)

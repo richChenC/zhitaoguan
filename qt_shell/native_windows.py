@@ -3860,7 +3860,7 @@ class NativeReportsPage(QWidget):
         self.templates.currentItemChanged.connect(self._template_changed)
         self.templates.hide()
         tools = QHBoxLayout()
-        from .native_report_view import ReportPreview
+        from .native_report_view import ReportPreview, ReportWarnings
         self.preview_text = ReportPreview()
         self.preview_text.cellEdited.connect(self._inline_report_edit)
         tools.addWidget(button("", "chevron-left", lambda: self.preview_text.horizontalScrollBar().triggerAction(
@@ -3920,11 +3920,8 @@ class NativeReportsPage(QWidget):
         footer.addWidget(self.export_copy)
         layout.addLayout(footer)
         layout.addWidget(self.sources_text)
-        self.warnings = QPlainTextEdit()
-        self.warnings.setReadOnly(True)
-        self.warnings.setMaximumHeight(100)
-        self.warnings.hide()
-        layout.addWidget(self.warnings)
+        self.warnings = ReportWarnings()
+        layout.insertWidget(layout.indexOf(self.count_toggle), self.warnings)
         refresh = QPushButton("刷新模板")
         refresh.clicked.connect(self.load)
         refresh.hide()
@@ -4519,11 +4516,8 @@ class NativeReportsPage(QWidget):
         self.sources_text.setPlainText("\n".join(" | ".join("" if value is None else str(value) for value in row)
                                                 for row in data.get("sources", [])))
         warnings = data.get("warnings") or []
-        self.warnings.setPlainText("\n".join(
-            f"{item.get('thimble_id') or '范围'}：{item.get('reason') or '请核查原始资料'}"
-            for item in warnings if isinstance(item, dict)
-        ))
-        self.warnings.setVisible(bool(warnings))
+        self.warnings.set_warnings(warnings, scope=(self.kind.currentData(), self.site.text(),
+                                                  self.unit.value(), self.outage.text(), self.old_outage.text()))
         self.status.setText(
             f"报告预览已生成，{data.get('rows', 0)} 行，{len(warnings)} 条核查提示"
             + ("；50根管完整性未通过，不能导出" if data.get("coverage_complete") is False else "")

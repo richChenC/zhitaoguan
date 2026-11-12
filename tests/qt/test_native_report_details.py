@@ -8,7 +8,7 @@ import native_test_env  # noqa: F401
 from PySide6.QtCore import QCoreApplication, QEvent, QSignalBlocker, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtGui import QTextCursor
-from PySide6.QtWidgets import QApplication, QPlainTextEdit, QMessageBox
+from PySide6.QtWidgets import QApplication, QLabel, QPlainTextEdit, QMessageBox
 
 from qt_shell.native_windows import NativeMainWindow, NativeReportsPage
 from test_native_workflows import Client
@@ -133,6 +133,68 @@ class ReportDetailTests(unittest.TestCase):
         self.app.processEvents()
         image = contents.grab().toImage()
         self.assertGreater(image.pixelColor(image.width() - 3, image.height() - 3).lightness(), 230)
+
+    def test_review_warnings_group_dedupe_and_expand_with_full_evidence(self):
+        from qt_shell.native_report_view import ReportWarnings
+        panel = ReportWarnings()
+        panel.resize(1000, 300)
+        warning = {
+            "thimble_id": 10, "code": "unmatched_history", "old_id": 8, "reason": "超出容差；请核对",
+            "historical": {"outage": "N101", "location": "P3", "volts": 0, "percent": 0, "datapoint": "<b>来源</b>"},
+            "current": {"state": "defects", "defects": 2,
+                        "nearest": {"location": "P3+42", "distance_mm": 42}},
+            "tolerance_mm": .5,
+        }
+        warnings = [warning, dict(warning), {"thimble_id": 2, "code": "missing_tube", "reason": "本次缺少"},
+                    {"reason": "范围不足"}]
+        panel.set_warnings(warnings, scope="N102")
+        panel.show()
+        self.app.processEvents()
+        self.assertEqual(list(panel.groups), ["范围", "2号管", "10号管"])
+        self.assertIn("3 个管号   4 条提示", panel.toggle.text())
+        self.assertFalse(panel.scroll.isVisible())
+        self.assertFalse(panel.groups["10号管"]["built"])
+        QTest.mouseClick(panel.toggle, Qt.MouseButton.LeftButton)
+        group = panel.groups["10号管"]
+        QTest.mouseClick(group["toggle"], Qt.MouseButton.LeftButton)
+        self.app.processEvents()
+        evidence = "\n".join(label.text() for label in group["body"].findChildren(QLabel))
+        self.assertIn("幅值 0 · 深度 0%", evidence)
+        self.assertIn("数据点 <b>来源</b>", evidence)
+        self.assertIn("最近显示 P3+42 · 相距 42 mm · 当前容差 ±0.5 mm", evidence)
+        self.assertIn("不得自动判定为消失", evidence)
+        self.assertTrue(all(label.textFormat() == Qt.TextFormat.PlainText
+                            for label in group["body"].findChildren(QLabel)))
+        panel.set_warnings(warnings, scope="N102")
+        self.assertTrue(panel.toggle.isChecked())
+        self.assertTrue(panel.groups["10号管"]["toggle"].isChecked())
+        panel.resize(600, 300)
+        self.app.processEvents()
+        self.assertEqual(panel._columns, 1)
+        panel.set_warnings(warnings, scope="N103")
+        self.assertFalse(panel.toggle.isChecked())
+        self.assertFalse(panel.groups["10号管"]["toggle"].isChecked())
+        panel.set_warnings([], scope="N103")
+        self.assertTrue(panel.isHidden())
+        self.assertEqual(panel.groups, {})
+
+    def test_review_warning_context_and_missing_ndd_states(self):
+        from qt_shell.native_report_view import ReportWarnings
+        panel = ReportWarnings()
+        panel.set_warnings([
+            {"thimble_id": 1, "current_location": "P3", "historical_locations": ["P3-42"],
+             "shift_mm": -42, "reason": "方向冲突"},
+            {"thimble_id": 2, "code": "unmatched_history", "historical": {"location": "P1"},
+             "current": {"state": "NDD"}},
+            {"thimble_id": 3, "code": "unmatched_history", "historical": {"location": "P2"},
+             "current": {"state": "missing"}},
+        ])
+        for group in panel.groups.values():
+            group["toggle"].setChecked(True)
+        labels = "\n".join(label.text() for label in panel.findChildren(QLabel))
+        self.assertIn("本次位置 P3；历史同 P 位 P3-42；移位 -42 mm。方向冲突", labels)
+        self.assertIn("本次该管全部为 NDD / 无显示", labels)
+        self.assertIn("本次该管无检测记录", labels)
 
     def test_debounce_only_sends_latest_and_stale_response_does_not_replace_draft(self):
         page, client = self.report()

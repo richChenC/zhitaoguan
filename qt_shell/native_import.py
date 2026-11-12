@@ -7,9 +7,10 @@ from threading import Event
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout,
+    QAbstractItemView, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QGridLayout, QHBoxLayout,
     QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
-    QSpinBox, QTableWidget, QTableWidgetItem, QTabBar, QVBoxLayout, QWidget, QWizard, QWizardPage,
+    QScrollArea, QSpinBox, QStackedWidget, QTableWidget, QTableWidgetItem, QTabBar, QVBoxLayout,
+    QWidget, QWizard, QWizardPage,
 )
 from .constants import EXCEL_EXTENSIONS, EXCEL_SCAN_LIMIT, OFFICE_MAX_BYTES
 from .native_components import button, icon
@@ -57,8 +58,9 @@ class _ExcelScan(QRunnable):
         self.signals.finished.emit(files, truncated)
 
 
-class ImportWizard(QWizard):
+class ImportWizard(QDialog):
     imported = Signal(dict)
+    currentIdChanged = Signal(int)
 
     def __init__(self, client, mapping_fields, preferences, parent=None, *, mode="excel"):
         super().__init__(parent)
@@ -67,13 +69,67 @@ class ImportWizard(QWizard):
         self.can_export = permissions is None or "export.create" in permissions
         self.setWindowTitle("导入检测数据")
         self.setObjectName("importWorkspace")
-        self.setWizardStyle(QWizard.WizardStyle.ClassicStyle)
         self.resize(900, 820)
-        self.setMinimumSize(820, 620)
-        self.setButtonText(QWizard.WizardButton.NextButton, "下一步")
-        self.setButtonText(QWizard.WizardButton.BackButton, "上一步")
-        self.setButtonText(QWizard.WizardButton.CancelButton, "取消")
-        self.setButtonText(QWizard.WizardButton.FinishButton, "完成")
+        self.setMinimumSize(640, 500)
+        self._pages = []
+        self._current_page = 0
+        workspace = QVBoxLayout(self)
+        workspace.setContentsMargins(0, 0, 0, 0)
+        workspace.setSpacing(0)
+        heading = QWidget()
+        heading.setObjectName("importHeading")
+        heading.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        heading_layout = QVBoxLayout(heading)
+        heading_layout.setContentsMargins(20, 12, 20, 12)
+        heading_layout.setSpacing(3)
+        eyebrow = QLabel("数据导入")
+        eyebrow.setObjectName("importEyebrow")
+        heading_layout.addWidget(eyebrow)
+        title = QLabel("导入检测数据")
+        title.setObjectName("importTitle")
+        heading_layout.addWidget(title)
+        subtitle = QLabel("选择来源，检查数据，完成入库。")
+        subtitle.setObjectName("muted")
+        heading_layout.addWidget(subtitle)
+        workspace.addWidget(heading)
+        self.source_tabs = QTabBar()
+        self.source_tabs.setObjectName("importSourceTabs")
+        self.source_tabs.setAccessibleName("选择导入来源")
+        self.source_tabs.setExpanding(True)
+        self.source_tabs.setDrawBase(False)
+        self.source_tabs.setFixedHeight(58)
+        self.source_tabs.addTab("标准 Excel\n导入已有 .xls / .xlsx / .xlsm")
+        self.source_tabs.addTab("RPT 文件夹\n逐组确认最终报告")
+        workspace.addWidget(self.source_tabs)
+        self.pages = QStackedWidget()
+        self.pages.setObjectName("importPages")
+        workspace.addWidget(self.pages, 1)
+        self.dock = QWidget()
+        self.dock.setObjectName("importActionDock")
+        self.dock.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        dock_layout = QHBoxLayout(self.dock)
+        dock_layout.setContentsMargins(20, 11, 20, 14)
+        dock_layout.setSpacing(8)
+        self.action_hint = QLabel()
+        self.action_hint.setObjectName("muted")
+        self.action_hint.setWordWrap(True)
+        dock_layout.addWidget(self.action_hint, 1)
+        self._buttons = {}
+        for role, label, callback in (
+            (QWizard.WizardButton.BackButton, "上一步", self.back),
+            (QWizard.WizardButton.CancelButton, "关闭", self.reject),
+            (QWizard.WizardButton.NextButton, "检查数据", self.next),
+            (QWizard.WizardButton.FinishButton, "完成", self.accept),
+        ):
+            control = QPushButton(label)
+            control.setAutoDefault(False)
+            control.clicked.connect(callback)
+            self._buttons[role] = control
+            dock_layout.addWidget(control)
+        for role in (QWizard.WizardButton.NextButton, QWizard.WizardButton.FinishButton):
+            self.button(role).setProperty("primary", True)
+            self.button(role).setMinimumWidth(130)
+        workspace.addWidget(self.dock)
         self.ready_source = self.ready_preview = self.finished = self.busy = self.executing = False
         self.closed = False
         self.sheets, self.options, self.group_controls = [], [], []
@@ -84,22 +140,13 @@ class ImportWizard(QWizard):
         self.file_mappings = {}
         self._mapping_path = ""
         source = self._page("导入检测数据")
-        source.setSubTitle("选择来源，检查数据，完成入库。")
-        self.mode = QComboBox()
+        self.mode = QComboBox(self)
         self.mode.addItem("Excel 工作簿", "excel")
         self.mode.addItem("RPT 数据目录", "directory")
         self.mode.setCurrentIndex(max(0, self.mode.findData(mode)))
-        self.source_tabs = QTabBar()
-        self.source_tabs.setObjectName("importSourceTabs")
-        self.source_tabs.setExpanding(True)
-        self.source_tabs.setDrawBase(False)
-        self.source_tabs.setFixedHeight(58)
-        self.source_tabs.addTab("标准 Excel\n导入已有 .xls / .xlsx / .xlsm")
-        self.source_tabs.addTab("RPT 文件夹\n逐组确认最终报告")
         self.source_tabs.setCurrentIndex(self.mode.currentIndex())
         self.source_tabs.currentChanged.connect(self.mode.setCurrentIndex)
         self.mode.currentIndexChanged.connect(self.source_tabs.setCurrentIndex)
-        source.layout().addWidget(self.source_tabs)
         self.mode.hide()
         self.route_title = QLabel()
         self.route_title.setObjectName("importRouteTitle")
@@ -146,6 +193,8 @@ class ImportWizard(QWizard):
         source.layout().addWidget(self.queue_heading)
         self.queue_table = QTableWidget(0, 2)
         self.queue_table.setObjectName("importQueue")
+        self.queue_table.setMinimumHeight(86)
+        self.queue_table.setMaximumHeight(160)
         self.queue_table.setHorizontalHeaderLabels(["来源文件", "处理状态"])
         self.queue_table.verticalHeader().hide()
         self.queue_table.horizontalHeader().setStretchLastSection(True)
@@ -190,11 +239,13 @@ class ImportWizard(QWizard):
         split = QSplitter()
         split.addWidget(mapping_host)
         self.source_table = QTableWidget()
+        self.source_table.setMinimumSize(240, 220)
         self.source_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         split.addWidget(self.source_table)
         split.setSizes([360, 650])
         mapping.layout().addWidget(split, 1)
         self.report_table = QTableWidget(0, 5)
+        self.report_table.setMinimumHeight(220)
         self.report_table.setHorizontalHeaderLabels(["基地/机组", "大修", "数据组", "候选报告", "记录数"])
         self.report_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.report_table.horizontalHeader().setStretchLastSection(True)
@@ -216,6 +267,7 @@ class ImportWizard(QWizard):
         self.preview_summary.setWordWrap(True)
         preview.layout().addWidget(self.preview_summary)
         self.preview_table = QTableWidget()
+        self.preview_table.setMinimumHeight(240)
         self.preview_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         preview.layout().addWidget(self.preview_table, 1)
         self.preview_errors = QPlainTextEdit()
@@ -232,14 +284,44 @@ class ImportWizard(QWizard):
         result = self._page("导入结果")
         self.result_summary = QLabel()
         self.result_summary.setWordWrap(True)
+        self.result_summary.setTextFormat(Qt.TextFormat.PlainText)
         result.layout().addWidget(self.result_summary)
+        self.result_metrics = QWidget()
+        self.result_metrics.setObjectName("importResultMetrics")
+        metrics = QGridLayout(self.result_metrics)
+        metrics.setContentsMargins(0, 0, 0, 0)
+        metrics.setSpacing(1)
+        self.metric_values = {}
+        for index, (key, label) in enumerate((("parsed", "解析"), ("inserted", "新增"), ("updated", "更新"),
+                                               ("skipped", "跳过"), ("error_total", "问题"))):
+            metric = QWidget()
+            metric.setObjectName("importResultMetric")
+            metric.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            metric_layout = QVBoxLayout(metric)
+            metric_layout.setContentsMargins(10, 8, 10, 8)
+            value = QLabel("0")
+            value.setObjectName("importMetricValue")
+            metric_layout.addWidget(value)
+            caption = QLabel(label)
+            caption.setObjectName("muted")
+            metric_layout.addWidget(caption)
+            self.metric_values[key] = value
+            metrics.addWidget(metric, 0, index)
+        result.layout().addWidget(self.result_metrics)
+        self.result_disclosure = button("查看详细结果", "chevron-right")
+        self.result_disclosure.setCheckable(True)
+        result.layout().addWidget(self.result_disclosure)
         self.result_details = QPlainTextEdit()
         self.result_details.setReadOnly(True)
-        result.layout().addWidget(self.result_details, 1)
+        self.result_details.setMinimumHeight(180)
+        self.result_details.hide()
+        self.result_disclosure.toggled.connect(self.result_details.setVisible)
+        result.layout().addWidget(self.result_details)
         self.retry = QPushButton("修正后重试")
         self.retry.clicked.connect(self.retry_import)
         self.retry.hide()
         result.layout().addWidget(self.retry)
+        result.layout().addStretch()
         self.timer = QTimer(self)
         self.timer.setInterval(400)
         self.timer.timeout.connect(self.poll)
@@ -250,16 +332,87 @@ class ImportWizard(QWizard):
         self.mode.currentIndexChanged.connect(self._source_mode_changed)
         self.currentIdChanged.connect(self.page_changed)
         self._source_mode_changed()
+        self._update_navigation()
 
     def _page(self, title):
         page = QWizardPage()
         page.setTitle(title)
         page.setLayout(QVBoxLayout())
-        self.addPage(page)
+        page.layout().setContentsMargins(20, 14, 20, 14)
+        page.layout().setSpacing(10)
+        if self._pages:
+            heading = QLabel(f"{len(self._pages) + 1}  {title}")
+            heading.setObjectName("importRouteTitle")
+            page.layout().addWidget(heading)
+        scroll = QScrollArea()
+        scroll.setObjectName("importBody")
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(page)
+        self._pages.append(page)
+        self.pages.addWidget(scroll)
         return page
+
+    def button(self, role):
+        return self._buttons[role]
+
+    def setButtonText(self, role, text):
+        self.button(role).setText(text)
+
+    def currentId(self):
+        return self._current_page
+
+    def _update_navigation(self):
+        page = self.currentId()
+        self.button(QWizard.WizardButton.BackButton).setVisible(page in (1, 2))
+        self.button(QWizard.WizardButton.BackButton).setEnabled(not self.busy and page in (1, 2))
+        next_button = self.button(QWizard.WizardButton.NextButton)
+        next_button.setVisible(page < 4)
+        next_button.setEnabled(not self.busy and page != 3)
+        next_button.setText(("检查数据", "预检数据", "开始导入", "正在导入", "")[page])
+        next_button.setDefault(page < 3)
+        finish = self.button(QWizard.WizardButton.FinishButton)
+        finish.setVisible(page == 4)
+        finish.setDefault(page == 4)
+        self.button(QWizard.WizardButton.CancelButton).setEnabled(not self.executing)
+        hints = (
+            "添加 Excel 文件后检查数据。" if self.mode.currentData() == "excel" else "选择检测文件夹后逐组确认最终报告。",
+            "确认来源和字段后预检数据。",
+            "核对预检结果后开始导入。" if self.policy.currentData() != "check" else "本次仅预检，不写入业务记录。",
+            "正在处理，请稍候。",
+            "导入结果以数据库批次记录为准。",
+        )
+        self.action_hint.setText(hints[page])
+
+    def _set_page(self, page):
+        self._current_page = page
+        self.pages.setCurrentIndex(page)
+        self._update_navigation()
+        self.currentIdChanged.emit(page)
+
+    def next(self):
+        if not self.closed and self.currentId() < 4 and self.validateCurrentPage():
+            self._set_page(self.currentId() + 1)
+
+    def back(self):
+        if not self.closed and not self.busy and self.currentId() in (1, 2):
+            self._set_page(self.currentId() - 1)
+
+    def restart(self):
+        self._accept_preflight_once = False
+        self._set_page(0)
+
+    def accept(self):
+        if self.currentId() != 4 or self.executing:
+            return
+        self.closed = True
+        self.timer.stop()
+        super().accept()
 
     def showEvent(self, event):
         super().showEvent(event)
+        available = self.screen().availableGeometry()
+        self.resize(min(self.width(), max(self.minimumWidth(), available.width() - 28)),
+                    min(self.height(), max(self.minimumHeight(), available.height() - 60)))
         theme = "dark" if self.palette().windowText().color().lightness() > 160 else "light"
         for control in self.findChildren(QPushButton):
             name = control.property("iconName")
@@ -286,6 +439,12 @@ class ImportWizard(QWizard):
         self.browse_source.setText("选择文件" if excel else "选择检测文件夹")
         for control in (self.add_files, self.add_folder, self.queue_heading, self.queue_table, self.file_choice):
             control.setVisible(excel)
+        if self.currentId() > 0:
+            self.ready_source = self.ready_preview = self.finished = False
+            self.result = {}
+            self.retry.hide()
+            self.restart()
+        self._update_navigation()
 
     def set_sources(self, paths):
         self.source_paths = list(dict.fromkeys(str(Path(path).resolve()) for path in paths))
@@ -375,9 +534,7 @@ class ImportWizard(QWizard):
 
     def set_busy(self, busy):
         self.busy = busy
-        for role in (QWizard.WizardButton.NextButton, QWizard.WizardButton.BackButton):
-            self.button(role).setEnabled(not busy)
-        self.button(QWizard.WizardButton.CancelButton).setEnabled(not self.executing)
+        self._update_navigation()
         for widget in (self.path, self.mode, self.source_tabs, self.file_choice, self.add_files, self.add_folder,
                        self.browse_source,
                        self.remove_file, self.sheet, self.manual, self.header, self.policy, self.report_table,
@@ -432,12 +589,9 @@ class ImportWizard(QWizard):
         return True
 
     def source_loaded(self, generation, data, error, *, advance=True, path=None):
-        if self.closed:
+        if self.closed or generation != self.generation:
             return
         self.set_busy(False)
-        if generation != self.generation:
-            self.source_status.setText("来源已改变，请重新识别")
-            return
         if error or not data:
             self.source_status.setText(error or "来源识别失败")
             return
@@ -645,6 +799,48 @@ class ImportWizard(QWizard):
                 table.setItem(index, column, QTableWidgetItem(str(row.get(key) if row.get(key) is not None else "")))
         table.resizeColumnsToContents()
 
+    @staticmethod
+    def issue_lines(data):
+        lines = []
+        for source in data.get("files") or [data]:
+            path = source.get("source_path") or source.get("file") or ""
+            prefix = (Path(path).name + " · ") if path else ""
+            sheets = source.get("sheets") or []
+            if sheets:
+                for sheet in sheets:
+                    invalid = sheet.get("invalid_rows") or []
+                    if invalid:
+                        lines.append(f"{prefix}{sheet.get('sheet', '')} · 待核对原始行："
+                                     + "、".join(map(str, invalid)))
+            for issue in source.get("errors") or ([] if sheets else source.get("invalid_rows") or []):
+                if isinstance(issue, dict):
+                    where = " · ".join(str(issue[key]) for key in ("file", "source_path", "sheet_name", "row_number",
+                                                                  "field_name", "type") if issue.get(key) is not None
+                                       and issue.get(key) != "")
+                    message = issue.get("message") or issue.get("error") or issue.get("reason") or "请核对原始资料"
+                    lines.append(prefix + (where + "：" if where else "") + str(message))
+                elif isinstance(issue, int):
+                    lines.append(f"{prefix}待核对原始行：{issue}")
+                else:
+                    lines.append(prefix + str(issue))
+        return lines
+
+    @classmethod
+    def result_description(cls, data):
+        lines = []
+        for source in data.get("files") or [data]:
+            path = source.get("source_path") or source.get("file")
+            if path:
+                lines.append(str(path))
+            if source.get("batch_id"):
+                lines.append(f"导入批次：{source['batch_id']}")
+            lines.append(f"解析 {source.get('parsed', source.get('parsed_total', 0))} 条；"
+                         f"新增 {source.get('inserted', 0)} 条；更新 {source.get('updated', 0)} 条；"
+                         f"跳过 {source.get('skipped', 0)} 条")
+        issues = cls.issue_lines(data)
+        lines.extend(["", "待核对问题"] + issues if issues else ["", "本次结果没有返回待核对问题。"])
+        return "\n".join(lines)
+
     def preflight_loaded(self, data, error):
         if self.closed:
             return
@@ -664,10 +860,7 @@ class ImportWizard(QWizard):
         self.fill_table(self.preview_table, [("outage", "大修"), ("unit_id", "机组"), ("thimble_id", "通道"),
                                             ("indication", "三字符"), ("percent", "磨损深度"),
                                             ("location", "位置"), ("filename", "文件")], rows)
-        import json
-        errors = data.get("errors") or data.get("invalid_rows") or []
-        self.preview_errors.setPlainText("\n".join(
-            row if isinstance(row, str) else json.dumps(row, ensure_ascii=False) for row in errors) or "预检未报告错误")
+        self.preview_errors.setPlainText("\n".join(self.issue_lines(data)) or "预检未报告错误")
         # Advance directly because validateCurrentPage would otherwise rerun preflight.
         self.ready_preview = True
         self._advance_after_preflight()
@@ -677,9 +870,6 @@ class ImportWizard(QWizard):
         self.next()
 
     def page_changed(self, page):
-        if page == 4:
-            self.button(QWizard.WizardButton.BackButton).setEnabled(False)
-        self.setButtonText(QWizard.WizardButton.NextButton, "开始导入" if page == 2 else "下一步")
         if page == 3 and not self.executing and not self.finished:
             if self.policy.currentData() == "check":
                 self.commit_loaded({**self.result, "check_only": True}, None)
@@ -713,12 +903,11 @@ class ImportWizard(QWizard):
         self.finished = True
         self.set_busy(False)
         self.button(QWizard.WizardButton.BackButton).setEnabled(False)
-        import json
         if error or not data:
             self.retry.show()
             self.result_summary.setText("导入失败：" + (error or "没有返回结果"))
             self.result_details.setPlainText("请在质量与操作审计中查看失败批次，修正来源后重新导入。\n"
-                                             + json.dumps(self.result, ensure_ascii=False, indent=2))
+                                             + self.result_description(self.result))
         else:
             self.result = data
             if data.get("check_only"):
@@ -729,13 +918,21 @@ class ImportWizard(QWizard):
                 self.result_summary.setText(f"新增 {data.get('inserted', 0)} 条，更新 {data.get('updated', 0)} 条，"
                                             f"跳过 {data.get('skipped', 0)} 条；批次 {batch_label}")
                 self.imported.emit(data)
-            self.result_details.setPlainText(json.dumps(data, ensure_ascii=False, indent=2))
+            self.result_details.setPlainText(self.result_description(data))
+        for key, label in self.metric_values.items():
+            value = self.result.get(key, self.result.get("invalid_count", 0) if key == "error_total" else 0)
+            if key == "parsed":
+                value = self.result.get("parsed", self.result.get("parsed_total", 0))
+            label.setText(f"{int(value or 0):,}")
+        self.result_metrics.setVisible(bool(self.result))
+        self.result_disclosure.setChecked(bool(error))
         self.next()
 
     def retry_import(self):
         self.ready_source = self.ready_preview = self.finished = self.busy = self.executing = False
         self.generation += 1
         self.result = {}
+        self.result_disclosure.setChecked(False)
         self.retry.hide()
         self.source_status.setText("")
         self.restart()

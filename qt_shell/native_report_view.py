@@ -7,8 +7,195 @@ import re
 
 from PySide6.QtCore import QEvent, QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QTextDocument
-from PySide6.QtWidgets import (QPlainTextEdit, QScrollArea, QStyledItemDelegate, QStyle, QStyleOptionViewItem,
-                               QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QGridLayout, QHBoxLayout, QLabel, QPlainTextEdit, QScrollArea,
+                               QStyledItemDelegate, QStyle, QStyleOptionViewItem, QTableWidget,
+                               QTableWidgetItem, QVBoxLayout, QWidget)
+
+from .native_components import button
+
+
+class ReportWarnings(QWidget):
+    """Tube-grouped review evidence, with details built only when opened."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("reportWarnings")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.toggle = button("", "chevron-right")
+        self.toggle.setObjectName("reportWarningToggle")
+        self.toggle.setCheckable(True)
+        self.toggle.toggled.connect(self._toggle)
+        layout.addWidget(self.toggle)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setMinimumHeight(120)
+        self.scroll.setMaximumHeight(260)
+        self.scroll.setObjectName("reportWarningScroll")
+        self.contents = QWidget()
+        self.contents.setObjectName("reportWarningContents")
+        self.contents.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.grid = QGridLayout(self.contents)
+        self.grid.setContentsMargins(10, 0, 10, 10)
+        self.grid.setSpacing(7)
+        self.grid.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.scroll.setWidget(self.contents)
+        layout.addWidget(self.scroll)
+        self.groups = {}
+        self._scope = None
+        self._columns = 0
+        self.scroll.hide()
+        self.hide()
+
+    def _toggle(self, opened):
+        self.scroll.setVisible(opened)
+        self.toggle.setProperty("iconName", "chevron-down" if opened else "chevron-right")
+        from .native_components import icon
+        theme = "dark" if self.palette().windowText().color().lightness() > 160 else "light"
+        self.toggle.setIcon(icon(self.toggle.property("iconName"), theme))
+
+    @staticmethod
+    def _value(value):
+        return "/" if value is None or not str(value).strip() else str(value)
+
+    @staticmethod
+    def _label(text, name=""):
+        label = QLabel(str(text))
+        label.setObjectName(name)
+        label.setTextFormat(Qt.TextFormat.PlainText)
+        label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        label.setWordWrap(True)
+        label.setMinimumWidth(0)
+        return label
+
+    def set_warnings(self, warnings, *, scope=None):
+        same_scope = scope == self._scope
+        expanded = {tube for tube, group in self.groups.items() if group["toggle"].isChecked()} if same_scope else set()
+        vertical = self.scroll.verticalScrollBar().value() if same_scope else 0
+        self._scope = scope
+        if not same_scope:
+            self.toggle.setChecked(False)
+        while self.grid.count():
+            item = self.grid.takeAt(0)
+            item.widget().hide()
+            item.widget().deleteLater()
+        self.groups.clear()
+        grouped = {}
+        valid = [item for item in warnings if isinstance(item, dict)]
+        for warning in valid:
+            tube = warning.get("thimble_id")
+            key = "范围" if tube is None else f"{tube}号管"
+            rows = grouped.setdefault(key, [])
+            if not any(all(row.get(field) == warning.get(field) for field in ("reason", "code", "old_id"))
+                       for row in rows):
+                rows.append(warning)
+        for tube in sorted(grouped, key=lambda key: (-1, "") if key == "范围" else
+                           (int(re.match(r"\d+", key)[0]), key) if re.match(r"\d+", key) else (10**9, key)):
+            rows = grouped[tube]
+            group = QWidget()
+            group.setObjectName("reportWarningGroup")
+            group.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            box = QVBoxLayout(group)
+            box.setContentsMargins(10, 8, 10, 8)
+            box.setSpacing(6)
+            code = {"unmatched_history": "历史未匹配", "missing_tube": "缺少检测记录",
+                    "incomplete_tube_result": "结论不完整"}.get(rows[0].get("code"), "待核查")
+            control = button(f"{tube}   {code}   {len(rows)} 条", "chevron-right")
+            control.setObjectName("reportWarningGroupToggle")
+            control.setCheckable(True)
+            control.setAccessibleName(f"{tube} {code} {len(rows)}条")
+            box.addWidget(control)
+            reason = rows[0].get("reason") or "请核对原始资料和导入记录"
+            headline = self._label(reason.split("；")[0], "reportWarningHeadline")
+            box.addWidget(headline)
+            body = QWidget()
+            body.setObjectName("reportWarningBody")
+            body.setLayout(QVBoxLayout())
+            body.layout().setContentsMargins(0, 6, 0, 0)
+            body.layout().setSpacing(8)
+            box.addWidget(body)
+            body.hide()
+            entry = {"widget": group, "toggle": control, "body": body, "warnings": rows, "built": False}
+            self.groups[tube] = entry
+            control.toggled.connect(lambda opened, entry=entry: self._group_toggled(entry, opened))
+            control.setChecked(tube in expanded)
+        self.toggle.setText(f"需人工核查   {len(grouped)} 个管号   {len(valid)} 条提示")
+        self._columns = 0
+        self._reflow()
+        self.setVisible(bool(valid))
+        self.scroll.setVisible(bool(valid) and self.toggle.isChecked())
+        self.scroll.verticalScrollBar().setValue(vertical)
+
+    def _group_toggled(self, entry, opened):
+        if opened and not entry["built"]:
+            for warning in entry["warnings"]:
+                self._add_detail(entry["body"].layout(), warning)
+            entry["built"] = True
+        entry["body"].setVisible(opened)
+        from .native_components import icon
+        name = "chevron-down" if opened else "chevron-right"
+        entry["toggle"].setProperty("iconName", name)
+        theme = "dark" if self.palette().windowText().color().lightness() > 160 else "light"
+        entry["toggle"].setIcon(icon(name, theme))
+
+    def _add_detail(self, layout, warning):
+        reason = warning.get("reason") or "请核对原始资料和导入记录"
+        history = warning.get("historical")
+        if warning.get("code") != "unmatched_history" or not isinstance(history, dict):
+            context = ""
+            if warning.get("current_location"):
+                context = f"本次位置 {warning['current_location']}"
+                locations = [str(value) for value in warning.get("historical_locations", []) if value]
+                if locations:
+                    context += "；历史同 P 位 " + "、".join(locations)
+                if warning.get("shift_mm"):
+                    shift = warning["shift_mm"]
+                    context += f"；移位 {'+' if float(shift) > 0 else ''}{shift} mm"
+            layout.addWidget(self._label((context + "。" if context else "") + reason, "reportWarningReason"))
+            return
+        layout.addWidget(self._label("未匹配原因  " + reason, "reportWarningReason"))
+        compare = QWidget()
+        columns = QHBoxLayout(compare)
+        columns.setContentsMargins(0, 0, 0, 0)
+        old = (f"历史记录\n{self._value(history.get('outage'))} · {self._value(history.get('location'))}\n"
+               f"幅值 {self._value(history.get('volts'))} · 深度 "
+               f"{self._value(history.get('percent'))}{'%' if history.get('percent') not in (None, '') else ''}"
+               f" · 数据点 {self._value(history.get('datapoint'))}")
+        current = warning.get("current") or {}
+        state = current.get("state")
+        state_text = ("本次该管无检测记录" if state == "missing" else
+                      "本次该管全部为 NDD / 无显示" if state == "NDD" else
+                      f"本次该管有 {current['defects']} 条缺陷显示；这条历史记录没有匹配" if current.get("defects") else
+                      "本次该管没有缺陷显示")
+        now = "本次情况\n" + state_text
+        nearest = current.get("nearest")
+        if nearest:
+            now += (f"\n最近显示 {self._value(nearest.get('location'))} · 相距 "
+                    f"{self._value(nearest.get('distance_mm'))} mm · 当前容差 "
+                    f"±{self._value(warning.get('tolerance_mm'))} mm")
+        columns.addWidget(self._label(old, "reportWarningEvidence"), 1)
+        columns.addWidget(self._label(now, "reportWarningEvidence"), 1)
+        layout.addWidget(compare)
+        layout.addWidget(self._label("不得自动判定为消失或 NDD，须人工核对原始报告。", "reportWarningRequirement"))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._reflow()
+
+    def _reflow(self):
+        columns = 2 if self.width() >= 760 else 1
+        if columns == self._columns:
+            return
+        self._columns = columns
+        while self.grid.count():
+            self.grid.takeAt(0)
+        self.grid.setColumnStretch(1, 1 if columns == 2 else 0)
+        self.grid.setColumnStretch(0, 1)
+        for index, entry in enumerate(self.groups.values()):
+            self.grid.addWidget(entry["widget"], index // columns, index % columns,
+                                Qt.AlignmentFlag.AlignTop)
 
 
 class FormParser(HTMLParser):

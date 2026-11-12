@@ -63,6 +63,23 @@ public class NativeProbeWindow {
         },IntPtr.Zero);
         return result!=IntPtr.Zero ? result : hidden;
     }
+    public static IntPtr FindNamed(uint pid, string title) {
+        IntPtr result=IntPtr.Zero;
+        EnumWindows((h,l)=> {
+            uint p; GetWindowThreadProcessId(h,out p);
+            if(p==pid && IsWindowVisible(h)) {
+                var b=new StringBuilder(512); GetWindowText(h,b,512);
+                if(b.ToString()==title) { result=h; return false; }
+            }
+            return true;
+        },IntPtr.Zero);
+        return result;
+    }
+    public static Rect Bounds(IntPtr handle) {
+        Rect bounds;
+        if(!GetWindowRect(handle,out bounds)) throw new InvalidOperationException("GetWindowRect failed");
+        return bounds;
+    }
 }
 '@
 $appRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
@@ -131,8 +148,8 @@ function Find-NamedControl($window, [string]$name) {
 function Capture([string]$name) {
     $path = Join-Path $work ($name + '.png')
     # Capture only this process's window even when another app covers it.
-    $bounds = $window.Current.BoundingRectangle
-    $bitmap = [Drawing.Bitmap]::new([int]$bounds.Width, [int]$bounds.Height)
+    $bounds = [NativeProbeWindow]::Bounds([IntPtr]$window.Current.NativeWindowHandle)
+    $bitmap = [Drawing.Bitmap]::new($bounds.Right-$bounds.Left, $bounds.Bottom-$bounds.Top)
     $graphics = [Drawing.Graphics]::FromImage($bitmap)
     $dc = $graphics.GetHdc()
     try {
@@ -234,6 +251,35 @@ try {
             $result.steps += 'real-data-3D-scope-controls'
         }
     }
+    $importButton = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) '导入数据' |
+        Where-Object { -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
+    if ($importButton.Count -ne 1) { throw 'Native import entry missing' }
+    Activate-Control $importButton[0]
+    $importWindow = $null
+    for ($attempt=0; $attempt -lt 100 -and -not $importWindow; $attempt++) {
+        Start-Sleep -Milliseconds 100
+        $importHandle = [NativeProbeWindow]::FindNamed($process.Id, '导入检测数据')
+        if ($importHandle -ne [IntPtr]::Zero) {
+            $importWindow = [System.Windows.Automation.AutomationElement]::FromHandle($importHandle)
+        }
+    }
+    if (-not $importWindow) { throw 'Native import workspace did not appear' }
+    $window = $importWindow
+    $sourceTabs = @(Find-Control $window ([System.Windows.Automation.ControlType]::TabItem))
+    $result.import_tabs = @($sourceTabs | ForEach-Object { $_.Current.Name })
+    $rptTab = @($sourceTabs | Where-Object { $_.Current.Name -like '*RPT 文件夹*' })
+    if ($rptTab.Count -ne 1) { throw 'Persistent native import source tabs missing' }
+    $rptTab[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    Start-Sleep -Milliseconds 200
+    if ((Find-Control $window ([System.Windows.Automation.ControlType]::Button) '选择检测文件夹').Count -ne 1) {
+        throw 'Native RPT source route did not switch'
+    }
+    Capture 'frozen-native-import-rpt'
+    [NativeProbeWindow]::PostMessage([IntPtr]$window.Current.NativeWindowHandle, 0x0010,
+                                    [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+    Start-Sleep -Milliseconds 250
+    $window = Wait-Window
+    $result.steps += 'native-import-workspace-source-tabs'
     $result.loaded_modules = @($process.Modules | Where-Object { $_.ModuleName -match 'Qt6|WebEngine|Chromium' } |
         ForEach-Object { $_.ModuleName })
     if ($result.loaded_modules | Where-Object { $_ -match 'WebEngine|Chromium|WebChannel' }) {
@@ -250,6 +296,11 @@ try {
     $result.error = $_.ToString()
 } finally {
     if ($process -and -not $process.HasExited) {
+        $importHandle = [NativeProbeWindow]::FindNamed($process.Id, '导入检测数据')
+        if ($importHandle -ne [IntPtr]::Zero) {
+            [NativeProbeWindow]::PostMessage($importHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+            Start-Sleep -Milliseconds 200
+        }
         $window = Find-Window
         if ($window) {
             [NativeProbeWindow]::PostMessage([IntPtr]$window.Current.NativeWindowHandle, 0x0010,

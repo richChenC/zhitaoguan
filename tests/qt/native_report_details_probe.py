@@ -273,6 +273,82 @@ def main():
         until(app, lambda: bool(reports.snapshot_id), "restore all report")
         result["report"] = {"multiline": True, "automatic_sync": True, "single_restore": True,
                             "undo": True, "all_restore": True, "scope": reports.scope_bar.values()}
+        window.context.set_scope({"site": "H", "unit": "2", "outage": "H204"})
+        reports.kind.setCurrentIndex(reports.kind.findData("comparison"))
+        until(app, lambda: reports.history_combo.findText("H203") >= 0, "H203 history option")
+        reports.history_combo.setCurrentIndex(reports.history_combo.findText("H203"))
+        until(app, lambda: bool(reports.snapshot_id) and reports.preview_payload.get("old") == "H203"
+              and reports.preview_payload.get("outage") == "H204", "comparison warning evidence", 30)
+        warning_data = request(client, "POST", "/api/reports/preview", reports._payload(), timeout=30)
+        warnings = warning_data.get("warnings") or []
+        assert warnings and reports.warnings.groups
+        unique_tubes = {"范围" if row.get("thimble_id") is None else f"{row['thimble_id']}号管"
+                        for row in warnings}
+        assert set(reports.warnings.groups) == unique_tubes
+        click(reports.warnings.toggle)
+        group = next((entry for entry in reports.warnings.groups.values()
+                      if any(row.get("code") == "unmatched_history" for row in entry["warnings"])),
+                     next(iter(reports.warnings.groups.values())))
+        reports.warnings.scroll.ensureWidgetVisible(group["toggle"])
+        click(group["toggle"])
+        for width, height, theme in ((1024, 768, "light"), (1480, 940, "dark")):
+            window.context.preferences.save(theme=theme)
+            window.apply_preferences()
+            window.resize(width, height)
+            wait(app, 150)
+            reports.warnings.scroll.ensureWidgetVisible(group["toggle"])
+            name = f"report-warnings-{width}-{theme}.png"
+            window.grab().save(str(work / name))
+            result["screens"].append(name)
+            assert reports.warnings.scroll.height() <= 260
+            assert reports.warnings.width() <= reports.width()
+        result["warnings"] = {"raw_count": len(warnings), "groups": len(unique_tubes),
+                              "expanded": group["toggle"].text(), "native_disclosure": True}
+
+        from qt_shell.native_import import ImportWizard
+        from qt_shell.native_windows import DataWorkbench
+        from PySide6.QtWidgets import QWizard
+        result["import_workspace"] = []
+        for width, height, theme in ((900, 700, "light"), (700, 560, "dark")):
+            window.context.preferences.save(theme=theme)
+            window.apply_preferences()
+            wizard = ImportWizard(client, DataWorkbench.MAPPING_FIELDS, {}, window)
+            wizard.resize(width, height)
+            wizard.show()
+            wizard.set_sources([native.parent / "指套管检测数据_按原工作表整理.xlsx"])
+
+            def capture_import(stage):
+                wait(app, 120)
+                assert wizard.source_tabs.isVisible() and wizard.dock.isVisible()
+                assert wizard.dock.geometry().bottom() < wizard.height()
+                assert wizard.pages.geometry().bottom() < wizard.dock.geometry().top()
+                assert wizard.width() <= width and wizard.height() <= height
+                image = wizard.grab().toImage()
+                if theme == "dark":
+                    assert image.pixelColor(5, 5).lightness() < 128
+                name = f"import-{stage}-{width}-{theme}.png"
+                image.save(str(work / name))
+                result["screens"].append(name)
+
+            capture_import("source")
+            click(wizard.button(QWizard.WizardButton.NextButton))
+            until(app, lambda: wizard.currentId() == 1, "Excel mapping in native workspace", 60)
+            capture_import("mapping")
+            wizard.policy.setCurrentIndex(wizard.policy.findData("check"))
+            click(wizard.button(QWizard.WizardButton.NextButton))
+            until(app, lambda: wizard.currentId() == 2, "Excel workspace preflight", 60)
+            capture_import("preflight")
+            before = request(client, "GET", "/api/findings?size=1")["total"]
+            click(wizard.button(QWizard.WizardButton.NextButton))
+            until(app, lambda: wizard.currentId() == 4, "Excel workspace check result", 30)
+            assert request(client, "GET", "/api/findings?size=1")["total"] == before
+            capture_import("result")
+            parsed = wizard.metric_values["parsed"].text()
+            assert parsed != "0"
+            click(wizard.button(QWizard.WizardButton.FinishButton))
+            wizard.deleteLater()
+            result["import_workspace"].append({"size": [width, height], "theme": theme,
+                                                "parsed": parsed, "check_wrote": 0, "fixed_dock": True})
         result["passed"] = True
     except Exception:
         import traceback

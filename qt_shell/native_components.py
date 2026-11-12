@@ -1030,6 +1030,21 @@ def workspace_styles(theme="light", density="comfortable"):
         QWidget#reportDraftPanel {{ background:{surface}; border-left:1px solid {line}; }}
         QWidget#reportDraftContents {{ background:{surface}; }}
         QWidget#reportDraftEntry {{ border-bottom:1px solid {line}; }}
+        QWidget#reportWarnings, QWidget#reportWarningContents {{
+            background:{"#302d22" if dark else "#fffaf0"}; }}
+        QScrollArea#reportWarningScroll {{ border:0; background:transparent; }}
+        QWidget#reportWarningGroup {{ background:{"#343024" if dark else "#fffdf7"};
+            border:1px solid {"#675936" if dark else "#eadfbe"}; border-radius:5px; }}
+        QPushButton#reportWarningToggle, QPushButton#reportWarningGroupToggle {{
+            text-align:left; border:0; background:transparent; color:{"#ebcd91" if dark else "#634d20"};
+            padding:2px 6px; }}
+        QLabel#reportWarningHeadline {{ color:{"#c7b68f" if dark else "#8a7650"}; font-size:10px; }}
+        QLabel#reportWarningReason {{ color:{"#e2cc9e" if dark else "#6b5320"}; font-size:11px; }}
+        QLabel#reportWarningEvidence {{ background:{surface}; color:{text}; padding:6px;
+            border:1px solid {"#675936" if dark else "#efe3c6"}; border-radius:4px; font-size:10px; }}
+        QLabel#reportWarningRequirement {{ background:{"#403821" if dark else "#fdf4e2"};
+            color:{"#ebcd91" if dark else "#8a6417"}; border-left:3px solid #c58a22;
+            padding:4px 8px; font-size:10px; }}
         QWidget#settingsSidebar {{ background:{surface}; border:1px solid {line}; border-radius:7px; }}
         QListWidget#settingsNav {{ border:0; padding:0; }}
         QListWidget#settingsNav::item {{ padding:0; min-height:66px; }}
@@ -1056,7 +1071,14 @@ def workspace_styles(theme="light", density="comfortable"):
         QTabBar#mainNavigation::tab:selected {{ background:{accent_soft}; border-color:{line}; color:{accent}; }}
         QLabel#pageTitle {{ color:{text}; font-size:20px; font-weight:600; padding-top:2px; }}
         QLabel#muted {{ color:{muted}; }}
-        QWizard#importWorkspace QWizardPage {{ background:{bg}; }}
+        QDialog#importWorkspace, QDialog#importWorkspace QWizardPage {{ background:{bg}; }}
+        QScrollArea#importBody {{ background:{bg}; border:0; }}
+        QWidget#importHeading {{ background:{surface}; border-bottom:1px solid {line}; }}
+        QLabel#importEyebrow {{ color:{accent}; font-size:10px; }}
+        QLabel#importTitle {{ color:{text}; font-size:19px; font-weight:600; }}
+        QWidget#importActionDock {{ background:{surface}; border-top:1px solid {line}; }}
+        QWidget#importResultMetric {{ background:{surface}; border:1px solid {line}; }}
+        QLabel#importMetricValue {{ color:{accent}; font-size:16px; font-weight:600; }}
         QWidget#importSourcePanel {{ background:{surface}; border:1px solid {line}; border-radius:7px; }}
         QLabel#importRouteTitle {{ font-size:13px; font-weight:600; }}
         QTabBar#importSourceTabs::tab {{ min-height:40px; padding:7px 12px; text-align:left; font-size:11px; }}
