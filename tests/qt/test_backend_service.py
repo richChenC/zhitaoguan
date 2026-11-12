@@ -17,7 +17,7 @@ TEST_ARTIFACT_ROOT = Path(os.environ.get(
 
 class BackendEnvironmentTests(unittest.TestCase):
     def test_staged_backend_is_installed_after_normal_startup_lock(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory(prefix="staged-backend-", dir=TEST_ARTIFACT_ROOT) as directory:
             root = Path(directory)
             target = root / "backend" / "thimble-backend.exe"
             staged = root / "backend-next" / "thimble-backend.exe"
@@ -29,7 +29,7 @@ class BackendEnvironmentTests(unittest.TestCase):
                  patch.object(shell_main.sys, "frozen", False, create=True), \
                  patch.dict(os.environ, {"THIMBLE_QT_TEST_DATA_ROOT": ""}):
                 shell_main._install_staged_backend(backend_module.ServiceLog(root / "test.log"))
-            self.assertEqual(target.read_bytes(), b"new")
+            self.assertEqual(target.read_bytes(), b"new", (root / "test.log").read_text(encoding="utf-8"))
             self.assertFalse(staged.exists())
 
     def test_source_is_preferred_only_for_nonfrozen_shell(self):

@@ -94,7 +94,14 @@ def run(app, window, client, work, scope, request, wait, until):
         wait(app, 100)
         click(wizard.button(QWizard.WizardButton.NextButton))
         until(app, lambda: wizard.currentId() == 1, "real RPT candidates", 60)
-        assert len(wizard.group_controls) >= 1, wizard.mapping_note.text()
+        assert len(wizard.report_choice.groups) >= 1, wizard.mapping_note.text()
+        until(app, lambda: wizard.report_choice.isVisible(), "RPT companion window")
+        rpt_groups = len(wizard.report_choice.groups)
+        for group_index in range(rpt_groups):
+            assert wizard.report_choice.index == group_index
+            click(wizard.report_choice.confirm)
+        assert wizard.report_choice.complete
+        assert not wizard.report_choice.isVisible()
         if attempt == 0:
             count_before = request(client, "GET", "/api/findings?size=1")["total"]
             output = work / "rpt-standard-only.xlsx"
@@ -133,7 +140,8 @@ def run(app, window, client, work, scope, request, wait, until):
         wizard.deleteLater()
     assert directory_runs[1]["inserted"] == 0
     assert directory_runs[1]["skipped"] > 0
-    result["rpt"] = {"groups": len(wizard.group_controls), "first_inserted": directory_runs[0]["inserted"],
+    result["rpt"] = {"groups": rpt_groups, "explicit_group_confirmation": True,
+                     "first_inserted": directory_runs[0]["inserted"],
                      "repeat_inserted": directory_runs[1]["inserted"],
                      "repeat_skipped": directory_runs[1]["skipped"]}
 

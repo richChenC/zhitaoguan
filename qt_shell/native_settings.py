@@ -315,8 +315,13 @@ class SettingsDialog(QDialog):
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
         self.nav.setMinimumHeight(self.nav.count() * 66 + 8)
         self.nav.setCurrentRow(0)
+        self.preferences.changed.connect(self._sync_report_policy)
         if "backup.manage" in self.permissions:
             client.get("/api/backup-policy", self._policy_loaded)
+
+    def _sync_report_policy(self):
+        with QSignalBlocker(self.policy):
+            self.policy.setCurrentIndex(self.policy.findData(self.preferences.values["report_policy"]))
 
     def add_page(self, text, widget, *, subtitle="", title=None, scroll=False):
         widget.setObjectName(widget.objectName() or "settingsPage")

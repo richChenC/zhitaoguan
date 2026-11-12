@@ -1190,6 +1190,7 @@ class NativeParityTests(unittest.TestCase):
         report = {"path": "source/one.rpt", "outage": "N101", "unit_id": 1, "site_code": "N",
                   "group": "one", "sha256": "rpt-hash", "sum_sha256": "sum-hash", "records": 2}
         wizard.source_loaded(wizard.generation, {"reports": [report]}, None, advance=False)
+        wizard.report_choice.confirm_current()
         wizard.export_directory()
         self.assertEqual(client.requests[-1][1], "/api/export-folder-excel")
         self.assertEqual(client.requests[-1][2]["report_confirmation"]["candidates"][0]["sha256"], "rpt-hash")

@@ -997,6 +997,19 @@ def workspace_styles(theme="light", density="comfortable"):
     return f"""
         QWidget {{ color:{text}; font-family:"Microsoft YaHei","Microsoft YaHei UI","Segoe UI",sans-serif; font-size:12px; }}
         QMainWindow, QDialog, QWidget#appRoot, QWidget#workspaceBody {{ background:{bg}; }}
+        QDialog#reportChoiceDialog {{ background:{surface}; border:1px solid {line}; }}
+        QLabel#reportChoiceTitle {{ font-size:18px; font-weight:600; }}
+        QWidget#reportChoiceOptions, QWidget#reportChoiceOverview {{ background:{surface}; }}
+        QWidget#reportCandidate {{ background:{surface}; border-bottom:1px solid {line}; }}
+        QWidget#reportCandidate[selected="true"] {{ background:{accent_soft}; border-left:3px solid {accent}; }}
+        QLabel#reportAnalystHeading {{ color:{muted}; font-size:11px; font-weight:600; }}
+        QLabel#reportCandidateName {{ font-size:13px; font-weight:600; }}
+        QLabel#reportCandidateSource {{ color:{muted}; font-size:10px; }}
+        QLabel#reportChoiceWarning {{ color:{"#e2bd75" if dark else "#926824"}; font-size:11px; }}
+        QToolButton#reportGroupChoice {{ border:1px solid {line}; background:{control}; border-radius:4px;
+            padding:0; min-width:0; min-height:0; }}
+        QToolButton#reportGroupChoice[confirmed="true"] {{ background:{accent_soft}; color:{accent}; }}
+        QToolButton#reportGroupChoice[current="true"] {{ border:2px solid {accent}; }}
         QScrollArea {{ background:{bg}; border:0; }}
         QWidget#topNavigation {{ background:{surface}; border-bottom:1px solid {line}; }}
         QPushButton#accountIdentity {{ background:transparent; border:0; border-right:1px solid {line};

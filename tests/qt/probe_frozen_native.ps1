@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory)][string]$Exe,
     [Parameter(Mandatory)][string]$Database,
-    [Parameter(Mandatory)][string]$Output
+    [Parameter(Mandatory)][string]$Output,
+    [string]$RptDirectory
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
@@ -44,6 +45,14 @@ public class NativeProbeWindow {
         var position=new IntPtr((p.Y<<16)|(p.X&0xFFFF));
         PostMessage(popup,0x0201,new IntPtr(1),position);
         PostMessage(popup,0x0202,IntPtr.Zero,position);
+        return true;
+    }
+    public static bool ClickWindow(IntPtr handle, int x, int y) {
+        var p=new Point { X=x, Y=y };
+        if(!ScreenToClient(handle,ref p)) return false;
+        var position=new IntPtr((p.Y<<16)|(p.X&0xFFFF));
+        PostMessage(handle,0x0201,new IntPtr(1),position);
+        PostMessage(handle,0x0202,IntPtr.Zero,position);
         return true;
     }
     public static IntPtr Find(uint pid) {
@@ -334,6 +343,75 @@ try {
         throw 'Native RPT source route did not switch'
     }
     Capture 'frozen-native-import-rpt'
+    if ($RptDirectory) {
+        $sourcePath = Find-Control $window ([System.Windows.Automation.ControlType]::Edit) '导入来源路径'
+        if ($sourcePath.Count -ne 1) { throw 'Native import source path missing' }
+        $sourcePath[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($RptDirectory)
+        $scan = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '检查数据'
+        if ($scan.Count -ne 1) { throw 'Native RPT scan action missing' }
+        Activate-Control $scan[0]
+        $choiceHandle = [IntPtr]::Zero
+        for ($attempt=0; $attempt -lt 600 -and $choiceHandle -eq [IntPtr]::Zero; $attempt++) {
+            Start-Sleep -Milliseconds 150
+            $choiceHandle = [NativeProbeWindow]::FindNamed($process.Id, '选择分析报告')
+        }
+        if ($choiceHandle -eq [IntPtr]::Zero) { throw 'RPT companion window did not open after real scan' }
+        $window = [System.Windows.Automation.AutomationElement]::FromHandle($choiceHandle)
+        Capture 'frozen-rpt-companion'
+        $confirmedGroups = 0
+        $result.rpt_group_selection = @()
+        while ($confirmedGroups -lt 200) {
+            $radios = Find-Control $window ([System.Windows.Automation.ControlType]::RadioButton)
+            if ($radios.Count -eq 0) { throw 'RPT report candidates missing' }
+            $candidateName = $radios[0].Current.Name
+            $candidateBounds = $radios[0].Current.BoundingRectangle
+            if (-not [NativeProbeWindow]::ClickWindow($choiceHandle,
+                [int]($candidateBounds.X+$candidateBounds.Width/2),
+                [int]($candidateBounds.Y+$candidateBounds.Height/2))) { throw 'Could not click RPT candidate' }
+            $selection = $radios[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
+            for ($attempt=0; $attempt -lt 40 -and -not $selection.Current.IsSelected; $attempt++) {
+                Start-Sleep -Milliseconds 50
+            }
+            if (-not $selection.Current.IsSelected) { Capture 'frozen-rpt-unselected'; throw 'RPT candidate did not become selected' }
+            $result.rpt_group_selection += $candidateName
+            $finishChoice = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '完成确认'
+            if ($finishChoice.Count -eq 1) {
+                Activate-Control $finishChoice[0]
+                $confirmedGroups++
+                break
+            }
+            $nextChoice = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '下一个'
+            if ($nextChoice.Count -ne 1) { throw 'RPT next-group action missing' }
+            Activate-Control $nextChoice[0]
+            $confirmedGroups++
+            $nextGroupNumber = $confirmedGroups + 1
+            $advanced = $false
+            for ($attempt=0; $attempt -lt 40 -and -not $advanced; $attempt++) {
+                Start-Sleep -Milliseconds 50
+                $stepLabels = Find-Control $window ([System.Windows.Automation.ControlType]::Text)
+                $advanced = @($stepLabels | Where-Object {
+                    $_.Current.Name -like "Report 确认 $nextGroupNumber / *"
+                }).Count -gt 0
+            }
+            if (-not $advanced) { Capture 'frozen-rpt-no-advance'; throw 'RPT group confirmation did not advance' }
+        }
+        for ($attempt=0; $attempt -lt 40; $attempt++) {
+            if ([NativeProbeWindow]::FindNamed($process.Id, '选择分析报告') -eq [IntPtr]::Zero) { break }
+            Start-Sleep -Milliseconds 50
+        }
+        if ([NativeProbeWindow]::FindNamed($process.Id, '选择分析报告') -ne [IntPtr]::Zero) {
+            Capture 'frozen-rpt-incomplete'
+            throw 'Explicit RPT confirmation did not close the companion window'
+        }
+        $window = $importWindow
+        $summaryLabels = Find-Control $window ([System.Windows.Automation.ControlType]::Text)
+        if (-not @($summaryLabels | Where-Object { $_.Current.Name -like '*可生成标准 Excel 或预检入库*' }).Count) {
+            throw 'RPT confirmation summary did not become ready'
+        }
+        $result.rpt_confirmed_groups = $confirmedGroups
+        $result.steps += 'native-real-rpt-companion-explicit-confirmation'
+        Capture 'frozen-rpt-confirmed-summary'
+    }
     [NativeProbeWindow]::PostMessage([IntPtr]$window.Current.NativeWindowHandle, 0x0010,
                                     [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
     Start-Sleep -Milliseconds 250
@@ -355,6 +433,11 @@ try {
     $result.error = $_.ToString()
 } finally {
     if ($process -and -not $process.HasExited) {
+        $choiceHandle = [NativeProbeWindow]::FindNamed($process.Id, '选择分析报告')
+        if ($choiceHandle -ne [IntPtr]::Zero) {
+            [NativeProbeWindow]::PostMessage($choiceHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+            Start-Sleep -Milliseconds 200
+        }
         $importHandle = [NativeProbeWindow]::FindNamed($process.Id, '导入检测数据')
         if ($importHandle -ne [IntPtr]::Zero) {
             [NativeProbeWindow]::PostMessage($importHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
