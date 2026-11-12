@@ -2,7 +2,8 @@
 import unittest
 import native_test_env  # noqa: F401
 
-from qt_shell.native_model_data import color_tubes, defect_placement, effective_depths, reference_layout, scene_data
+from qt_shell.native_model_data import (color_tubes, defect_placement, effective_depths, part_info,
+                                       reference_channel, reference_parts, reference_layout, scene_data)
 
 
 class ModelDataTests(unittest.TestCase):
@@ -15,6 +16,22 @@ class ModelDataTests(unittest.TestCase):
         self.assertEqual(defect_placement({"location": "Point 2 - 12.5 mm"}, self.channel)["y"],
                          self.channel["yTop"] - 851 + 12.5)
         self.assertIsNone(defect_placement({"location": "待核对"}, self.channel))
+
+    def test_part_metadata_and_defaults_preserve_reference_evidence(self):
+        parts = reference_parts()
+        self.assertEqual([p["id"] for p in parts], [f"P0{i}" for i in range(1, 7)])
+        self.assertEqual([p["id"] for p in parts if not p["visible"]], ["P03", "P04"])
+        self.assertEqual([p["triCount"] for p in parts], [10752, 2700, 280, 4224, 3072, 3072])
+        self.assertEqual([d["id"] for d in parts[3]["dimensions"]],
+                         ["D15", "D16", "D17", "D18", "D19", "D21"])
+        rows = part_info("P01", self.channel)
+        self.assertEqual(rows[0][:2], ("指套管外径", "8.6　±0.05"))
+        self.assertIn("推导", rows[2][2])
+        self.assertIn("110.36 cm³", [row[1] for row in rows])
+        self.assertIn("非电厂实测标定", rows[-2][2])
+        for channel in reference_layout()["channels"]:
+            self.assertEqual(reference_channel(int(channel["serialOdd"]), 1)["pos"], channel["pos"])
+            self.assertEqual(reference_channel(int(channel["serialEven"]), 2)["pos"], channel["pos"])
 
     def test_uncertainty_and_maintenance_are_explicit(self):
         record = {"location": "P5+20", "state": "shifted", "offset_mm": -42}

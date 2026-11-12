@@ -424,6 +424,142 @@ def main():
                  and all(value > 12 for value in mode_colors.values())) else 1
 
 
+def verify_parts(page, root, work):
+    from PySide6.QtCore import QObject
+    from PySide6.QtGui import QContextMenuEvent
+    from qt_shell.native_components import workspace_styles
+    from qt_shell.native_model_data import reference_parts
+    checks = []
+    page.measurement.setChecked(False)
+    page.section.setChecked(False)
+    page.explode.setValue(0)
+    page.plate_view.setChecked(False)
+    page.axes.setChecked(False)
+    page.mode_tabs.setCurrentIndex(0)
+    page.scene_settings_button.setChecked(True)
+    page.data_details_button.setChecked(False)
+    page.scene_settings_host.verticalScrollBar().setValue(0)
+    for width, height, theme in ((800, 650, "dark"), (1480, 920, "light")):
+        page.setStyleSheet(workspace_styles(theme))
+        page.resize(width, height)
+        wait(200)
+        for part in reference_parts():
+            key = part["id"]
+            page.scene_settings_host.ensureWidgetVisible(page.part_tree)
+            wait(50)
+            item = page.part_items[key]
+            point = page.part_tree.visualItemRect(item).center()
+            QTest.mouseClick(page.part_tree.viewport(), Qt.MouseButton.LeftButton, pos=point)
+            wait(150)
+            assert page.display_mode.currentData() == "joint"
+            assert page.mode_tabs.currentIndex() == 1
+            assert page.part_info_host.isVisible() and page._selected_part == key
+            assert root.property("partVisibility")[key]
+            assert page.part_note.text() == part["note"]
+            assert f"{part['triCount']:,} 三角面" in page.part_tags.text()
+            assert page.width() == width
+            assert page.scene_settings_host.horizontalScrollBar().maximum() == 0
+            assert page.part_tree.horizontalScrollBar().maximum() == 0
+            assert page.part_info_host.horizontalScrollBar().maximum() == 0
+            assert page.part_tree.columnWidth(0) >= 180
+            assert page.scene_settings_host.geometry().right() < page.scene_detail_host.geometry().left()
+            assert page.scene_detail_host.geometry().bottom() < page.scene_footer.geometry().top()
+            assert page.part_info_body.minimumSizeHint().width() <= page.part_info_host.viewport().width()
+            page.grab().save(str(work / f"part-info-{key}-{width}-{theme}.png"))
+            event = QContextMenuEvent(QContextMenuEvent.Reason.Mouse, point,
+                                      page.part_tree.viewport().mapToGlobal(point))
+            QApplication.sendEvent(page.part_tree.viewport(), event)
+            wait(60)
+            assert not root.property("partVisibility")[key], key
+            assert not page.part_info_host.isVisible()
+            QTest.mouseClick(page.part_tree.viewport(), Qt.MouseButton.LeftButton, pos=point)
+            wait(60)
+            assert root.property("partVisibility")[key] and page.part_info_host.isVisible()
+            checks.append({"part": key, "width": width, "theme": theme, "source_triangles": part["triCount"]})
+
+    page.scene_settings_button.setChecked(False)
+    page._hide_part_info()
+    page.data_details_button.setChecked(False)
+    page.mode_tabs.setCurrentIndex(1)
+    for key in page._part_visibility:
+        page._part_visibility[key] = False
+    page._sync_part_tree()
+    page._reset_three_d_view()
+    wait(200)
+    empty = pixels(page.view.grabWindow())
+    mesh_checks = []
+    for part in reference_parts():
+        key = part["id"]
+        page._part_visibility[key] = True
+        page._sync_part_tree()
+        wait(120)
+        node = root.findChild(QObject, "detailPart-" + key)
+        assert node and node.property("visible"), key
+        frame = page.view.grabWindow()
+        change = sum(a != b for a, b in zip(empty, pixels(frame)))
+        assert change > 20, (key, "mesh failed to render", change)
+        targets = [(x, y) for y in range(0, page.view.height(), 5)
+                   for x in range(0, page.view.width(), 5) if root.pickPart(x, y) == key]
+        assert targets, (key, "visible mesh cannot be picked")
+        canvas_targets = [point for point in targets if point[0] < page.scene_detail_host.x()
+                          and point[1] < page.scene_footer.y()]
+        assert canvas_targets, (key, "mesh only renders under overlays")
+        x, y = canvas_targets[len(canvas_targets)//2]
+        QTest.mouseClick(page.view, Qt.MouseButton.LeftButton, pos=QPoint(x, y))
+        wait(80)
+        assert page._selected_part == key and page.part_info_host.isVisible()
+        page._hide_part_info()
+        page.grab().save(str(work / f"isolated-{key}.png"))
+        page._part_visibility[key] = False
+        page._sync_part_tree()
+        wait(120)
+        assert not root.pickPart(x, y), (key, "hidden mesh still intercepts picks")
+        after_hide = pixels(page.view.grabWindow())
+        assert sum(a != b for a, b in zip(empty, after_hide)) < 5, (
+            key, "hidden mesh left pixels", sum(a != b for a, b in zip(empty, after_hide)))
+        mesh_checks.append({"part": key, "changed_pixels": change, "pick_targets": len(targets)})
+    for key in page._part_visibility:
+        page._part_visibility[key] = page._parts[key]["visible"]
+    page._sync_part_tree()
+    page.ghost.setChecked(True)
+    wait(120)
+    ghosted = pixels(page.view.grabWindow())
+    page.ghost.click()
+    wait(120)
+    opaque = pixels(page.view.grabWindow())
+    ghost_change = sum(a != b for a, b in zip(ghosted, opaque))
+    assert ghost_change > 20, ghost_change
+    for key in ("P05", "P06"):
+        material = root.findChild(QObject, "detailMaterial-" + key)
+        assert material and material.property("alphaValue") == 1
+    page.ghost.click()
+    wait(100)
+    assert material.property("alphaValue") == .22
+    page.mode_tabs.setCurrentIndex(0)
+    saved_scope = page._scope_data
+    page.scope.setCurrentIndex(0)
+    wait(100)
+    assert not root.property("tubes")
+    page.show_part("P02")
+    wait(150)
+    assert root.property("singleMode") and page.part_info_host.isVisible()
+    assert len(set(pixels(page.view.grabWindow()))) > 12
+    for number in (1, 25, 50):
+        page.tube_selector.setValue(number)
+        wait(50)
+        assert root.property("selectedTube") == number
+        assert root.property("detailLength") == page._detail_channel()["L"]
+    page.scope.setCurrentIndex(next(i for i in range(page.scope.count())
+                                    if (page.scope.itemData(i) or {}).get("outage") == "H209"))
+    assert page._scope_data == saved_scope
+    page.mode_tabs.setCurrentIndex(0)
+    page.resize(1100, 800)
+    wait(150)
+    return {"metadata_checks": checks, "isolated_mesh_checks": mesh_checks,
+            "ghost_changed_pixels": ghost_change, "hide_removes_pixels_and_picking": True,
+            "reference_geometry_without_inspection_scope": True}
+
+
 def real_data_probe(database):
     project = Path(__file__).resolve().parents[2]
     test_root = (project.parent / "05_测试与验证" / "03_自动化临时产物").resolve()
@@ -485,6 +621,7 @@ def real_data_probe(database):
     image.save(str(work / "assembly.png"))
     output["cameras"] = verify_camera_views(page, root, work)
     output["coloring"] = verify_tube_colors(page, root, work, data)
+    output["parts"] = verify_parts(page, root, work)
     image = page.view.grabWindow()
     page.plate_view.setChecked(True)
     wait(400)

@@ -55,6 +55,14 @@ public class NativeProbeWindow {
         PostMessage(handle,0x0202,IntPtr.Zero,position);
         return true;
     }
+    public static bool RightClickWindow(IntPtr handle, int x, int y) {
+        var p=new Point { X=x, Y=y };
+        if(!ScreenToClient(handle,ref p)) return false;
+        var position=new IntPtr((p.Y<<16)|(p.X&0xFFFF));
+        PostMessage(handle,0x0204,new IntPtr(2),position);
+        PostMessage(handle,0x0205,IntPtr.Zero,position);
+        return true;
+    }
     public static IntPtr Find(uint pid) {
         IntPtr result=IntPtr.Zero, hidden=IntPtr.Zero;
         EnumWindows((h,l)=> {
@@ -376,8 +384,49 @@ try {
             Start-Sleep -Milliseconds 200
             Capture 'frozen-three-d-floating-settings-filter'
             Activate-Control $typeLegend[0]
+            $result.three_d_parts = @()
+            foreach ($partName in @('指套管本体', '螺纹管座', '配合螺栓（管段样件）',
+                                      '调整螺母', '中子测量贯穿管', '空心二次支承柱')) {
+                $partItems = @(Find-Control $window ([System.Windows.Automation.ControlType]::TreeItem) |
+                    Where-Object { $_.Current.Name.StartsWith($partName + '，') })
+                if ($partItems.Count -ne 1) { throw "Native part tree item missing: $partName" }
+                $bounds = $partItems[0].Current.BoundingRectangle
+                if (-not [NativeProbeWindow]::ClickWindow([IntPtr]$window.Current.NativeWindowHandle,
+                    [int]($bounds.X+40), [int]($bounds.Y+$bounds.Height/2))) { throw 'Part tree click failed' }
+                Start-Sleep -Milliseconds 250
+                $partClose = Find-NamedControl $window '关闭零件详情'
+                $partDetails = Find-NamedControl $window '三维零件详情'
+                if ($partClose.Count -ne 1 -or $partClose[0].Current.IsOffscreen -or
+                    $partDetails.Count -ne 1 -or $partDetails[0].Current.IsOffscreen) {
+                    throw "Native part metadata did not open: $partName"
+                }
+                $partLabels = @(Find-Control $window ([System.Windows.Automation.ControlType]::Text) |
+                    ForEach-Object { $_.Current.Name })
+                if (-not ($partLabels | Where-Object { $_ -like '*三角面*' })) {
+                    throw "Native part triangle/source metadata missing: $partName"
+                }
+                Capture ('frozen-three-d-part-' + $result.three_d_parts.Count)
+                if (-not [NativeProbeWindow]::RightClickWindow([IntPtr]$window.Current.NativeWindowHandle,
+                    [int]($bounds.X+40), [int]($bounds.Y+$bounds.Height/2))) { throw 'Part context click failed' }
+                Start-Sleep -Milliseconds 150
+                $hiddenItems = @(Find-Control $window ([System.Windows.Automation.ControlType]::TreeItem) |
+                    Where-Object { $_.Current.Name.StartsWith($partName + '，隐藏') })
+                if ($hiddenItems.Count -ne 1) { throw "Part context click did not hide: $partName" }
+                [NativeProbeWindow]::ClickWindow([IntPtr]$window.Current.NativeWindowHandle,
+                    [int]($bounds.X+40), [int]($bounds.Y+$bounds.Height/2)) | Out-Null
+                Start-Sleep -Milliseconds 150
+                $restoredItems = @(Find-Control $window ([System.Windows.Automation.ControlType]::TreeItem) |
+                    Where-Object { $_.Current.Name.StartsWith($partName + '，显示') })
+                if ($restoredItems.Count -ne 1) { throw "Part click did not restore: $partName" }
+                $result.three_d_parts += $partName
+            }
+            $assemblyTab = Find-Control $window ([System.Windows.Automation.ControlType]::TabItem) '整体布置'
+            if ($assemblyTab.Count -ne 1) { throw 'Assembly mode tab missing after part details' }
+            $assemblyTab[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+            Start-Sleep -Milliseconds 150
             Activate-Control $modelSettings[0]
             $result.steps += 'native-floating-model-settings-colors-and-type-filter'
+            $result.steps += 'native-six-part-tree-metadata-right-click-hide-and-restore'
         }
     }
     $importButton = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) '导入数据' |

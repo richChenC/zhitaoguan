@@ -18,6 +18,13 @@ Rectangle {
     property bool showPlates: true
     property bool enlargeTubes: true
     property real modelOpacity: 0.65
+    property real detailLength: 3000
+    property var partVisibility: ({P01: true, P02: true, P03: false, P04: false, P05: true, P06: true})
+    property var partColors: ({P01: "#667c8c", P02: "#9fa9b5", P03: "#d9d2c4",
+                              P04: "#c8b89a", P05: "#8f9aa6", P06: "#9aa4b0"})
+    property bool ghostContext: true
+    readonly property bool singleMode: displayMode === "joint" || displayMode === "full" || displayMode === "socket"
+    readonly property real detailTarget: displayMode === "full" ? detailLength/2 : displayMode === "socket" ? 66 : 52
     readonly property vector3d isoDirection: displayMode === "joint" ? Qt.vector3d(.55, .38, .74) :
         displayMode === "full" ? Qt.vector3d(.45, .12, .45) :
         displayMode === "socket" ? Qt.vector3d(.6, .35, .7) : Qt.vector3d(.52, .40, .76)
@@ -25,9 +32,12 @@ Rectangle {
     readonly property real defaultPitch: -Math.atan2(isoDirection.y,
         Math.sqrt(isoDirection.x*isoDirection.x + isoDirection.z*isoDirection.z)) * 180 / Math.PI
     readonly property real cameraTangent: Math.tan(19 * Math.PI / 180)
-    readonly property real detailDistance: displayMode === "socket" ? 3960 :
-        displayMode === "joint" ? 12 * 430 * Math.sqrt(.55*.55 + .38*.38 + .74*.74) :
-        displayMode === "full" ? 2 * ((tubes.find(t => t.tube === selectedTube) || {}).length || 3000) : 6934
+    readonly property real detailBaseDistance: displayMode === "socket" ? 330 :
+        displayMode === "joint" ? 430 * Math.sqrt(.55*.55 + .38*.38 + .74*.74) :
+        displayMode === "full" ? 2 * detailLength : 6934
+    readonly property real detailDistance: detailBaseDistance * Math.max(
+        1, width / Math.max(120, width-coveredLeft-coveredRight),
+        height / Math.max(120, height-coveredBottom))
     property real yaw: defaultYaw
     property real pitch: defaultPitch
     property real zoomFactor: 1
@@ -67,6 +77,7 @@ Rectangle {
     property vector3d measureA: Qt.vector3d(0,0,0)
     property vector3d measureB: Qt.vector3d(0,0,0)
     signal tubeSelected(int tube)
+    signal partSelected(string partId)
     signal measurementChanged(string value)
     signal viewManipulated()
     signal viewReset()
@@ -88,6 +99,10 @@ Rectangle {
     function pickTube(x, y) {
         const hit = pickVisible(x, y)
         return hit ? hit.objectHit.tubeNumber : 0
+    }
+    function pickPart(x, y) {
+        const hit = pickVisible(x, y)
+        return hit && hit.objectHit.partId ? hit.objectHit.partId : ""
     }
     function pickVisible(x, y) {
         const hits = scene.pickAll(x, y)
@@ -241,9 +256,8 @@ Rectangle {
                     (root.orthographicActive ? 1 : root.zoomFactor)
                 readonly property real unitsPerPixel: root.orthographicActive ?
                     1 / (root.framing.magnification * root.zoomFactor) : 2 * root.cameraTangent * distance / Math.max(1, scene.height)
-                readonly property real shiftX: root.displayMode === "assembly" ?
-                    (root.coveredRight-root.coveredLeft) * unitsPerPixel / 2 : 0
-                readonly property real shiftY: root.displayMode === "assembly" ? -root.coveredBottom * unitsPerPixel / 2 : 0
+                readonly property real shiftX: (root.coveredRight-root.coveredLeft) * unitsPerPixel / 2
+                readonly property real shiftY: -root.coveredBottom * unitsPerPixel / 2
                 PerspectiveCamera {
                     id: perspectiveCamera
                     objectName: "perspectiveCamera"
@@ -330,23 +344,20 @@ Rectangle {
                 id: tubeNode
                 required property var modelData
                 objectName: "tubeNode-" + modelData.tube
-                property bool single: root.displayMode !== "assembly" && root.displayMode !== "plate"
                 property bool selected: modelData.tube === root.selectedTube
                 readonly property color tubeColor: root.tubeColors[modelData.tube] || modelData.color || "#667c8c"
-                visible: (!single || selected) &&
+                visible: !root.singleMode &&
                     (modelData.category === "defect" ? root.showDefect :
                      modelData.category === "incomplete" ? root.showReview :
                      modelData.category === "ndd" ? root.showNdd : root.showMissing)
-                position: single ? Qt.vector3d(0,root.displayMode === "socket" || root.displayMode === "joint" ? -760 : -modelData.length/2,0) :
-                                   Qt.vector3d(modelData.x,modelData.yBase,modelData.z)
-                scale: root.displayMode === "socket" || root.displayMode === "joint" ? Qt.vector3d(12,12,12) : Qt.vector3d(1,1,1)
+                position: Qt.vector3d(modelData.x,modelData.yBase,modelData.z)
                 Model {
                     property int tubeNumber: tubeNode.modelData.tube
                     geometry: tubeGeometry
                     pickable: true
                     visible: root.displayMode !== "socket" && root.displayMode !== "plate"
                     scale: Qt.vector3d(root.enlargeTubes ? 3 : 1,
-                                       root.displayMode === "joint" ? .08 : tubeNode.modelData.length/3000,
+                                       tubeNode.modelData.length/3000,
                                        root.enlargeTubes ? 3 : 1)
                     materials: SectionMaterial {
                         tint: tubeNode.selected ? "#f4bd3c" : tubeNode.tubeColor
@@ -372,27 +383,41 @@ Rectangle {
                     y: root.explode * 150
                     materials: SectionMaterial { tint:"#aab6c0"; alphaValue: 1 }
                 }
-                Model {
-                    visible: root.showSockets && tubeNode.single && root.displayMode !== "plate"
-                    geometry: nutGeometry
-                    y: root.explode * 230
-                    materials: SectionMaterial { tint:"#b6aa83"; alphaValue: 1 }
-                }
-                Model {
-                    visible: root.showSockets && tubeNode.single && (root.displayMode === "full" || root.displayMode === "joint")
-                    geometry: penetrationGeometry
-                    materials: SectionMaterial { tint:"#7c9aa4"; alphaValue:.45 }
-                }
-                Model {
-                    visible: root.showSupports && tubeNode.single && root.displayMode === "full"
-                    geometry: supportGeometry
-                    materials: SectionMaterial { tint:"#8b9b7b"; alphaValue:.3 }
-                }
-                Model {
-                    visible: root.showSockets && tubeNode.single && root.displayMode === "socket"
-                    geometry: boltGeometry
-                    y: root.explode * 300
-                    materials: SectionMaterial { tint: "#889aa7"; alphaValue: 1 }
+            }
+        }
+        Node {
+            id: singleAssembly
+            objectName: "singleAssembly"
+            visible: root.singleMode
+            y: -root.detailTarget
+            Repeater3D {
+                model: ["P01", "P02", "P03", "P04", "P05", "P06"]
+                delegate: Model {
+                    required property string modelData
+                    objectName: "detailPart-" + modelData
+                    property string partId: modelData
+                    property int tubeNumber: root.selectedTube
+                    readonly property bool contextPart: modelData === "P05" || modelData === "P06"
+                    visible: root.partVisibility[modelData] !== false
+                    pickable: true
+                    geometry: modelData === "P01" ? tubeGeometry : modelData === "P02" ? socketGeometry :
+                              modelData === "P03" ? boltGeometry : modelData === "P04" ? nutGeometry :
+                              modelData === "P05" ? penetrationGeometry : supportGeometry
+                    position: modelData === "P01" ? Qt.vector3d(0,root.explode*root.detailLength*.055,0) :
+                              modelData === "P02" ? Qt.vector3d(0,0,root.explode*78) :
+                              modelData === "P03" ? Qt.vector3d(0,root.explode*130,0) :
+                              modelData === "P04" ? Qt.vector3d(96+root.explode*60,root.explode*26,0) :
+                              modelData === "P05" ? Qt.vector3d(0,-root.explode*120,0) :
+                                                   Qt.vector3d(0,-root.explode*220,0)
+                    scale: modelData === "P01" ?
+                        Qt.vector3d(root.enlargeTubes ? (root.displayMode === "full" ? 4 : 3) : 1,
+                                    root.detailLength/3000,
+                                    root.enlargeTubes ? (root.displayMode === "full" ? 4 : 3) : 1) : Qt.vector3d(1,1,1)
+                    materials: SectionMaterial {
+                        tint: modelData === "P01" ? "#667c8c" : root.partColors[modelData]
+                        alphaValue: contextPart && root.ghostContext ? .22 : 1
+                        objectName: "detailMaterial-" + modelData
+                    }
                 }
             }
         }
@@ -406,7 +431,7 @@ Rectangle {
                 visible: root.showDefect && root.displayMode !== "plate" && root.displayMode !== "socket" && root.displayMode !== "joint" &&
                          (root.displayMode === "assembly" || modelData.tube === root.selectedTube)
                 position: root.displayMode === "assembly" ? Qt.vector3d(modelData.x,modelData.y,modelData.z) :
-                          Qt.vector3d(0,modelData.y-modelData.yBase-modelData.length/2,0)
+                          Qt.vector3d(0,modelData.y-modelData.yBase-root.detailTarget,0)
                 scale: Qt.vector3d(.45,.45,.45)
                 materials: SectionMaterial { tint:"#c8424a"; alphaValue: 1 }
             }
@@ -475,6 +500,11 @@ Rectangle {
             onClicked: function(mouse) {
                 if (moved > 5) return
                 if (root.measurementEnabled) { root.measureAt(mouse.x,mouse.y); return }
+                if (root.singleMode) {
+                    const part = root.pickPart(mouse.x,mouse.y)
+                    if (part) root.partSelected(part)
+                    return
+                }
                 const tube=root.pickTube(mouse.x,mouse.y)
                 if (tube) { root.selectedTube=tube; root.tubeSelected(tube) }
             }
@@ -483,7 +513,7 @@ Rectangle {
     }
     Text {
         anchors.centerIn: parent
-        visible: root.tubes.length === 0
+        visible: root.tubes.length === 0 && !root.singleMode
         text: "请选择有检测数据的范围"
         color:"#465d65"; font.pixelSize:18
     }

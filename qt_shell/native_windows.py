@@ -46,6 +46,9 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QToolButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QHeaderView,
     QTabWidget,
     QTabBar,
     QTextBrowser,
@@ -5405,6 +5408,7 @@ class _HeadlessThreeDRoot(QObject):
     """Small property/signal adapter used when no scene graph is available."""
 
     tubeSelected = Signal(int)
+    partSelected = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -5494,6 +5498,8 @@ class NativeThreeDPage(QWidget):
         self.record_details = {}
         self._scope_data = None
         self._scene_tubes = []
+        self._selected_part = None
+        self._enlarge_auto = True
         self.severity_levels = [30, 50]
         self.severity_colors = ["#79b98c", "#e5a83b", "#df4b45"]
         self._pending_scope = {}
@@ -5593,6 +5599,46 @@ class NativeThreeDPage(QWidget):
             self.scene_sections[title] = (heading, body)
             return body_layout
 
+        from .native_model_data import reference_parts
+        self._parts = {part["id"]: part for part in reference_parts()}
+        self._part_visibility = {key: part["visible"] for key, part in self._parts.items()}
+        part_settings = section("零件（点击查看）")
+        self.part_tree = QTreeWidget()
+        self.part_tree.setObjectName("modelPartTree")
+        self.part_tree.setAccessibleName("三维零件树")
+        self.part_tree.setColumnCount(3)
+        self.part_tree.setHeaderHidden(True)
+        self.part_tree.setRootIsDecorated(False)
+        self.part_tree.setUniformRowHeights(True)
+        self.part_tree.setIndentation(0)
+        self.part_tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.part_tree.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.part_tree.header().setStretchLastSection(False)
+        self.part_tree.header().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.part_tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
+        self.part_tree.header().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        self.part_tree.setColumnWidth(1, 50)
+        self.part_tree.setColumnWidth(2, 20)
+        self.part_items = {}
+        for key, part in self._parts.items():
+            source = {"step": "STEP", "context": "环境"}.get(part["kind"], "参数化")
+            item = QTreeWidgetItem([part["cn"], source, ""])
+            item.setData(0, Qt.ItemDataRole.UserRole, key)
+            swatch = QPixmap(9, 9)
+            swatch.fill(QColor(part["color"]))
+            item.setIcon(0, QIcon(swatch))
+            for column in range(3):
+                item.setToolTip(column, f"{key} · {part['cn']} · {source}")
+            self.part_tree.addTopLevelItem(item)
+            self.part_items[key] = item
+        self.part_tree.itemClicked.connect(
+            lambda item, _column: self.show_part(item.data(0, Qt.ItemDataRole.UserRole)))
+        self.part_tree.itemActivated.connect(
+            lambda item, _column: self.show_part(item.data(0, Qt.ItemDataRole.UserRole)))
+        self.part_tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.part_tree.customContextMenuRequested.connect(self._part_context)
+        part_settings.addWidget(self.part_tree)
+        self._sync_part_tree()
         assembly_settings = section("整体布置")
         self.visibility_checks = {}
         for label, prop, checked in (("容器包络", "showVessel", True), ("下封头", "showDome", True),
@@ -5677,6 +5723,13 @@ class NativeThreeDPage(QWidget):
         self.axes.setToolTip("X红 / Y绿 / Z蓝")
         self.axes.toggled.connect(lambda v: self._set_scene_property("showAxes", v))
         display_settings.addWidget(self.axes)
+        enlarge = self.visibility_checks["enlargeTubes"]
+        display_settings.addWidget(enlarge)
+        enlarge.clicked.connect(lambda _checked: setattr(self, "_enlarge_auto", False))
+        self.ghost = QCheckBox("环境件半透明")
+        self.ghost.setChecked(True)
+        self.ghost.toggled.connect(lambda value: self._set_scene_property("ghostContext", value))
+        display_settings.addWidget(self.ghost)
         self.opacity = QSlider(Qt.Orientation.Horizontal)
         self.opacity.setRange(10, 100)
         self.opacity.setValue(65)
@@ -5751,6 +5804,9 @@ class NativeThreeDPage(QWidget):
         root = self.view.rootObject()
         if root is not None:
             root.tubeSelected.connect(self.show_tube)
+            root.partSelected.connect(self.show_part)
+            root.setProperty("partVisibility", self._part_visibility)
+            root.setProperty("partColors", {key: part["color"] for key, part in self._parts.items()})
             if hasattr(root, "viewManipulated"):
                 root.viewManipulated.connect(lambda: self.camera_preset.setCurrentIndex(-1))
                 root.viewReset.connect(self._reset_three_d_view)
@@ -5777,9 +5833,46 @@ class NativeThreeDPage(QWidget):
         detail_host = QWidget()
         self.scene_detail_host = detail_host
         detail_host.setObjectName("workspacePanel")
-        detail_host.setMinimumWidth(240)
-        detail_host.setMaximumWidth(390)
+        detail_host.setFixedWidth(322)
         detail_layout = QVBoxLayout(detail_host)
+        self.part_info_host = QScrollArea()
+        self.part_info_host.setAccessibleName("三维零件详情")
+        self.part_info_host.setWidgetResizable(True)
+        self.part_info_host.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.part_info_host.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.part_info_body = QWidget()
+        self.part_info_body.setObjectName("modelPartInfoBody")
+        info_layout = QVBoxLayout(self.part_info_body)
+        info_layout.setContentsMargins(0, 0, 0, 0)
+        info_layout.setSpacing(7)
+        title_row = QHBoxLayout()
+        self.part_name = QLabel()
+        self.part_name.setObjectName("modelPartName")
+        self.part_name.setWordWrap(True)
+        self.part_name.setTextFormat(Qt.TextFormat.PlainText)
+        title_row.addWidget(self.part_name, 1)
+        close_part = button("", "x", self._hide_part_info)
+        close_part.setToolTip("关闭零件详情")
+        close_part.setAccessibleName("关闭零件详情")
+        title_row.addWidget(close_part, 0, Qt.AlignmentFlag.AlignTop)
+        info_layout.addLayout(title_row)
+        self.part_tags = QLabel()
+        self.part_tags.setWordWrap(True)
+        self.part_tags.setTextFormat(Qt.TextFormat.PlainText)
+        info_layout.addWidget(self.part_tags)
+        self.part_fields = QFormLayout()
+        self.part_fields.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        self.part_fields.setHorizontalSpacing(10)
+        self.part_fields.setVerticalSpacing(7)
+        info_layout.addLayout(self.part_fields)
+        self.part_note = QLabel()
+        self.part_note.setWordWrap(True)
+        self.part_note.setTextFormat(Qt.TextFormat.PlainText)
+        info_layout.addWidget(self.part_note)
+        info_layout.addStretch(1)
+        self.part_info_host.setWidget(self.part_info_body)
+        self.part_info_host.hide()
+        detail_layout.addWidget(self.part_info_host, 1)
         self.data_details_button = button("检测数据", "files")
         self.data_details_button.setCheckable(True)
         detail_layout.addWidget(self.data_details_button)
@@ -5850,6 +5943,8 @@ class NativeThreeDPage(QWidget):
         self.scene_settings_host.installEventFilter(self)
         self.scene_host.installEventFilter(self)
         self._camera_layout_timer.start()
+        self._sync_detail_channel()
+        self._sync_mode_controls()
         self.load_overview()
 
     def eventFilter(self, watched, event):
@@ -5867,6 +5962,13 @@ class NativeThreeDPage(QWidget):
         content_height = (content.heightForWidth(settings.viewport().width()) if content.hasHeightForWidth()
                           else content.sizeHint().height())
         available_height = max(150, self.scene_host.height() - self.scene_footer.height() - 16)
+        self.scene_detail_host.setMaximumHeight(available_height)
+        if self.part_info_host.isVisible():
+            body = self.part_info_body
+            desired = body.heightForWidth(self.part_info_host.viewport().width()) if body.hasHeightForWidth() else body.sizeHint().height()
+            self.part_info_host.setMinimumHeight(min(max(80, available_height - 70), max(80, desired)))
+        self.part_tree.setFixedHeight(sum(self.part_tree.sizeHintForRow(i)
+                                         for i in range(self.part_tree.topLevelItemCount())) + 4)
         settings.setFixedHeight(min(available_height, max(1, content_height) + 2 * settings.frameWidth()))
         self._set_scene_property("coveredLeft", self.scene_settings_host.width() + 16
                                  if self.scene_settings_host.isVisible() else 0)
@@ -5916,6 +6018,100 @@ class NativeThreeDPage(QWidget):
         root = self.view.rootObject()
         if root is not None:
             root.setProperty(name, value)
+
+    def _sync_part_tree(self):
+        for key, item in self.part_items.items():
+            visible = self._part_visibility[key]
+            item.setText(2, "●" if visible else "○")
+            item.setData(0, Qt.ItemDataRole.AccessibleTextRole,
+                         f"{self._parts[key]['cn']}，{'显示' if visible else '隐藏'}")
+            for column in range(3):
+                item.setForeground(column, self.part_tree.palette().text() if visible else
+                                   self.part_tree.palette().placeholderText())
+        if hasattr(self, "view"):
+            self._set_scene_property("partVisibility", dict(self._part_visibility))
+
+    def _part_context(self, point):
+        item = self.part_tree.itemAt(point)
+        if item is not None:
+            self.toggle_part(item.data(0, Qt.ItemDataRole.UserRole))
+
+    def toggle_part(self, part_id):
+        if part_id not in self._parts:
+            return
+        self._part_visibility[part_id] = not self._part_visibility[part_id]
+        self._sync_part_tree()
+        if self._selected_part == part_id:
+            self._hide_part_info()
+
+    def _hide_part_info(self):
+        self.part_info_host.hide()
+        self._camera_layout_timer.start()
+
+    def show_part(self, part_id):
+        if part_id not in self._parts:
+            return
+        if self.display_mode.currentData() in ("assembly", "plate"):
+            self.mode_tabs.setCurrentIndex(1)
+            self.display_mode.setCurrentIndex(self.display_mode.findData("joint"))
+        self._part_visibility[part_id] = True
+        self._sync_part_tree()
+        self._selected_part = part_id
+        self.part_tree.setCurrentItem(self.part_items[part_id])
+        self._render_part_info()
+        self.part_info_host.show()
+        self.part_info_host.verticalScrollBar().setValue(0)
+        self._camera_layout_timer.start()
+
+    def _detail_channel(self):
+        from .native_model_data import reference_channel, reference_layout
+        row = self.rows.get(self.tube_selector.value()) or {}
+        if row.get("position"):
+            channel = next((channel for channel in reference_layout()["channels"]
+                            if channel["pos"] == row["position"]), None)
+            if channel:
+                return channel
+        return reference_channel(self.tube_selector.value(), (self.scope.currentData() or {}).get("unit", 1))
+
+    def _sync_detail_channel(self):
+        self._set_scene_property("selectedTube", self.tube_selector.value())
+        self._set_scene_property("detailLength", self._detail_channel()["L"])
+        if self._selected_part:
+            self._render_part_info()
+
+    def _render_part_info(self):
+        from .native_model_data import part_info
+        part = self._parts[self._selected_part]
+        self.part_name.setText(f"{part['cn']}　{part['en'] or ''}")
+        source = {"step": "原始 STEP B-rep", "context": "环境件"}.get(part["kind"], "参数化重建")
+        self.part_tags.setText(f"{part['id']} · {source} · {part['triCount'] or 0:,} 三角面")
+        while self.part_fields.rowCount():
+            self.part_fields.removeRow(0)
+        for name, text, provenance in part_info(self._selected_part, self._detail_channel()):
+            label, value = QLabel(name), QLabel(text)
+            for control in (label, value):
+                control.setTextFormat(Qt.TextFormat.PlainText)
+                control.setWordWrap(True)
+                control.setToolTip(provenance)
+            label.setFixedWidth(110)
+            self.part_fields.addRow(label, value)
+        self.part_note.setText(part["note"] or "")
+
+    def _sync_mode_controls(self):
+        assembly = self.display_mode.currentData() in ("assembly", "plate")
+        for heading, body in (self.scene_sections["整体布置"],):
+            heading.setVisible(assembly)
+            body.setVisible(assembly and heading.isChecked())
+        self.ghost.setEnabled(not assembly)
+        enlarge = self.visibility_checks["enlargeTubes"]
+        mode = self.display_mode.currentData()
+        if mode in ("assembly", "full") and not enlarge.isChecked():
+            self._enlarge_auto = True
+            enlarge.setChecked(True)
+        elif mode not in ("assembly", "full") and self._enlarge_auto:
+            enlarge.setChecked(False)
+            self._enlarge_auto = False
+        self._camera_layout_timer.start()
 
     def set_severity(self, levels, colors):
         self.severity_levels = list(levels)
@@ -5987,12 +6183,20 @@ class NativeThreeDPage(QWidget):
             self._camera_layout_timer.start()
 
     def _display_changed(self):
+        tab = {"assembly": 0, "plate": 0, "joint": 1, "full": 2, "socket": 3}.get(
+            self.display_mode.currentData(), 0)
+        self.mode_tabs.blockSignals(True)
+        self.mode_tabs.setCurrentIndex(tab)
+        self.mode_tabs.blockSignals(False)
         self.camera_preset.setItemData(0, _three_d_iso_angles(self.display_mode.currentData()))
         self._set_scene_property("displayMode", self.display_mode.currentData())
         self._set_scene_property("selectedTube", self.tube_selector.value())
         self._set_scene_property("measurementCount", 0)
         self.measurement_value.clear()
         self._sync_plate_overlay_button()
+        self._hide_part_info()
+        self._sync_detail_channel()
+        self._sync_mode_controls()
         self._reset_three_d_view()
 
     def _mode_tab_changed(self, index):
@@ -6106,6 +6310,7 @@ class NativeThreeDPage(QWidget):
             root.setProperty("tubeColors", {})
             root.setProperty("defects", [])
         self.detail.setText("选择管子查看检测记录与维护状态")
+        self._sync_detail_channel()
         scope = self.scope.currentData()
         if not scope:
             self.status.setText("请选择检测范围")
@@ -6189,8 +6394,6 @@ class NativeThreeDPage(QWidget):
 
     def show_tube(self, number: int) -> None:
         row = self.rows.get(number)
-        if not row:
-            return
         self.tube_selector.blockSignals(True)
         self.tube_selector.setValue(number)
         self.tube_selector.blockSignals(False)
@@ -6198,6 +6401,9 @@ class NativeThreeDPage(QWidget):
         self.tube_slider.setValue(number)
         self.tube_slider.blockSignals(False)
         self._set_scene_property("selectedTube", number)
+        self._sync_detail_channel()
+        if not row:
+            return
         scope = self.scope.currentData()
         if scope and not self._syncing_scope:
             self.scopeChanged.emit({**scope, "thimble": number})

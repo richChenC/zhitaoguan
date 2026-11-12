@@ -29,6 +29,54 @@ def reference_specs():
     return json.loads((MODEL_DATA / "tube_specs.json").read_text(encoding="utf-8"))
 
 
+PART_DIMENSIONS = {
+    "P01": ("D01", "D02", "D03", "D04", "D05"),
+    "P02": ("D09", "D10", "D11", "D12", "D13"),
+    "P04": ("D15", "D16", "D17", "D18", "D19", "D21"),
+    "P05": ("D22",), "P06": ("D23",),
+}
+
+
+@lru_cache(maxsize=1)
+def reference_parts():
+    data = json.loads((MODEL_DATA / "thimble_assembly.json").read_text(encoding="utf-8"))
+    dimensions = {row["id"]: row for row in json.loads(
+        (MODEL_DATA / "dimensions.json").read_text(encoding="utf-8"))["dimensions"]}
+    return tuple({
+        **{key: part.get(key) for key in ("id", "cn", "en", "kind", "color", "triCount", "volumeMm3", "note")},
+        "visible": part["id"] != "P04" and not part.get("hidden", False),
+        "dimensions": tuple(dimensions[key] for key in PART_DIMENSIONS.get(part["id"], ())),
+    } for part in data["parts"])
+
+
+def reference_channel(number, unit=1):
+    serial = "serialEven" if int(unit or 1) % 2 == 0 else "serialOdd"
+    return next(channel for channel in reference_layout()["channels"] if int(channel[serial]) == number)
+
+
+def part_info(part_id, channel):
+    part = next(part for part in reference_parts() if part["id"] == part_id)
+    rows = []
+    for dimension in part["dimensions"]:
+        value = dimension["value"]
+        if isinstance(value, list):
+            value = " / ".join(map(str, value))
+        elif isinstance(value, (int, float)):
+            value = f"{value:g}"
+        tolerance = dimension.get("tol") or ""
+        if tolerance not in ("", "—", "°") and len(tolerance) < 6:
+            value = f"{value}　{tolerance}"
+        rows.append((dimension["name"], str(value), f"{dimension['status']}；{dimension['source']}"))
+    if part["volumeMm3"]:
+        rows.append(("体积", f"{part['volumeMm3'] / 1000:.2f} cm³", "参考模型体积"))
+    if part_id == "P01":
+        rows.extend((
+            ("当前管长 L", f"{channel['L']:.1f} mm", "工程参考管长，非电厂实测标定"),
+            ("通道", f"{channel['pos']}（奇#{channel['serialOdd']} / 偶#{channel['serialEven']}）", ""),
+        ))
+    return rows
+
+
 def effective_depths(records):
     """Use the reference viewer's quantified-finding contract, preserving raw locations."""
     depths = {}

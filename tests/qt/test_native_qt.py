@@ -677,6 +677,60 @@ class NativeQtTests(unittest.TestCase):
         self.assertEqual(page._scene_tubes, [])
         page.close()
 
+    def test_three_d_parts_click_visibility_metadata_and_empty_scope(self):
+        class Client:
+            def get(self, _path, _callback):
+                return None
+
+        from qt_shell.native_components import workspace_styles
+        from qt_shell.native_model_data import reference_channel
+        page = NativeThreeDPage(Client())
+        page.setStyleSheet(workspace_styles("light"))
+        page.resize(800, 650)
+        page.show()
+        page.scene_settings_button.click()
+        self.app.processEvents()
+        root = page.view.rootObject()
+        self.assertEqual(root.property("partVisibility"),
+                         {"P01": True, "P02": True, "P03": False, "P04": False, "P05": True, "P06": True})
+        nut = page.part_items["P04"]
+        page.scene_settings_host.ensureWidgetVisible(page.part_tree)
+        QTest.mouseClick(page.part_tree.viewport(), Qt.MouseButton.LeftButton,
+                         pos=page.part_tree.visualItemRect(nut).center())
+        self.app.processEvents()
+        self.assertEqual(page.mode_tabs.currentIndex(), 1)
+        self.assertEqual(page.display_mode.currentData(), "joint")
+        self.assertTrue(root.property("partVisibility")["P04"])
+        self.assertTrue(page.part_info_host.isVisible())
+        self.assertIn("4,224 三角面", page.part_tags.text())
+        self.assertIn("调整螺母", page.part_name.text())
+        self.assertIn("图纸 AAX44226010", page.part_note.text())
+        self.assertFalse(page.visibility_checks["enlargeTubes"].isChecked())
+        self.assertTrue(page.ghost.isEnabled())
+        self.assertTrue(page.scene_sections["整体布置"][0].isHidden())
+        page._part_context(page.part_tree.visualItemRect(nut).center())
+        self.assertFalse(root.property("partVisibility")["P04"])
+        self.assertTrue(page.part_info_host.isHidden())
+        page.show_part("P04")
+        self.assertTrue(root.property("partVisibility")["P04"])
+        self.assertEqual(page.part_tree.horizontalScrollBar().maximum(), 0)
+        self.assertEqual(page.part_info_host.horizontalScrollBar().maximum(), 0)
+        root.partSelected.emit("P01")
+        self.assertIn("10,752", page.part_tags.text())
+        page.tube_selector.setValue(22)
+        self.assertEqual(root.property("selectedTube"), 22)
+        self.assertEqual(root.property("detailLength"), reference_channel(22)["L"])
+        self.assertIn(f"{reference_channel(22)['L']:.1f} mm",
+                      [label.text() for label in page.part_info_body.findChildren(native_windows.QLabel)])
+        page.display_mode.setCurrentIndex(page.display_mode.findData("full"))
+        self.assertEqual(page.mode_tabs.currentIndex(), 2)
+        self.assertTrue(page.part_info_host.isHidden())
+        self.assertTrue(page.visibility_checks["enlargeTubes"].isChecked())
+        page.display_mode.setCurrentIndex(0)
+        self.assertFalse(page.ghost.isEnabled())
+        self.assertTrue(page.scene_sections["整体布置"][0].isVisible())
+        page.close()
+
     def test_report_draft_is_part_of_snapshot_payload(self):
         class Client:
             def get(self, path, callback):

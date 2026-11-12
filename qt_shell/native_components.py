@@ -1054,6 +1054,11 @@ def workspace_styles(theme="light", density="comfortable"):
         QProgressBar#unitMeter::chunk {{ background:{accent}; border:0; border-radius:0; }}
         QWidget#filterBand, QWidget#workspacePanel {{ background:{surface}; border:1px solid {line}; border-radius:6px; }}
         QWidget#modelSettingsBody {{ background:{surface}; }}
+        QWidget#modelPartInfoBody {{ background:{surface}; }}
+        QLabel#modelPartName {{ font-size:13px; font-weight:600; }}
+        QTreeWidget#modelPartTree {{ border:0; background:transparent; font-size:12px; }}
+        QTreeWidget#modelPartTree::item {{ min-height:26px; padding:2px; border:0; }}
+        QTreeWidget#modelPartTree::item:selected {{ background:{hover}; color:{accent}; }}
         QToolButton#modelSectionHeader {{ text-align:left; border:0; border-bottom:1px solid {line};
             border-radius:0; background:transparent; color:{muted}; padding:2px 0; min-height:24px; font-weight:600; }}
         QToolButton#modelSectionHeader:hover {{ color:{accent}; background:{hover}; }}
