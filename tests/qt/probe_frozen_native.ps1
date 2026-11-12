@@ -420,6 +420,36 @@ try {
                 if ($restoredItems.Count -ne 1) { throw "Part click did not restore: $partName" }
                 $result.three_d_parts += $partName
             }
+            foreach ($annotationName in @('尺寸标注','P1–P6 轴向标记')) {
+                $annotationControl = Find-NamedControl $window $annotationName
+                if ($annotationControl.Count -ne 1 -or -not $annotationControl[0].Current.IsEnabled) {
+                    throw "Native annotation control missing or disabled in detail: $annotationName"
+                }
+                Activate-Control $annotationControl[0]
+                Start-Sleep -Milliseconds 100
+                Activate-Control $annotationControl[0]
+            }
+            $partClose = Find-NamedControl $window '关闭零件详情'
+            Activate-Control $partClose[0]
+            $fullTab = Find-Control $window ([System.Windows.Automation.ControlType]::TabItem) '整管视图'
+            $fullTab[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+            Activate-Control $modelSettings[0]
+            Activate-Control $filterButton[0]
+            Start-Sleep -Milliseconds 350
+            $axisScale = @(Find-NamedControl $window 'P1–P6 轴向标尺' |
+                Where-Object { -not $_.Current.IsOffscreen })
+            if ($axisScale.Count -ne 1) { throw 'Native full-length axial scale did not become accessible' }
+            $p5Ticks = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) |
+                Where-Object { $_.Current.Name.StartsWith('P5? · ') -and -not $_.Current.IsOffscreen })
+            if ($p5Ticks.Count -ne 1) { throw 'Native estimated P5 scale tick missing' }
+            Activate-Control $p5Ticks[0]
+            Start-Sleep -Milliseconds 150
+            Capture 'frozen-three-d-axial-scale'
+            Activate-Control $modelSettings[0]
+            Start-Sleep -Milliseconds 150
+            $axisScale = @(Find-NamedControl $window 'P1–P6 轴向标尺' |
+                Where-Object { -not $_.Current.IsOffscreen })
+            if ($axisScale.Count -ne 0) { throw 'Native model controls failed to hide the axial scale' }
             $assemblyTab = Find-Control $window ([System.Windows.Automation.ControlType]::TabItem) '整体布置'
             if ($assemblyTab.Count -ne 1) { throw 'Assembly mode tab missing after part details' }
             $assemblyTab[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
@@ -427,6 +457,7 @@ try {
             Activate-Control $modelSettings[0]
             $result.steps += 'native-floating-model-settings-colors-and-type-filter'
             $result.steps += 'native-six-part-tree-metadata-right-click-hide-and-restore'
+            $result.steps += 'native-dimensions-station-rings-and-accessible-axial-scale'
         }
     }
     $importButton = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) '导入数据' |

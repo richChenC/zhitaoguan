@@ -77,6 +77,30 @@ def part_info(part_id, channel):
     return rows
 
 
+def station_marks(length):
+    return [{
+        **station, "distance": length if station["fromTop"] == "L" else station["fromTop"],
+        "y": length - (length if station["fromTop"] == "L" else station["fromTop"]),
+        "label": station["id"] + ("?" if station["status"] == "推定" else ""),
+    } for station in reference_stations().values() if station["fromTop"] is not None]
+
+
+def dimension_annotations(mode, length, visible_parts, enlarged=False):
+    definitions = (
+        ("tubeOD", "P01", "指套管 Φ8.6（壁厚 1.7）", (4.3, length-150 if mode == "full" else 178, 0), ("joint", "full")),
+        ("socketTop", "P02", "管座端面 / 密封锥", (0, 126.87, 0), ("joint", "socket")),
+        ("socketOD", "P02", "管座 Φ47.3", (23.65, 62, 0), ("joint", "socket")),
+        ("socketBore", "P02", "内孔 Φ13.84", (6.92, 96, 0), ("socket",)),
+        ("socketThr", "P02", "内螺纹 Φ25.127", (12.56, 30, 0), ("socket",)),
+        ("nutOD", "P04", "调整螺母 Φ57.15", (124.575, 60, 0), ("joint",)),
+        ("pipeOD", "P05", "中子测量贯穿管 Φ50.8", (25.4, -160 if mode == "full" else -70, 0), ("joint", "full")),
+    )
+    return [{"id": key, "part": part, "text": text,
+             "anchor": [point[0] * (4 if enlarged else 1), point[1], point[2] * (4 if enlarged else 1)]}
+            for key, part, text, point, modes in definitions
+            if mode in modes and visible_parts.get(part, True)]
+
+
 def effective_depths(records):
     """Use the reference viewer's quantified-finding contract, preserving raw locations."""
     depths = {}

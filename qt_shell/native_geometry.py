@@ -4,6 +4,7 @@ from __future__ import annotations
 from array import array
 from functools import lru_cache
 import json
+import math
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, Property, Signal
@@ -23,6 +24,22 @@ def model_parts():
 
 @lru_cache(maxsize=160)
 def geometry_data(part_id):
+    if part_id in ("station-ring", "station-ring-enlarged"):
+        radius, thickness = (27, 1.2) if part_id.endswith("-enlarged") else (6.6, .55)
+        vertices, indices = array("f"), array("I")
+        for i in range(49):
+            angle = i * math.tau / 48
+            for j in range(9):
+                radial = j * math.tau / 8
+                nx, ny, nz = math.cos(radial)*math.cos(angle), math.sin(radial), math.cos(radial)*math.sin(angle)
+                vertices.extend((radius*math.cos(angle)+thickness*nx, thickness*ny,
+                                 radius*math.sin(angle)+thickness*nz, nx, ny, nz))
+        for i in range(48):
+            for j in range(8):
+                a = i*9+j
+                indices.extend((a, a+9, a+1, a+1, a+9, a+10))
+        edge = radius + thickness
+        return vertices.tobytes(), indices.tobytes(), ([-edge, -thickness, -edge], [edge, thickness, edge])
     if part_id == "plateOverlay":
         from .native_plate_texture import plate_corners
         points = plate_corners()

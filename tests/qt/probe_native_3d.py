@@ -11,7 +11,7 @@ from datetime import datetime
 
 from PySide6.QtCore import QEventLoop, QPoint, QPointF, QTimer, Qt, QtMsgType, QUrl, qInstallMessageHandler
 from PySide6.QtGui import QGuiApplication, QVector3D, QWheelEvent
-from PySide6.QtQuick import QQuickView
+from PySide6.QtQuick import QQuickItem, QQuickView
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QPushButton
 
@@ -22,9 +22,9 @@ def wait(milliseconds):
     loop.exec()
 
 
-def pixels(image):
-    return [image.pixel(x, y) for y in range(0, image.height(), 4)
-            for x in range(0, image.width(), 4)]
+def pixels(image, step=4):
+    return [image.pixel(x, y) for y in range(0, image.height(), step)
+            for x in range(0, image.width(), step)]
 
 
 def verify_camera_views(page, root, work):
@@ -35,6 +35,7 @@ def verify_camera_views(page, root, work):
                                           (1024, 768, True), (1480, 920, True)):
         theme = "light" if width == 1024 else "dark"
         page.setStyleSheet(workspace_styles(theme))
+        page.set_theme(theme)
         wait(50)
         page.resize(width, height)
         page.scene_settings_button.setChecked(model_settings)
@@ -204,6 +205,7 @@ def verify_camera_views(page, root, work):
     page.auto_rotate.setChecked(False)
     page._reset_three_d_view()
     page.setStyleSheet(workspace_styles("light"))
+    page.set_theme("light")
     page.scene_settings_button.setChecked(False)
     page.data_details_button.setChecked(False)
     page.resize(1100, 800)
@@ -246,6 +248,7 @@ def verify_tube_colors(page, root, work, data):
     original_node = root.findChild(QObject, "tubeNode-1")
     for theme in ("light", "dark"):
         page.setStyleSheet(workspace_styles(theme))
+        page.set_theme(theme)
         for control in page.findChildren(QPushButton):
             if control.property("iconName"):
                 control.setIcon(icon(control.property("iconName"), theme))
@@ -430,6 +433,8 @@ def verify_parts(page, root, work):
     from qt_shell.native_components import workspace_styles
     from qt_shell.native_model_data import reference_parts
     checks = []
+    page.dimensions.setChecked(False)
+    page.stations.setChecked(False)
     page.measurement.setChecked(False)
     page.section.setChecked(False)
     page.explode.setValue(0)
@@ -441,6 +446,7 @@ def verify_parts(page, root, work):
     page.scene_settings_host.verticalScrollBar().setValue(0)
     for width, height, theme in ((800, 650, "dark"), (1480, 920, "light")):
         page.setStyleSheet(workspace_styles(theme))
+        page.set_theme(theme)
         page.resize(width, height)
         wait(200)
         for part in reference_parts():
@@ -554,10 +560,127 @@ def verify_parts(page, root, work):
     assert page._scope_data == saved_scope
     page.mode_tabs.setCurrentIndex(0)
     page.resize(1100, 800)
+    page.dimensions.setChecked(True)
+    page.stations.setChecked(True)
     wait(150)
     return {"metadata_checks": checks, "isolated_mesh_checks": mesh_checks,
             "ghost_changed_pixels": ghost_change, "hide_removes_pixels_and_picking": True,
             "reference_geometry_without_inspection_scope": True}
+
+
+def verify_annotations(page, root, work):
+    from PySide6.QtCore import QObject
+    from PySide6.QtWidgets import QToolTip
+    from qt_shell.native_components import workspace_styles
+    from qt_shell.native_model_data import dimension_annotations
+    checks = []
+    page.scene_settings_button.setChecked(False)
+    page.data_details_button.setChecked(False)
+    page.detection_filter_button.setChecked(False)
+    page._hide_part_info()
+    page.dimensions.setChecked(True)
+    page.stations.setChecked(True)
+    for width, height, theme in ((800, 650, "dark"), (1024, 768, "light"), (1480, 920, "dark")):
+        page.setStyleSheet(workspace_styles(theme))
+        page.set_theme(theme)
+        page.resize(width, height)
+        for tab, mode in ((1, "joint"), (3, "socket"), (2, "full")):
+            page.mode_tabs.setCurrentIndex(tab)
+            wait(200)
+            assert root.property("darkTheme") == (theme == "dark")
+            background = page.view.grabWindow().pixelColor(2, 2).name()
+            assert background == ("#101617" if theme == "dark" else "#f2f5f7"), background
+            expected = dimension_annotations(mode, root.property("detailLength"), page._part_visibility,
+                                             page.visibility_checks["enlargeTubes"].isChecked())
+            assert root.property("dimensionLabels") == expected
+            labels = root.property("projectedAnnotations").toVariant()
+            dimensions = [label for label in labels if not label["station"]]
+            assert dimensions, (width, mode, "No projected dimensions", labels)
+            for i, label in enumerate(labels):
+                assert root.property("coveredLeft") <= label["x"] < label["x"]+label["w"] <= page.view.width()-root.property("coveredRight")
+                assert 0 <= label["y"] < label["y"]+label["h"] <= page.view.height()-root.property("coveredBottom")
+                for other in labels[i+1:]:
+                    assert (label["x"]+label["w"] <= other["x"] or other["x"]+other["w"] <= label["x"] or
+                            label["y"]+label["h"] <= other["y"] or other["y"]+other["h"] <= label["y"]), (label, other)
+            before = pixels(page.view.grabWindow())
+            page.dimensions.setChecked(False)
+            wait(100)
+            after = pixels(page.view.grabWindow())
+            changed = sum(a != b for a, b in zip(before, after))
+            assert changed > 10, (mode, "Dimensions did not change actual pixels", changed)
+            assert not any(not label["station"] for label in root.property("projectedAnnotations").toVariant())
+            page.dimensions.setChecked(True)
+            wait(100)
+            scale = root.findChild(QQuickItem, "stationScale")
+            assert scale and bool(scale.property("visible")) == (mode == "full")
+            checks.append({"width": width, "theme": theme, "mode": mode,
+                           "dimension_labels": [label["id"] for label in dimensions], "changed_pixels": changed})
+            page.grab().save(str(work / f"annotations-{mode}-{width}-{theme}.png"))
+    page.mode_tabs.setCurrentIndex(1)
+    wait(150)
+    previous_anchors = {label["id"]: (label["anchorX"], label["anchorY"])
+                        for label in root.property("projectedAnnotations").toVariant()}
+    QTest.mousePress(page.view, Qt.MouseButton.LeftButton, pos=QPoint(100, 100))
+    QTest.mouseMove(page.view, QPoint(165, 120), 60)
+    QTest.mouseRelease(page.view, Qt.MouseButton.LeftButton, pos=QPoint(165, 120))
+    wait(150)
+    moved = root.property("projectedAnnotations").toVariant()
+    assert any(label["id"] in previous_anchors and
+               abs(label["anchorX"]-previous_anchors[label["id"]][0])+
+               abs(label["anchorY"]-previous_anchors[label["id"]][1]) > 1 for label in moved)
+    definitions = {label["id"]: label for label in root.property("dimensionLabels")}
+    for label in moved:
+        if label["station"]:
+            continue
+        anchor = definitions[label["id"]]["anchor"]
+        projected = root.projectPoint(QVector3D(anchor[0], anchor[1]-root.property("detailTarget"), anchor[2]))
+        assert abs(projected.x()-label["anchorX"]) < .5 and abs(projected.y()-label["anchorY"]) < .5
+    page.mode_tabs.setCurrentIndex(2)
+    page.tube_selector.setValue(25)
+    wait(150)
+    length = root.property("detailLength")
+    stations = root.property("stations")
+    assert [mark["distance"] for mark in stations] == [0, 851, 1024.5, 1867.5, 2397.5, length]
+    assert stations[4]["label"] == "P5?" and stations[4]["status"] == "推定"
+    assert stations[-1]["y"] == 0 and stations[0]["y"] == length
+    for mark in stations:
+        ring = root.findChild(QObject, "stationRing-" + mark["id"])
+        assert ring and ring.property("visible") and abs(ring.property("y")-mark["y"]) < .01
+    baseline = pixels(page.view.grabWindow(), step=1)
+    page.stations.setChecked(False)
+    wait(150)
+    ring_change = sum(a != b for a, b in zip(baseline, pixels(page.view.grabWindow(), step=1)))
+    assert ring_change > 20, ring_change
+    page.stations.setChecked(True)
+    scale = root.findChild(QQuickItem, "stationScale")
+    assert scale.property("visible")
+    tick = next(item for item in scale.childItems() if item.objectName() == "scaleTick-P5")
+    QTest.mouseClick(page.view, Qt.MouseButton.LeftButton,
+                    pos=QPoint(int(scale.property("x")+tick.property("x")+65),
+                               int(scale.property("y")+tick.property("y"))))
+    wait(100)
+    assert "推定" in QToolTip.text() and "待实测复核" in QToolTip.text(), QToolTip.text()
+    QToolTip.hideText()
+    for control in (page.scene_settings_button, page.detection_filter_button, page.data_details_button):
+        control.setChecked(True)
+        wait(100)
+        assert not scale.property("visible"), control.text()
+        control.setChecked(False)
+        wait(100)
+        assert scale.property("visible"), control.text()
+    page.show_part("P01")
+    wait(100)
+    assert not scale.property("visible")
+    page._hide_part_info()
+    wait(100)
+    assert scale.property("visible")
+    page.mode_tabs.setCurrentIndex(0)
+    wait(100)
+    assert not scale.property("visible") and root.property("projectedAnnotations").toVariant() == []
+    return {"layout_checks": checks, "station_ring_changed_pixels": ring_change,
+            "source_positions_preserved": True, "p5_click_explains_uncertainty": True,
+            "auxiliary_panels_hide_scale": True, "drag_updates_projected_leaders": True,
+            "theme_background_pixels_match": True}
 
 
 def real_data_probe(database):
@@ -619,9 +742,11 @@ def real_data_probe(database):
     work = test_root / ("native-3d-widget-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     work.mkdir()
     image.save(str(work / "assembly.png"))
-    output["cameras"] = verify_camera_views(page, root, work)
-    output["coloring"] = verify_tube_colors(page, root, work, data)
-    output["parts"] = verify_parts(page, root, work)
+    if "--annotations-only" not in sys.argv:
+        output["cameras"] = verify_camera_views(page, root, work)
+        output["coloring"] = verify_tube_colors(page, root, work, data)
+        output["parts"] = verify_parts(page, root, work)
+    output["annotations"] = verify_annotations(page, root, work)
     image = page.view.grabWindow()
     page.plate_view.setChecked(True)
     wait(400)

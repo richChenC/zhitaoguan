@@ -3,7 +3,8 @@ import unittest
 import native_test_env  # noqa: F401
 
 from qt_shell.native_model_data import (color_tubes, defect_placement, effective_depths, part_info,
-                                       reference_channel, reference_parts, reference_layout, scene_data)
+                                       reference_channel, reference_parts, reference_layout, scene_data,
+                                       dimension_annotations, station_marks)
 
 
 class ModelDataTests(unittest.TestCase):
@@ -46,6 +47,42 @@ class ModelDataTests(unittest.TestCase):
         self.assertEqual(record, original)
         record["offset_confirmed"] = False
         self.assertFalse(defect_placement(record, self.channel, maintenance_preview=True)["maintenance_applied"])
+
+    def test_station_and_dimension_annotations_keep_reference_uncertainty(self):
+        for length in (2694.1, 3000, 3287.67):
+            marks = station_marks(length)
+            self.assertEqual([mark["distance"] for mark in marks], [0, 851, 1024.5, 1867.5, 2397.5, length])
+            self.assertEqual(marks[0]["y"], length)
+            self.assertEqual(marks[-1]["y"], 0)
+            self.assertEqual(marks[4]["label"], "P5?")
+            self.assertEqual(marks[4]["status"], "推定")
+            self.assertIn("待实测复核", marks[4]["basis"])
+        self.assertEqual(dimension_annotations("assembly", 3000, {}), [])
+        labels = dimension_annotations("socket", 3000, {})
+        self.assertEqual([label["id"] for label in labels],
+                         ["socketTop", "socketOD", "socketBore", "socketThr"])
+        self.assertEqual(dimension_annotations("socket", 3000, {"P02": False}), [])
+        full = dimension_annotations("full", 3000, {}, True)
+        self.assertEqual(full[0]["anchor"], [17.2, 2850, 0])
+        self.assertEqual(full[1]["anchor"], [101.6, -160, 0])
+
+    def test_station_ring_mesh_has_closed_seams_and_valid_normals(self):
+        from array import array
+        from qt_shell.native_geometry import geometry_data
+        for key, radius, thickness in (("station-ring", 6.6, .55), ("station-ring-enlarged", 27, 1.2)):
+            data, faces, bounds = geometry_data(key)
+            vertices, indices = array("f"), array("I")
+            vertices.frombytes(data)
+            indices.frombytes(faces)
+            self.assertEqual(len(vertices)//6, 49*9)
+            self.assertEqual(len(indices)//3, 48*8*2)
+            self.assertLess(max(indices), len(vertices)//6)
+            for i in range(0, len(vertices), 6):
+                self.assertAlmostEqual(sum(v*v for v in vertices[i+3:i+6]), 1, places=5)
+            for i in range(9*6):
+                self.assertAlmostEqual(vertices[i], vertices[-9*6+i], places=5)
+            self.assertEqual(bounds, ([-radius-thickness, -thickness, -radius-thickness],
+                                      [radius+thickness, thickness, radius+thickness]))
 
     def test_scene_uses_source_lengths_and_does_not_invent_points(self):
         plate = [{"tube": int(c["serialOdd"]), "position": c["pos"], "records": 1,

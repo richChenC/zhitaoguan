@@ -4,7 +4,8 @@ import Thimble.Native 1.0
 
 Rectangle {
     id: root
-    color: "#edf2f4"
+    property bool darkTheme: false
+    color: darkTheme ? "#101617" : "#f2f5f7"
     property var tubes: []
     property var tubeColors: ({})
     property var columns: []
@@ -23,6 +24,18 @@ Rectangle {
     property var partColors: ({P01: "#667c8c", P02: "#9fa9b5", P03: "#d9d2c4",
                               P04: "#c8b89a", P05: "#8f9aa6", P06: "#9aa4b0"})
     property bool ghostContext: true
+    property var stations: []
+    property bool showStations: true
+    property var dimensionLabels: []
+    property var projectedAnnotations: []
+    property bool suppressScale: true
+    readonly property bool scaleVisible: displayMode === "full" && !suppressScale &&
+        width-coveredRight > 240 && height-coveredBottom >= 330
+    readonly property real scaleHeight: Math.min(330, Math.max(240, height-coveredBottom-88))
+    readonly property real scaleX: width-coveredRight-210
+    readonly property var annotationState: [yaw,pitch,zoomFactor,panX,panY,width,height,detailLength,displayMode,
+        coveredLeft,coveredRight,coveredBottom,dimensionLabels,stations,showStations,scaleVisible]
+    onAnnotationStateChanged: annotationTimer.restart()
     readonly property bool singleMode: displayMode === "joint" || displayMode === "full" || displayMode === "socket"
     readonly property real detailTarget: displayMode === "full" ? detailLength/2 : displayMode === "socket" ? 66 : 52
     readonly property vector3d isoDirection: displayMode === "joint" ? Qt.vector3d(.55, .38, .74) :
@@ -78,6 +91,7 @@ Rectangle {
     property vector3d measureB: Qt.vector3d(0,0,0)
     signal tubeSelected(int tube)
     signal partSelected(string partId)
+    signal stationSelected(string stationId)
     signal measurementChanged(string value)
     signal viewManipulated()
     signal viewReset()
@@ -228,6 +242,43 @@ Rectangle {
     onShowMissingChanged: fitView()
     Component.onCompleted: fitView()
     function projectPoint(point) { return scene.mapFrom3DScene(point) }
+    function updateAnnotations() {
+        if (!singleMode || width <= 0 || height <= 0) {
+            projectedAnnotations = []
+            return
+        }
+        const labels = []
+        const left = coveredLeft + 6, right = width-coveredRight-6
+        const bottom = height-coveredBottom-6
+        const overlaps = (a,b) => a.x < b.x+b.w+3 && a.x+a.w+3 > b.x &&
+                                   a.y < b.y+b.h+3 && a.y+a.h+3 > b.y
+        const place = (id, text, point, station, estimated) => {
+            const p = projectPoint(point)
+            if (!(p.z > 0 && p.z < 50000) || p.x < left || p.x > right || p.y < 0 || p.y > bottom) return
+            annotationMetrics.text = text
+            const w = annotationMetrics.width + 12, h = 22
+            if (w > right-left) return
+            const positions = [Math.max(left,Math.min(right-w,p.x+(station ? 44 : 54))),
+                               Math.max(left,Math.min(right-w,p.x-w-14))]
+            for (const x of positions) for (let attempt=0; attempt<17; ++attempt) {
+                const step = attempt ? Math.ceil(attempt/2)*25*(attempt%2 ? 1 : -1) : 0
+                const rect = {x:x, y:Math.max(2,Math.min(bottom-h,p.y-16+step)), w:w, h:h}
+                if (labels.some(label => overlaps(rect,label))) continue
+                if (scaleVisible && overlaps(rect,{x:scaleX,y:12,w:196,h:scaleHeight+76})) continue
+                labels.push({id:id,text:text,x:rect.x,y:rect.y,w:w,h:h,anchorX:p.x,anchorY:p.y,
+                             station:station,estimated:estimated})
+                return
+            }
+        }
+        for (const label of dimensionLabels)
+            place(label.id,label.text,Qt.vector3d(label.anchor[0],label.anchor[1]-detailTarget,label.anchor[2]),false,false)
+        if (showStations && displayMode !== "full")
+            for (const station of stations)
+                place(station.id,station.label,Qt.vector3d(0,station.y-detailTarget,0),true,station.status === "推定")
+        projectedAnnotations = labels
+    }
+    TextMetrics { id: annotationMetrics; font.pixelSize: 11 }
+    Timer { id: annotationTimer; interval: 16; onTriggered: root.updateAnnotations() }
     View3D {
         id: scene
         anchors.fill: parent
@@ -240,10 +291,11 @@ Rectangle {
             ReferenceGeometry { id: nutGeometry; partId: "P04" }
             ReferenceGeometry { id: penetrationGeometry; partId: "P05" }
             ReferenceGeometry { id: supportGeometry; partId: "P06" }
+            ReferenceGeometry { id: stationGeometry; partId: "station-ring" }
+            ReferenceGeometry { id: enlargedStationGeometry; partId: "station-ring-enlarged" }
         }
         environment: SceneEnvironment {
-            backgroundMode: SceneEnvironment.Color
-            clearColor: "#edf2f4"
+            backgroundMode: SceneEnvironment.Transparent
             antialiasingMode: SceneEnvironment.MSAA
             tonemapMode: SceneEnvironment.TonemapModeAces
         }
@@ -410,13 +462,29 @@ Rectangle {
                               modelData === "P05" ? Qt.vector3d(0,-root.explode*120,0) :
                                                    Qt.vector3d(0,-root.explode*220,0)
                     scale: modelData === "P01" ?
-                        Qt.vector3d(root.enlargeTubes ? (root.displayMode === "full" ? 4 : 3) : 1,
+                        Qt.vector3d(root.enlargeTubes ? 4 : 1,
                                     root.detailLength/3000,
-                                    root.enlargeTubes ? (root.displayMode === "full" ? 4 : 3) : 1) : Qt.vector3d(1,1,1)
+                                    root.enlargeTubes ? 4 : 1) : Qt.vector3d(1,1,1)
                     materials: SectionMaterial {
                         tint: modelData === "P01" ? "#667c8c" : root.partColors[modelData]
                         alphaValue: contextPart && root.ghostContext ? .22 : 1
                         objectName: "detailMaterial-" + modelData
+                    }
+                }
+            }
+            Repeater3D {
+                model: root.stations
+                delegate: Model {
+                    required property var modelData
+                    objectName: "stationRing-" + modelData.id
+                    visible: root.showStations
+                    y: modelData.y
+                    geometry: root.enlargeTubes ? enlargedStationGeometry : stationGeometry
+                    materials: DefaultMaterial {
+                        lighting: DefaultMaterial.NoLighting
+                        diffuseColor: modelData.status === "推定" ? "#d98b2b" : "#0b6bcb"
+                        opacity: .95
+                        cullMode: Material.NoCulling
                     }
                 }
             }
@@ -509,6 +577,101 @@ Rectangle {
                 if (tube) { root.selectedTube=tube; root.tubeSelected(tube) }
             }
             onDoubleClicked: root.resetView()
+        }
+    }
+    Canvas {
+        id: leaders
+        anchors.fill: parent
+        onPaint: {
+            const context = getContext("2d")
+            context.reset()
+            context.lineWidth = .8
+            for (const label of root.projectedAnnotations) {
+                context.strokeStyle = label.estimated ? "#d98b2b" : label.station ? "#0b6bcb" : "#9db8d4"
+                context.beginPath()
+                context.moveTo(label.anchorX,label.anchorY)
+                context.lineTo(label.x > label.anchorX ? label.x : label.x+label.w,label.y+label.h/2)
+                context.stroke()
+            }
+        }
+        Connections { target: root; function onProjectedAnnotationsChanged() { leaders.requestPaint() } }
+    }
+    Repeater {
+        model: root.projectedAnnotations
+        delegate: Rectangle {
+            required property var modelData
+            objectName: "annotation-" + modelData.id
+            Accessible.role: modelData.station ? Accessible.Button : Accessible.StaticText
+            Accessible.name: modelData.text
+            Accessible.onPressAction: { if (modelData.station) root.stationSelected(modelData.id) }
+            x: modelData.x; y: modelData.y; width: modelData.w; height: modelData.h
+            radius: 4
+            color: root.darkTheme ? (modelData.estimated ? "#342b1c" : "#f5232f31") :
+                modelData.station && !modelData.estimated ? "#0b6bcb" : "#faffffff"
+            border.color: root.darkTheme ? (modelData.estimated ? "#8a6731" : "#526766") :
+                modelData.estimated ? "#f0cfa8" : modelData.station ? "#0b6bcb" : "#cfdcea"
+            Text {
+                anchors.centerIn: parent
+                text: modelData.text
+                textFormat: Text.PlainText
+                font.pixelSize: 11
+                color: root.darkTheme ? (modelData.estimated ? "#ffd087" : "#d8e6e3") :
+                    modelData.estimated ? "#b16c18" : modelData.station ? "#ffffff" : "#33506e"
+            }
+            MouseArea {
+                anchors.fill: parent
+                enabled: modelData.station
+                onClicked: root.stationSelected(modelData.id)
+            }
+        }
+    }
+    Rectangle {
+        id: stationScale
+        objectName: "stationScale"
+        Accessible.role: Accessible.StaticText
+        Accessible.name: "P1–P6 轴向标尺"
+        visible: root.scaleVisible
+        x: root.scaleX; y: 12; width: 196; height: root.scaleHeight+76
+        color: root.darkTheme ? "#f71c2527" : "#faffffff"
+        border.color: root.darkTheme ? "#3b4c4d" : "#cfdcea"; radius: 6
+        Text {
+            x: 10; y: 9; text: "P1–P6 轴向标尺"
+            Accessible.ignored: true
+            font.pixelSize: 11; font.bold: true; color: root.darkTheme ? "#9eafac" : "#61758c"
+        }
+        Rectangle { x: 30; y: 36; width: 2; height: root.scaleHeight; color: "#6b9fd2" }
+        Repeater {
+            model: root.stations
+            delegate: Item {
+                required property var modelData
+                objectName: "scaleTick-" + modelData.id
+                Accessible.role: Accessible.Button
+                Accessible.name: modelData.label+" · "+modelData.distance.toFixed(1)+" mm · "+modelData.status
+                Accessible.description: modelData.basis
+                Accessible.onPressAction: root.stationSelected(modelData.id)
+                x: 8; y: 36+Math.max(0,Math.min(1,modelData.distance/root.detailLength))*root.scaleHeight
+                width: 180; height: 1
+                Rectangle { anchors.fill: parent; color: root.darkTheme ? "#334244" : "#cfdcea" }
+                Text {
+                    x: 2; y: -7; text: modelData.label
+                    font.pixelSize: 11; font.bold: true
+                    color: root.darkTheme ? (modelData.status === "推定" ? "#ffd087" : "#e5eeec") :
+                        modelData.status === "推定" ? "#b16c18" : "#0b6bcb"
+                }
+                Text {
+                    x: 36; y: -7
+                    text: modelData.distance.toFixed(1)+" mm ("+(modelData.distance/root.detailLength*100).toFixed(0)+"%)"
+                    font.pixelSize: 10; color: root.darkTheme ? "#e5eeec" : "#465d65"
+                }
+                MouseArea { width: parent.width; height: 18; y: -8; onClicked: root.stationSelected(modelData.id) }
+            }
+        }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            y: root.scaleHeight+52
+            text: "P1 在管顶 · P6 在管底"
+            font.pixelSize: 10
+            color: root.darkTheme ? "#9eafac" : "#61758c"
         }
     }
     Text {

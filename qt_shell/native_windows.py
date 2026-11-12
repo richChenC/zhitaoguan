@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QEvent, QIODevice, QModelIndex, QObject, QSaveFile, QUrl, QTimer, Qt, Signal
-from PySide6.QtGui import QCloseEvent, QColor, QIcon, QImage, QPainter, QPixmap, QVector3D
+from PySide6.QtGui import QCloseEvent, QColor, QCursor, QIcon, QImage, QPainter, QPixmap, QVector3D
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -46,6 +46,7 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QToolButton,
+    QToolTip,
     QTreeWidget,
     QTreeWidgetItem,
     QHeaderView,
@@ -5723,6 +5724,14 @@ class NativeThreeDPage(QWidget):
         self.axes.setToolTip("X红 / Y绿 / Z蓝")
         self.axes.toggled.connect(lambda v: self._set_scene_property("showAxes", v))
         display_settings.addWidget(self.axes)
+        self.dimensions = QCheckBox("尺寸标注")
+        self.dimensions.setChecked(True)
+        self.dimensions.toggled.connect(lambda checked: self._update_model_annotations())
+        display_settings.addWidget(self.dimensions)
+        self.stations = QCheckBox("P1–P6 轴向标记")
+        self.stations.setChecked(True)
+        self.stations.toggled.connect(lambda checked: self._set_scene_property("showStations", checked))
+        display_settings.addWidget(self.stations)
         enlarge = self.visibility_checks["enlargeTubes"]
         display_settings.addWidget(enlarge)
         enlarge.clicked.connect(lambda _checked: setattr(self, "_enlarge_auto", False))
@@ -5805,6 +5814,8 @@ class NativeThreeDPage(QWidget):
         if root is not None:
             root.tubeSelected.connect(self.show_tube)
             root.partSelected.connect(self.show_part)
+            if hasattr(root, "stationSelected"):
+                root.stationSelected.connect(self._station_selected)
             root.setProperty("partVisibility", self._part_visibility)
             root.setProperty("partColors", {key: part["color"] for key, part in self._parts.items()})
             if hasattr(root, "viewManipulated"):
@@ -5938,6 +5949,9 @@ class NativeThreeDPage(QWidget):
         self._camera_layout_timer = QTimer(self)
         self._camera_layout_timer.setSingleShot(True)
         self._camera_layout_timer.timeout.connect(self._sync_camera_space)
+        self.detection_filter_button.toggled.connect(lambda _checked: self._camera_layout_timer.start())
+        self.data_details_button.toggled.connect(lambda _checked: self._camera_layout_timer.start())
+        self.visibility_checks["enlargeTubes"].toggled.connect(lambda _checked: self._update_model_annotations())
         detail_host.installEventFilter(self)
         footer.installEventFilter(self)
         self.scene_settings_host.installEventFilter(self)
@@ -5976,6 +5990,9 @@ class NativeThreeDPage(QWidget):
                                  if self.scene_detail_host.isVisible() else 0)
         self._set_scene_property("coveredBottom", self.scene_footer.height() + 16
                                  if self.scene_footer.isVisible() else 0)
+        self._set_scene_property("suppressScale", self.scene_settings_host.isVisible()
+                                 or self.part_info_host.isVisible() or self.data_details_button.isChecked()
+                                 or self.detection_filter_button.isChecked())
 
     def _refit_camera(self):
         root = self.view.rootObject()
@@ -6030,6 +6047,7 @@ class NativeThreeDPage(QWidget):
                                    self.part_tree.palette().placeholderText())
         if hasattr(self, "view"):
             self._set_scene_property("partVisibility", dict(self._part_visibility))
+            self._update_model_annotations()
 
     def _part_context(self, point):
         item = self.part_tree.itemAt(point)
@@ -6076,6 +6094,7 @@ class NativeThreeDPage(QWidget):
     def _sync_detail_channel(self):
         self._set_scene_property("selectedTube", self.tube_selector.value())
         self._set_scene_property("detailLength", self._detail_channel()["L"])
+        self._update_model_annotations()
         if self._selected_part:
             self._render_part_info()
 
@@ -6103,6 +6122,8 @@ class NativeThreeDPage(QWidget):
             heading.setVisible(assembly)
             body.setVisible(assembly and heading.isChecked())
         self.ghost.setEnabled(not assembly)
+        self.dimensions.setEnabled(not assembly)
+        self.stations.setEnabled(not assembly)
         enlarge = self.visibility_checks["enlargeTubes"]
         mode = self.display_mode.currentData()
         if mode in ("assembly", "full") and not enlarge.isChecked():
@@ -6111,12 +6132,34 @@ class NativeThreeDPage(QWidget):
         elif mode not in ("assembly", "full") and self._enlarge_auto:
             enlarge.setChecked(False)
             self._enlarge_auto = False
+        self._update_model_annotations()
         self._camera_layout_timer.start()
+
+    def _update_model_annotations(self):
+        if not hasattr(self, "view"):
+            return
+        from .native_model_data import dimension_annotations, station_marks
+        length = self._detail_channel()["L"]
+        self._set_scene_property("stations", station_marks(length))
+        self._set_scene_property("showStations", self.stations.isChecked())
+        self._set_scene_property("dimensionLabels", dimension_annotations(
+            self.display_mode.currentData(), length, self._part_visibility,
+            self.visibility_checks["enlargeTubes"].isChecked()) if self.dimensions.isChecked() else [])
+
+    def _station_selected(self, station_id):
+        from .native_model_data import reference_stations
+        station = reference_stations().get(station_id)
+        if station:
+            QToolTip.showText(QCursor.pos(), f"{station_id}：{station['desc']}（{station['status']}）\n"
+                              f"{station['basis']}\n工程参考基面，非电厂实测标定", self.view)
 
     def set_severity(self, levels, colors):
         self.severity_levels = list(levels)
         self.severity_colors = list(colors)
         self._update_tube_colors()
+
+    def set_theme(self, theme):
+        self._set_scene_property("darkTheme", theme == "dark")
 
     def _tube_color_changed(self, mode, checked):
         # The reference clears length/type when depth is enabled; depth keeps
@@ -6707,6 +6750,7 @@ class NativeMainWindow(QMainWindow):
         visualization.set_theme(theme, prefs["animations"])
         visualization.set_severity(prefs["depth_levels"], prefs["depth_colors"])
         self.stack.widget(2).set_severity(prefs["depth_levels"], prefs["depth_colors"])
+        self.stack.widget(2).set_theme(theme)
         if visualization.set_analysis_options(prefs["ndd_zero"], prefs["point_labels"]):
             self.stack.widget(3).load()
             self.stack.widget(3).load_complex_analysis()

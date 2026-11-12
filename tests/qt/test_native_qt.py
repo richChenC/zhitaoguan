@@ -731,6 +731,48 @@ class NativeQtTests(unittest.TestCase):
         self.assertTrue(page.scene_sections["整体布置"][0].isVisible())
         page.close()
 
+    def test_three_d_station_dimensions_and_scale_follow_controls(self):
+        class Client:
+            def get(self, _path, _callback):
+                return None
+
+        page = NativeThreeDPage(Client())
+        root = page.view.rootObject()
+        self.assertFalse(page.dimensions.isEnabled())
+        self.assertFalse(page.stations.isEnabled())
+        page.mode_tabs.setCurrentIndex(1)
+        self.assertTrue(page.dimensions.isEnabled())
+        self.assertTrue(page.stations.isEnabled())
+        labels = root.property("dimensionLabels")
+        self.assertIn("socketOD", [label["id"] for label in labels])
+        self.assertNotIn("nutOD", [label["id"] for label in labels])
+        page.show_part("P04")
+        self.assertIn("nutOD", [label["id"] for label in root.property("dimensionLabels")])
+        page.toggle_part("P04")
+        self.assertNotIn("nutOD", [label["id"] for label in root.property("dimensionLabels")])
+        page.tube_selector.setValue(33)
+        stations = root.property("stations")
+        self.assertEqual(stations[-1]["distance"], root.property("detailLength"))
+        self.assertEqual(stations[4]["label"], "P5?")
+        page.dimensions.click()
+        self.assertEqual(root.property("dimensionLabels"), [])
+        page.stations.click()
+        self.assertFalse(root.property("showStations"))
+        page.visibility_checks["enlargeTubes"].click()
+        page.dimensions.click()
+        tube_label = next(label for label in root.property("dimensionLabels") if label["id"] == "tubeOD")
+        self.assertEqual(tube_label["anchor"][0], 17.2)
+        page.show()
+        self.app.processEvents()
+        page._hide_part_info()
+        page.mode_tabs.setCurrentIndex(2)
+        self.app.processEvents()
+        self.assertFalse(root.property("suppressScale"))
+        page.detection_filter_button.click()
+        self.app.processEvents()
+        self.assertTrue(root.property("suppressScale"))
+        page.close()
+
     def test_report_draft_is_part_of_snapshot_payload(self):
         class Client:
             def get(self, path, callback):
