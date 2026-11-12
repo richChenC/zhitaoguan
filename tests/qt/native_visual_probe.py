@@ -69,6 +69,7 @@ def main():
         window.show()
         until(app, lambda: window.workbench.model.rowCount() > 0, "first records")
         result["timings"]["window_to_records_s"] = round(time.perf_counter() - started, 3)
+        window.grab().save(str(work / "workbench-1480-light.png"))
         with sqlite3.connect(database) as db:
             result["rows"] = db.execute("SELECT COUNT(*) FROM findings WHERE is_deleted=0").fetchone()[0]
             result["states"] = db.execute("SELECT COUNT(*) FROM tube_states WHERE is_deleted=0").fetchone()[0]
@@ -86,6 +87,67 @@ def main():
         window.nav.setCurrentIndex(2)
         until(app, lambda: bool(analytics.visualization.data.get("snapshots")), "chart dataset")
         vis = analytics.visualization
+        from PySide6.QtTest import QTest
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QPushButton
+        QTest.mouseClick(analytics.site_coverage_buttons["N"], Qt.MouseButton.LeftButton)
+        QTest.mouseClick(analytics.site_coverage_buttons["H"], Qt.MouseButton.LeftButton)
+        until(app, lambda: {snapshot["site"] for snapshot in vis.data.get("snapshots") or []} == {"N", "H"},
+              "multisite chart dataset")
+        result["multisite"] = {"selected": sorted(analytics.scope_bar.selected_sites),
+                                "units": sorted(vis.latest_snapshots())}
+        assert analytics.scope_bar.selected_sites == {"N", "H"}
+        analytics.scope_bar.unit.setCurrentIndex(analytics.scope_bar.unit.findData("H1"))
+        until(app, lambda: set(vis.latest_snapshots()) == {"H1"}, "coded H1 unit filter")
+        assert analytics.scope_bar.selected_sites == {"N", "H"}
+        window.nav.setCurrentIndex(0)
+        window.nav.setCurrentIndex(2)
+        assert analytics.scope_bar.selected_sites == {"N", "H"}
+        QTest.mouseClick(analytics.scope_bar.reset, Qt.MouseButton.LeftButton)
+        until(app, lambda: len(vis.latest_snapshots()) == 20, "reset all sites")
+        disclosure = vis.unit_overview.disclosures[("unit", "N1")]
+        analytics.scroll.ensureWidgetVisible(disclosure.header)
+        QTest.mouseClick(disclosure.header, Qt.MouseButton.LeftButton)
+        outage = vis.unit_overview.disclosures[("outage", "N1", "N101")]
+        analytics.scroll.ensureWidgetVisible(outage.header)
+        QTest.mouseClick(outage.header, Qt.MouseButton.LeftButton)
+        record_button = next(control for control in outage.body.findChildren(QPushButton)
+                             if control.text() == "原始检测表")
+        analytics.scroll.ensureWidgetVisible(record_button)
+        QTest.mouseClick(record_button, Qt.MouseButton.LeftButton)
+        until(app, lambda: vis.unit_records_dialog.findChild(QTableWidget).rowCount() > 0, "raw historical records")
+        raw = request(client, "GET", "/api/findings?site=N&unit=1&outage=N101&raw=1&core=0&auto_ndd=0&size=100")
+        raw_table = vis.unit_records_dialog.findChild(QTableWidget)
+        assert raw_table.rowCount() == len(raw["items"])
+        for row, item in enumerate(raw["items"]):
+            assert raw_table.item(row, 2).text() == str(item.get("indication") or "")
+            assert raw_table.item(row, 6).text() == str(item.get("analysis") or "")
+        result["raw_history"] = {"rows": raw_table.rowCount(), "total": raw["total"], "original_values_match": True}
+        vis.unit_records_dialog.grab().save(str(work / "raw-history.png"))
+        vis.unit_records_dialog.reject()
+        vis.open_unit_history("N1", "N101")
+        vis.open_unit_tubes("N1", "N101", [2], "state")
+        history_table = vis.unit_history_dialog.findChild(QTableWidget)
+        tube_table = vis.unit_tubes_dialog.findChild(QTableWidget)
+        note = "LIVE DIALOG REFRESH\n<original text>"
+        states = request(client, "GET", "/api/states")["items"]
+        current = next((row for row in states if row["outage"] == "N101"
+                        and row["unit_id"] == 1 and row["thimble_id"] == 2), {})
+        request(client, "POST", "/api/state", {
+            "outage": "N101", "unit_id": 1, "thimble_id": 2, "state": "plugged",
+            "events": ["plugged"], "offset_mm": 0, "note": note, "source": "isolated visual regression",
+            "expected_updated_at": current.get("updated_at")})
+        until(app, lambda: any(history_table.item(row, 3).text() == note
+                              for row in range(history_table.rowCount())), "open history refresh after write")
+        until(app, lambda: tube_table.rowCount() == 1 and tube_table.item(0, 4).text() == note,
+              "open tube details refresh after write")
+        assert "堵管" in tube_table.item(0, 3).text()
+        result["live_dialog_sync"] = {"passed": True, "scope": "N1/N101/2", "original_note_preserved": True}
+        vis.unit_history_dialog.reject()
+        vis.unit_tubes_dialog.reject()
+        window.grab().save(str(work / "expanded-unit-history.png"))
+        QTest.mouseClick(vis.unit_overview.disclosures[("unit", "N1")].header, Qt.MouseButton.LeftButton)
+        analytics.scroll.verticalScrollBar().setValue(0)
         for main_tab, sub_tabs in ((0, None), (1, vis.trends), (2, None), (3, None), (4, vis.risk)):
             vis.setCurrentIndex(main_tab)
             for sub_tab in range(sub_tabs.count() if sub_tabs else 1):
@@ -96,7 +158,8 @@ def main():
                 window.grab().save(str(work / name))
                 result["screens"].append(name)
                 if main_tab == 0:
-                    analytics.scroll.ensureWidgetVisible(vis.unit_overview)
+                    target = next(iter(vis.unit_overview.groups.values()), vis.unit_overview)
+                    analytics.scroll.ensureWidgetVisible(target)
                     wait(app, 100)
                     unit_name = "overview-unit-history.png"
                     window.grab().save(str(work / unit_name))
@@ -110,8 +173,6 @@ def main():
         window.context.set_scope({"site": scope["site"], "unit": scope["unit_id"],
                                   "outage": scope["outage"], "thimble": "1"})
         until(app, lambda: bool(window.stack.widget(2).rows), "3D dataset")
-        from PySide6.QtTest import QTest
-        from PySide6.QtCore import Qt
         window.nav.setCurrentIndex(3)
         reports = window.stack.widget(4)
         QTest.mouseClick(reports.preview, Qt.MouseButton.LeftButton)
@@ -142,6 +203,27 @@ def main():
             window.grab().save(str(work / name))
             result["screens"].append(name)
             reports.edit_header()
+            from qt_shell.native_import import ImportWizard
+            from qt_shell.native_windows import DataWorkbench
+            wizard = ImportWizard(client, DataWorkbench.MAPPING_FIELDS,
+                                  window.context.preferences.values, window)
+            wizard.resize(900, min(820, height - 70))
+            wizard.set_sources([str(args.database.parent / "reference-a.xlsx"),
+                                str(args.database.parent / "reference-b.xlsx")])
+            wizard.show()
+            wait(app, 100)
+            name = f"import-excel-{width}-{theme}.png"
+            capture = wizard.grab().toImage()
+            capture.save(str(work / name))
+            if theme == "dark":
+                assert capture.pixelColor(5, 5).lightness() < 128, "import header did not follow dark theme"
+            result["screens"].append(name)
+            wizard.source_tabs.setCurrentIndex(1)
+            wait(app, 100)
+            name = f"import-rpt-{width}-{theme}.png"
+            wizard.grab().save(str(work / name))
+            result["screens"].append(name)
+            wizard.reject()
             window.nav.setCurrentIndex(4)
             states = window.stack.widget(1)
             states._show_state_summary("maintained")

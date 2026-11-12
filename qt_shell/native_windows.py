@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QComboBox,
+    QCompleter,
     QCheckBox,
     QFileDialog,
     QFormLayout,
@@ -34,6 +35,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSpinBox,
     QSlider,
+    QSizePolicy,
     QScrollArea,
     QStackedWidget,
     QSplitter,
@@ -50,7 +52,8 @@ from PySide6.QtWidgets import (
 from .constants import APP_ICON, OUTPUT_DIR, PRODUCT_NAME, REPORT_DIR, USER_DATA
 from .native_client import NativeClient
 from .native_components import (
-    PlateMap, ReferencePlateMap, TubeStateGrid, ScopeBar, STATE_NAMES, STATE_PALETTE, ToolFlowLayout, WorkspaceContext, button, canonical_site, export_widget_image, icon, workspace_styles,
+    AccountIdentityButton, AnalyticsScopeBar, PlateMap, ReferencePlateMap, SiteCoverageButton, TubeStateGrid,
+    ScopeBar, STATE_NAMES, STATE_PALETTE, ToolFlowLayout, WorkspaceContext, button, canonical_site, export_widget_image, icon, workspace_styles,
 )
 
 
@@ -281,9 +284,20 @@ class DataWorkbench(QWidget):
         self.channel.returnPressed.connect(self.apply_filters)
         self.recycle_button = button("回收站", "archive-restore", self.recycleRequested.emit)
         self.recycle_button.setEnabled(self.permissions is None or "data.delete" in self.permissions)
-        for widget in (self.import_button, self.ledger, self.delete, self.recycle_button, self.clear):
-            actions.addWidget(widget)
-        actions.addWidget(button("", "refresh-cw", self.load_findings))
+        for title, controls in (("数据文件", (self.import_button, self.ledger)),
+                                ("记录维护", (self.delete, self.recycle_button, self.clear))):
+            group = QWidget()
+            group.setObjectName("workbenchActionGroup")
+            group_layout = QHBoxLayout(group)
+            group_layout.setContentsMargins(0, 0, 8, 0)
+            group_layout.setSpacing(6)
+            group_layout.addWidget(QLabel(title))
+            for control in controls:
+                group_layout.addWidget(control)
+            actions.addWidget(group)
+        refresh = button("", "refresh-cw", self.load_findings)
+        refresh.setToolTip("刷新检测记录")
+        actions.addWidget(refresh)
         band_layout.addLayout(actions)
         layout.addWidget(band)
         for control, permission in ((self.ledger, "export.create"), (self.delete, "data.delete"),
@@ -499,6 +513,30 @@ class DataWorkbench(QWidget):
             f"机组 {stats.get('units', 0)} 个  |  分析人员 {stats.get('analysts', 0)} 人"
         )
         self.overview_data = data
+        selected = self.detection_status.currentData()
+        self.detection_status.blockSignals(True)
+        while self.detection_status.count() > 4:
+            self.detection_status.removeItem(4)
+        known = {"", "ndd", "war", "blank", "none", "no defect"}
+        for value in data.get("indications") or []:
+            code = str(value).strip()
+            if code and code != "/" and code.casefold() not in known:
+                self.detection_status.addItem(code, code.casefold())
+                known.add(code.casefold())
+        index = self.detection_status.findData(selected)
+        self.detection_status.setCurrentIndex(max(0, index))
+        self.detection_status.blockSignals(False)
+        analysts = [str(value) for value in data.get("analysts") or []]
+        completer = self.analyst.completer()
+        if completer is None:
+            completer = QCompleter(analysts, self.analyst)
+            completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            completer.setFilterMode(Qt.MatchFlag.MatchContains)
+            self.analyst.setCompleter(completer)
+        else:
+            completer.model().setStringList(analysts)
+        if selected and index < 0:
+            self.load_findings()
 
     def apply_filters(self):
         if self.channel.text() and not self.channel.hasAcceptableInput():
@@ -3167,6 +3205,7 @@ class NativeAnalyticsPage(QWidget):
         self._analysis_request = 0
         self._coverage_request = 0
         self._coverage_snapshots = {}
+        self._workspace_scope = {}
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         self.scroll = QScrollArea()
@@ -3176,21 +3215,36 @@ class NativeAnalyticsPage(QWidget):
         self.scroll.setWidget(body)
         outer.addWidget(self.scroll)
         layout = QVBoxLayout(body)
-        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setContentsMargins(18, 8, 18, 16)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.site_coverage_host = QWidget()
-        self.site_coverage_host.setObjectName("filterBand")
+        self.site_coverage_host.setObjectName("siteCoverageHost")
+        self.site_coverage_host.installEventFilter(self)
         self.site_coverage = QGridLayout(self.site_coverage_host)
+        self.site_coverage.setContentsMargins(0, 0, 0, 0)
+        self.site_coverage.setSpacing(7)
         self.site_coverage_buttons = {}
         from .native_components import SITE_NAMES
         for index, (site, name) in enumerate((("", "全部基地"), *SITE_NAMES.items())):
-            control = QPushButton(name)
-            control.setCheckable(True)
+            control = SiteCoverageButton(site, name)
             control.clicked.connect(lambda _, value=site: self._select_site(value))
             self.site_coverage_buttons[site] = control
-            self.site_coverage.addWidget(control, index // 6, index % 6)
-        layout.addWidget(self.site_coverage_host)
-        self.scope_bar = ScopeBar(client)
-        layout.addWidget(self.scope_bar)
+            self.site_coverage.addWidget(control, index // 8, index % 8)
+        band = QWidget()
+        band.setObjectName("filterBand")
+        band.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        band_layout = QVBoxLayout(band)
+        band_layout.setContentsMargins(14, 12, 14, 12)
+        top = QHBoxLayout()
+        top.setSpacing(14)
+        heading = QLabel("基地范围")
+        heading.setFixedWidth(150)
+        top.addWidget(heading)
+        top.addWidget(self.site_coverage_host, 1)
+        band_layout.addLayout(top)
+        self.scope_bar = AnalyticsScopeBar(client)
+        band_layout.addWidget(self.scope_bar)
+        layout.addWidget(band)
         self.scope_bar.changed.connect(self._scope_selected)
         scope = QHBoxLayout()
         self.analysis_site = QLineEdit()
@@ -3299,17 +3353,30 @@ class NativeAnalyticsPage(QWidget):
         self.load()
 
     def _select_site(self, site):
-        index = self.scope_bar.site.findData(site)
-        if index >= 0:
-            self.scope_bar.site.setCurrentIndex(index)
+        selected = set(self.scope_bar.selected_sites)
+        if not site:
+            selected.clear()
+        elif site in selected:
+            selected.remove(site)
+        else:
+            selected.add(site)
+        self.scope_bar.set_sites(selected)
 
     def _scope_selected(self, scope):
+        self._workspace_scope = {key: str(scope.get(key) or "") for key in ("site", "unit", "outage")}
         self.analysis_site.setText(scope.get("site") or "")
         self.analysis_unit.setValue(int(scope.get("unit") or 1))
         self.analysis_outage.setText(scope.get("outage") or "")
+        self._update_coverage()
         self.load_complex_analysis()
 
     def set_workspace_scope(self, scope):
+        requested = {key: str(scope.get(key) or "") for key in ("site", "unit", "outage")}
+        if requested == self._workspace_scope and (self.visualization.data or self._analysis_request):
+            if scope.get("thimble"):
+                self.visualization.select_tube(int(scope["thimble"]))
+            return
+        self._workspace_scope = requested
         previous = (self.analysis_site.text(), self.analysis_unit.value(), self.analysis_outage.text())
         self.scope_bar.set_scope(scope)
         current = (scope.get("site") or "", int(scope.get("unit") or 1), scope.get("outage") or "")
@@ -3349,9 +3416,33 @@ class NativeAnalyticsPage(QWidget):
                          if not site or re.match(r"^[A-Z]+", snapshot["unit"])[0] == site]
             tubes = [tube for snapshot in snapshots for tube in snapshot.get("tubes") or []]
             reported = sum(tube.get("coverage") != "missing" for tube in tubes)
-            name = control.text().split("\n")[0]
-            control.setText(f"{name}\n{len(snapshots)} 台机组 · {reported / len(tubes):.0%}" if tubes else f"{name}\n0 台机组 · —")
-            control.setChecked(site == (self.scope_bar.site.currentData() or ""))
+            control.set_summary(len(snapshots), reported, len(tubes))
+            control.setChecked(site in self.scope_bar.selected_sites if site else not self.scope_bar.selected_sites)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "visualization"):
+            self.visualization.set_metric_columns(3 if event.size().width() < 1180 else 6)
+        self._arrange_site_filters()
+
+    def eventFilter(self, watched, event):
+        if watched is getattr(self, "site_coverage_host", None) and event.type() == QEvent.Type.Resize:
+            self._arrange_site_filters(event.size().width())
+        return super().eventFilter(watched, event)
+
+    def _arrange_site_filters(self, width=None):
+        if not hasattr(self, "site_coverage_buttons"):
+            return
+        width = max(0, self.site_coverage_host.width() if width is None else width)
+        columns = max(2, min(8, (width + 7) // 152))
+        if columns == getattr(self, "_site_columns", None):
+            return
+        self._site_columns = columns
+        for index, control in enumerate(self.site_coverage_buttons.values()):
+            self.site_coverage.removeWidget(control)
+            self.site_coverage.addWidget(control, index // columns, index % columns)
+        for column in range(8):
+            self.site_coverage.setColumnStretch(column, 1 if column < columns else 0)
 
     def _loaded(self, data, error):
         if error or not data:
@@ -3443,12 +3534,12 @@ class NativeAnalyticsPage(QWidget):
 
     def load_complex_analysis(self) -> None:
         from urllib.parse import urlencode
-        sites = self.analysis_site.text().strip().upper()
-        unit = self.analysis_unit.value()
+        sites = ",".join(sorted(self.scope_bar.selected_sites))
+        selected_unit = self.scope_bar.unit.currentData() or ""
         outage = self.analysis_outage.text().strip().upper()
         params = {
             "sites": sites,
-            "unit": f"{sites}{unit}" if sites and self.scope_bar.values().get("unit") else "",
+            "unit": selected_unit,
             "outage": outage,
         }
         self.complex_button.setEnabled(False)
@@ -5609,11 +5700,7 @@ class NativeMainWindow(QMainWindow):
             self.nav.addTab(icon(name), label)
         top_layout.addWidget(self.nav)
         top_layout.addStretch()
-        self.account_button = button(str(user.get("display_name") or user.get("username") or "账户") + "\n已登录",
-                                      None, lambda: self.open_settings(4))
-        self.account_button.setProperty("account", True)
-        self.account_button.setMinimumWidth(118)
-        self.account_button.setToolTip("账户与权限 · 已登录")
+        self.account_button = AccountIdentityButton(user, lambda: self.open_settings(4))
         self.connection_status = QLabel("● 本机服务已连接")
         self.connection_status.setObjectName("muted")
         self.connection_status.setAlignment(Qt.AlignmentFlag.AlignRight)
@@ -5621,8 +5708,11 @@ class NativeMainWindow(QMainWindow):
         self.notifications_button.setToolTip("通知中心")
         self.settings_button = button("", "settings", lambda: self.open_settings(0))
         self.settings_button.setToolTip("软件设置")
-        utilities = QWidget()
-        utilities_layout = QVBoxLayout(utilities)
+        for control in (self.notifications_button, self.settings_button):
+            control.setFixedSize(34, 34)
+        self.utilities = QWidget()
+        self.utilities.setFixedWidth(256)
+        utilities_layout = QVBoxLayout(self.utilities)
         utilities_layout.setContentsMargins(0, 0, 0, 0)
         utilities_layout.setSpacing(0)
         utilities_row = QHBoxLayout()
@@ -5631,7 +5721,7 @@ class NativeMainWindow(QMainWindow):
             utilities_row.addWidget(control)
         utilities_layout.addLayout(utilities_row)
         utilities_layout.addWidget(self.connection_status)
-        top_layout.addWidget(utilities)
+        top_layout.addWidget(self.utilities)
         layout.addWidget(top)
         self.stack = QStackedWidget()
         self.workbench = DataWorkbench(client, user)
@@ -5783,6 +5873,11 @@ class NativeMainWindow(QMainWindow):
 
     def _notify_error(self, path, error):
         self.statusBar().showMessage(error)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "utilities"):
+            self.utilities.setFixedWidth(224 if self.width() <= 1100 else 256)
 
     def _request_finished(self, path, data, error):
         if (error or not data or data.get("ok") is False or data.get("success") is False

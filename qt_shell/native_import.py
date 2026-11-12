@@ -9,9 +9,10 @@ from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout,
     QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
-    QSpinBox, QTableWidget, QTableWidgetItem, QTabBar, QVBoxLayout, QWizard, QWizardPage,
+    QSpinBox, QTableWidget, QTableWidgetItem, QTabBar, QVBoxLayout, QWidget, QWizard, QWizardPage,
 )
 from .constants import EXCEL_EXTENSIONS, EXCEL_SCAN_LIMIT, OFFICE_MAX_BYTES
+from .native_components import button, icon
 
 
 def scan_excel_sources(directory, cancelled=None):
@@ -65,8 +66,9 @@ class ImportWizard(QWizard):
         permissions = getattr(parent, "permissions", None)
         self.can_export = permissions is None or "export.create" in permissions
         self.setWindowTitle("导入检测数据")
-        self.setWizardStyle(QWizard.WizardStyle.ModernStyle)
-        self.resize(1050, 790)
+        self.setObjectName("importWorkspace")
+        self.setWizardStyle(QWizard.WizardStyle.ClassicStyle)
+        self.resize(900, 820)
         self.setMinimumSize(820, 620)
         self.setButtonText(QWizard.WizardButton.NextButton, "下一步")
         self.setButtonText(QWizard.WizardButton.BackButton, "上一步")
@@ -81,44 +83,78 @@ class ImportWizard(QWizard):
         self.source_paths = []
         self.file_mappings = {}
         self._mapping_path = ""
-        source = self._page("选择来源")
-        form = QFormLayout()
+        source = self._page("导入检测数据")
+        source.setSubTitle("选择来源，检查数据，完成入库。")
         self.mode = QComboBox()
         self.mode.addItem("Excel 工作簿", "excel")
         self.mode.addItem("RPT 数据目录", "directory")
         self.mode.setCurrentIndex(max(0, self.mode.findData(mode)))
         self.source_tabs = QTabBar()
-        self.source_tabs.addTab("Excel 检测数据")
-        self.source_tabs.addTab("原始 RPT 数据")
+        self.source_tabs.setObjectName("importSourceTabs")
+        self.source_tabs.setExpanding(True)
+        self.source_tabs.setDrawBase(False)
+        self.source_tabs.setFixedHeight(58)
+        self.source_tabs.addTab("标准 Excel\n导入已有 .xls / .xlsx / .xlsm")
+        self.source_tabs.addTab("RPT 文件夹\n逐组确认最终报告")
         self.source_tabs.setCurrentIndex(self.mode.currentIndex())
         self.source_tabs.currentChanged.connect(self.mode.setCurrentIndex)
         self.mode.currentIndexChanged.connect(self.source_tabs.setCurrentIndex)
         source.layout().addWidget(self.source_tabs)
         self.mode.hide()
+        self.route_title = QLabel()
+        self.route_title.setObjectName("importRouteTitle")
+        self.route_title.setWordWrap(True)
+        self.route_title.setFixedHeight(54)
+        source.layout().addWidget(self.route_title)
+        self.source_host = QWidget()
+        self.source_host.setObjectName("importSourcePanel")
+        source_box = QVBoxLayout(self.source_host)
+        source_box.setContentsMargins(14, 14, 14, 14)
+        source_box.setSpacing(10)
+        self.rpt_note = QLabel("RPT 没有管状态时，状态栏保持空白，不会自动推断或修改管状态。")
+        self.rpt_note.setObjectName("muted")
+        self.rpt_note.setWordWrap(True)
+        source_box.addWidget(self.rpt_note)
+        choices = QHBoxLayout()
+        self.add_files = button("选择 Excel 文件", "files", self.browse_files)
+        self.add_folder = button("选择文件夹", "upload", self.browse_excel_folder)
+        for control in (self.add_files, self.add_folder):
+            choices.addWidget(control)
+        choices.addStretch()
+        source_box.addLayout(choices)
         path_row = QHBoxLayout()
         self.path = QLineEdit()
         self.path.setObjectName("importSourcePath")
+        self.path.setPlaceholderText("尚未选择来源")
         path_row.addWidget(self.path, 1)
-        browse = QPushButton("选择")
-        browse.clicked.connect(self.browse)
-        path_row.addWidget(browse)
-        form.addRow("来源路径", path_row)
-        source.layout().addLayout(form)
-        choices = QHBoxLayout()
-        self.add_files = QPushButton("选择多个 Excel 文件")
-        self.add_files.clicked.connect(self.browse_files)
-        self.add_folder = QPushButton("选择 Excel 文件夹")
-        self.add_folder.clicked.connect(self.browse_excel_folder)
-        self.remove_file = QPushButton("移除所选文件")
-        self.remove_file.clicked.connect(self.remove_source)
-        for control in (self.add_files, self.add_folder, self.remove_file):
-            choices.addWidget(control)
-        source.layout().addLayout(choices)
+        self.browse_source = button("选择来源", "upload", self.browse)
+        path_row.addWidget(self.browse_source)
+        source_box.addLayout(path_row)
+        source.layout().addWidget(self.source_host)
+        self.queue_heading = QWidget()
+        queue_heading = QHBoxLayout(self.queue_heading)
+        queue_heading.setContentsMargins(0, 12, 0, 0)
+        queue_title = QLabel("待导入队列")
+        queue_title.setObjectName("importRouteTitle")
+        queue_heading.addWidget(queue_title)
+        self.queue_summary = QLabel("尚未添加文件")
+        self.queue_summary.setObjectName("muted")
+        queue_heading.addWidget(self.queue_summary, 1)
+        self.remove_file = button("移除所选文件", "trash-2", self.remove_source)
+        self.remove_file.setEnabled(False)
+        queue_heading.addWidget(self.remove_file)
+        source.layout().addWidget(self.queue_heading)
         self.queue_table = QTableWidget(0, 2)
+        self.queue_table.setObjectName("importQueue")
         self.queue_table.setHorizontalHeaderLabels(["来源文件", "处理状态"])
+        self.queue_table.verticalHeader().hide()
         self.queue_table.horizontalHeader().setStretchLastSection(True)
+        self.queue_table.setColumnWidth(0, 610)
         self.queue_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.queue_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.queue_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.queue_table.itemSelectionChanged.connect(
+            lambda: self.remove_file.setEnabled(not self.busy and self.queue_table.currentRow() >= 0))
         source.layout().addWidget(self.queue_table, 1)
         self.source_status = QLabel()
         self.source_status.setWordWrap(True)
@@ -147,7 +183,7 @@ class ImportWizard(QWizard):
             self.columns[key] = combo
             self.mapping_form.addRow(label + (" *" if required else ""), combo)
         # Two columns keep the mapping form and raw source rows visible together.
-        from PySide6.QtWidgets import QWidget, QSplitter
+        from PySide6.QtWidgets import QSplitter
         mapping_host = QWidget()
         mapping_host.setLayout(self.mapping_form)
         self.mapping_host = mapping_host
@@ -222,13 +258,33 @@ class ImportWizard(QWizard):
         self.addPage(page)
         return page
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        theme = "dark" if self.palette().windowText().color().lightness() > 160 else "light"
+        for control in self.findChildren(QPushButton):
+            name = control.property("iconName")
+            if name:
+                control.setIcon(icon(name, theme))
+
     def invalidate(self, *_):
         self.ready_source = self.ready_preview = False
         self.generation += 1
 
     def _source_mode_changed(self, *_):
         excel = self.mode.currentData() == "excel"
-        for control in (self.add_files, self.add_folder, self.remove_file, self.queue_table, self.file_choice):
+        previous = getattr(self, "_active_source_mode", None)
+        if previous is not None:
+            self._route_paths[previous] = self.path.text()
+        else:
+            self._route_paths = {}
+        self._active_source_mode = self.mode.currentData()
+        self.path.setReadOnly(excel and len(self.source_paths) > 1)
+        self.path.setText(self._route_paths.get(self._active_source_mode, ""))
+        self.route_title.setText("1  选择已有 Excel 文件" if excel else "1  原始 RPT → 标准 Excel → 数据库")
+        self.rpt_note.setVisible(not excel)
+        self.path.setPlaceholderText("尚未选择 Excel 文件" if excel else "请选择原始检测数据根目录")
+        self.browse_source.setText("选择文件" if excel else "选择检测文件夹")
+        for control in (self.add_files, self.add_folder, self.queue_heading, self.queue_table, self.file_choice):
             control.setVisible(excel)
 
     def set_sources(self, paths):
@@ -236,9 +292,12 @@ class ImportWizard(QWizard):
         self.file_mappings = {key: value for key, value in self.file_mappings.items() if key in self.source_paths}
         self.queue_table.setRowCount(len(self.source_paths))
         for row, path in enumerate(self.source_paths):
-            self.queue_table.setItem(row, 0, QTableWidgetItem(path))
+            item = QTableWidgetItem(Path(path).name)
+            item.setToolTip(path)
+            self.queue_table.setItem(row, 0, item)
             self.queue_table.setItem(row, 1, QTableWidgetItem("待预检"))
-        self.queue_table.setColumnWidth(0, 680)
+        self.queue_summary.setText(f"{len(self.source_paths)} 个文件" if self.source_paths else "尚未添加文件")
+        self.remove_file.setEnabled(bool(self.source_paths) and not self.busy and self.queue_table.currentRow() >= 0)
         self.file_choice.blockSignals(True)
         self.file_choice.clear()
         for path in self.source_paths:
@@ -320,9 +379,11 @@ class ImportWizard(QWizard):
             self.button(role).setEnabled(not busy)
         self.button(QWizard.WizardButton.CancelButton).setEnabled(not self.executing)
         for widget in (self.path, self.mode, self.source_tabs, self.file_choice, self.add_files, self.add_folder,
+                       self.browse_source,
                        self.remove_file, self.sheet, self.manual, self.header, self.policy, self.report_table,
                        self.directory_export):
             widget.setEnabled(not busy)
+        self.remove_file.setEnabled(not busy and self.queue_table.currentRow() >= 0)
         self.mapping_host.setEnabled(not busy and self.manual.isChecked())
         self.directory_export.setEnabled(not busy and self.can_export)
 

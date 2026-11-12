@@ -14,7 +14,10 @@ from src.backend import server
 from openpyxl import Workbook, load_workbook
 from PySide6.QtCore import QCoreApplication, QEvent, QPointF, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox, QTableWidget, QWizard
+from PySide6.QtWidgets import (
+    QApplication, QFileDialog, QLabel, QMessageBox, QPlainTextEdit, QPushButton,
+    QTableWidget, QWidget, QWizard,
+)
 from qt_shell.native_windows import NativeMainWindow, FindingsModel, NativeStatePage, NativeAnalyticsPage, DataWorkbench
 from qt_shell.native_import import ImportWizard, scan_excel_sources
 from qt_shell.native_components import ReferencePlateMap, Preferences, TubeStateGrid
@@ -92,6 +95,17 @@ class QueryParityTests(unittest.TestCase):
     def test_column_filter_treats_sql_characters_as_literal(self):
         self.assertEqual(server.query_findings({"column_analysis": ["' OR 1=1 --"]})["total"], 0)
 
+    def test_overview_exposes_other_conclusions_and_analyst_candidates(self):
+        with server.connect() as db:
+            db.execute("""INSERT INTO findings(outage,site_code,unit_id,thimble_id,indication,analyst,imported_at)
+                          VALUES('N102','N',1,5,'NOS','Analyst Alpha','test')""")
+        overview = server.overview()
+        self.assertIn("NOS", overview["indications"])
+        self.assertIn("Analyst Alpha", overview["analysts"])
+        filtered = server.query_findings({"detection_status": ["nos"]})
+        self.assertEqual(filtered["total"], 1)
+        self.assertEqual(filtered["items"][0]["indication"], "NOS")
+
     def test_excel_changed_after_preflight_is_rejected_before_findings_write(self):
         path = self.root / "N103.xlsx"
         book = Workbook()
@@ -138,6 +152,18 @@ class NativeParityTests(unittest.TestCase):
         self.assertFalse(page.column_filters)
         self.assertEqual(page.sort_field, "")
         self.assertEqual(page.detection_status.currentData(), "")
+
+    def test_workbench_source_conclusions_and_analyst_completer_refresh_without_duplicates(self):
+        page = DataWorkbench(Client(), {"permissions": ["data.read"]})
+        overview = {"stats": {}, "indications": ["WAR", "NOS", "nos", "NONE", "/"], "analysts": ["Alpha", "Beta"]}
+        page._on_overview(overview, None)
+        page.detection_status.setCurrentIndex(page.detection_status.findData("nos"))
+        page._on_overview(overview, None)
+        self.assertEqual(page.detection_status.count(), 5)
+        self.assertEqual(page.detection_status.currentData(), "nos")
+        self.assertEqual(page.analyst.completer().model().stringList(), ["Alpha", "Beta"])
+        page.apply_filters()
+        self.assertIn("detection_status=nos", page.client.requests[-1][1])
 
     def test_narrow_workbench_keeps_table_readable_and_map_reachable(self):
         page = DataWorkbench(Client(), {"permissions": ["data.read"]})
@@ -627,22 +653,245 @@ class NativeParityTests(unittest.TestCase):
                                     "source": "Original register", "warnings": ["Direction pending"]}]},
                 {"outage": "N103", "order": 3, "records": 1, "counts": {"NDD": 1}}]}]}
         page.refresh_overview()
-        site = page.unit_overview.topLevelItem(0)
-        unit = site.child(0)
-        self.assertEqual(unit.text(1), "N103")
-        self.assertEqual(unit.childCount(), 3)
-        self.assertIn("仅维护", unit.child(0).text(7))
-        self.assertIn("编号缺口", unit.child(2).text(7))
-        page.unit_overview.setCurrentItem(unit.child(0))
-        page.open_unit_history()
+        overview = page.unit_overview
+        self.assertEqual(set(overview.groups), {"N"})
+        self.assertEqual(set(overview.rows), {"N1"})
+        history = overview.disclosures[("unit", "N1")]
+        self.assertIsNone(history.body)
+        QTest.mouseClick(history.header, Qt.MouseButton.LeftButton)
+        labels = "\n".join(label.text() for label in history.body.findChildren(QLabel))
+        self.assertIn("本库编号缺口", labels)
+        self.assertIn("N102", labels)
+        self.assertIn("仅有维护", labels)
+        self.assertIn("N101", labels)
+        outage = overview.disclosures[("outage", "N1", "N101")]
+        self.assertIsNone(outage.body)
+        QTest.mouseClick(outage.header, Qt.MouseButton.LeftButton)
+        sources = overview.disclosures[("sources", "N1", "N101")]
+        self.assertIsNone(sources.body)
+        QTest.mouseClick(sources.header, Qt.MouseButton.LeftButton)
+        self.assertEqual(sources.body.item(0, 3).text(), source_note)
+        updated = dict(page.data)
+        page.data = updated
+        page.refresh_overview()
+        self.assertTrue(overview.disclosures[("unit", "N1")].header.isChecked())
+        self.assertTrue(overview.disclosures[("outage", "N1", "N101")].header.isChecked())
+        self.assertTrue(overview.disclosures[("sources", "N1", "N101")].header.isChecked())
+        page.open_unit_history("N1", "N101")
         table = page.unit_history_dialog.findChild(QTableWidget)
         self.assertEqual(table.item(0, 3).text(), source_note)
         self.assertEqual(table.item(0, 4).text(), "Original register")
         self.assertEqual(table.item(0, 5).text(), "Direction pending")
-        page.unit_overview.setCurrentItem(unit)
         page.snapshot.addItem("N1 N103", 0)
-        page.open_unit_overview()
+        page.open_unit_overview("N1", "N103")
         self.assertEqual(page.currentIndex(), 2)
+
+    def test_multisite_filter_keeps_coded_units_and_survives_navigation_and_reload(self):
+        from urllib.parse import parse_qs, urlsplit
+        client = Client()
+        window = NativeMainWindow(client, {"username": "viewer", "permissions": ["data.read"]})
+        page = window.stack.widget(3)
+        page.scope_bar._loaded({"combinations": [
+            {"site": "N", "unit_id": 1, "outage": "N101"},
+            {"site": "H", "unit_id": 1, "outage": "H101"},
+            {"site": "D", "unit_id": 1, "outage": "D120"}]}, None)
+        QTest.mouseClick(page.site_coverage_buttons["N"], Qt.MouseButton.LeftButton)
+        QTest.mouseClick(page.site_coverage_buttons["H"], Qt.MouseButton.LeftButton)
+        self.assertEqual(page.scope_bar.selected_sites, {"N", "H"})
+        analysis_request = next(request for request in reversed(client.requests)
+                                if request[1].startswith("/api/analysis/visualization?"))
+        query = parse_qs(urlsplit(analysis_request[1]).query)
+        self.assertEqual(query["sites"], ["H,N"])
+        self.assertEqual([page.scope_bar.unit.itemData(i) for i in range(page.scope_bar.unit.count())], ["", "H1", "N1"])
+        self.assertFalse(page.site_coverage_buttons[""].isChecked())
+        self.assertTrue(page.site_coverage_buttons["N"].isChecked())
+        window.nav.setCurrentIndex(0)
+        window.nav.setCurrentIndex(2)
+        self.assertEqual(page.scope_bar.selected_sites, {"N", "H"})
+        page.scope_bar.reload()
+        client.requests[-1][3]({"combinations": [
+            {"site": "N", "unit_id": 1, "outage": "N101"},
+            {"site": "H", "unit_id": 1, "outage": "H101"}]}, None)
+        self.assertEqual(page.scope_bar.selected_sites, {"N", "H"})
+        page.scope_bar.unit.setCurrentIndex(page.scope_bar.unit.findData("H1"))
+        analysis_request = next(request for request in reversed(client.requests)
+                                if request[1].startswith("/api/analysis/visualization?"))
+        query = parse_qs(urlsplit(analysis_request[1]).query)
+        self.assertEqual(query["unit"], ["H1"])
+        self.assertEqual(query["sites"], ["H,N"])
+        self.assertEqual(window.context.scope["site"], "H")
+        self.assertEqual(window.context.scope["unit"], "1")
+        page.scope_bar.reset.click()
+        self.assertEqual(page.scope_bar.selected_sites, set())
+        self.assertEqual(page.scope_bar.values(), {"site": "", "unit": "", "outage": ""})
+
+    def test_raw_history_paginates_keeps_original_conclusions_and_ignores_late_responses(self):
+        from urllib.parse import parse_qs, urlsplit
+        from qt_shell.native_charts import VisualizationWorkspace
+        client = Client()
+        page = VisualizationWorkspace(client=client)
+        page.open_unit_records("N1", "N101")
+        request = client.requests[-1]
+        query = parse_qs(urlsplit(request[1]).query)
+        self.assertEqual(query["auto_ndd"], ["0"])
+        self.assertEqual(query["raw"], ["1"])
+        self.assertEqual(query["site"], ["N"])
+        request[3]({"total": 201, "items": [{"thimble_id": 1, "indication": "", "analysis": "Original\nnote"}]}, None)
+        dialog = page.unit_records_dialog
+        table = dialog.findChild(QTableWidget)
+        self.assertEqual(table.item(0, 2).text(), "")
+        self.assertEqual(table.item(0, 6).text(), "Original\nnote")
+        following = next(control for control in dialog.findChildren(QPushButton) if control.text() == "下一页")
+        following.click()
+        second = client.requests[-1]
+        self.assertEqual(parse_qs(urlsplit(second[1]).query)["page"], ["2"])
+        page.set_data({"snapshots": []})
+        current = client.requests[-1]
+        second[3]({"total": 201, "items": [{"thimble_id": 2}]}, None)
+        self.assertEqual(table.item(0, 0).text(), "1")
+        current[3]({"total": 201, "items": [{"thimble_id": 3}]}, None)
+        self.assertEqual(table.item(0, 0).text(), "3")
+        following.click()
+        client.requests[-1][3](None, "Read failed")
+        self.assertEqual(table.rowCount(), 0)
+        self.assertFalse(following.isEnabled())
+        retry = next(control for control in dialog.findChildren(QPushButton) if control.text() == "重试")
+        retry.click()
+        latest = client.requests[-1]
+        self.assertEqual(parse_qs(urlsplit(latest[1]).query)["page"], ["3"])
+        latest[3]({"total": 201, "items": [{"thimble_id": 8}]}, None)
+        dialog.reject()
+        latest[3]({"total": 201, "items": [{"thimble_id": 4}]}, None)
+        self.assertEqual(table.item(0, 0).text(), "8")
+
+    def test_missing_tube_details_keep_history_state_and_multiline_notes(self):
+        from qt_shell.native_charts import VisualizationWorkspace
+        page = VisualizationWorkspace()
+        page._unit_history_rows = {("N1", "N101"): {"detection_tubes": {"defect": [2]},
+            "state_sources": [{"tube": 2, "label": "移位", "note": "Original\n<evidence>"}]}}
+        page.open_unit_tubes("N1", "N101", [2, 4], "state")
+        table = page.unit_tubes_dialog.findChild(QTableWidget)
+        self.assertEqual(table.rowCount(), 2)
+        self.assertEqual(table.item(0, 2).text(), "WAR")
+        self.assertEqual(table.item(0, 3).text(), "移位")
+        self.assertEqual(table.item(0, 4).text(), "Original\n<evidence>")
+        self.assertEqual(table.item(1, 2).text(), "无检测记录")
+        self.assertEqual(table.item(1, 3).text(), "未记录")
+
+    def test_history_and_tube_dialogs_refresh_and_keep_original_view_scope(self):
+        from qt_shell.native_charts import VisualizationWorkspace
+        client = Client()
+        page = VisualizationWorkspace(client=client)
+        old = {"outage": "N101", "records": 1, "detection_tubes": {"defect": [2]},
+               "state_sources": [{"tube": 2, "outage": "N101", "label": "移位", "note": "old"}]}
+        page._unit_history_rows = {("N1", "N101"): old}
+        page.open_unit_history("N1", "N101")
+        history = page.unit_history_dialog
+        page.open_unit_tubes("N1", "N101", [2], "state")
+        details = page.unit_tubes_dialog
+        history_table = history.findChild(QTableWidget)
+        table = details.findChild(QTableWidget)
+        updated = {**old, "records": 2, "detection_tubes": {"NDD": [2]},
+                   "state_sources": [{"tube": 2, "outage": "N101", "label": "堵管", "note": "new\n<original>"}]}
+        data = {"units": [{"code": "N1", "history": [updated]}], "snapshots": [
+            {"unit": "N1", "outage": "N101", "order": 1, "tubes": [
+                {"tube": 2, "coverage": "NDD", "position": "B10"}]}]}
+        page.set_data(data)
+        self.assertEqual(history_table.item(0, 3).text(), "new\n<original>")
+        self.assertIn("检测记录：2 条", history.findChild(QPlainTextEdit).toPlainText())
+        self.assertEqual(table.item(0, 2).text(), "NDD")
+        self.assertEqual(table.item(0, 3).text(), "堵管")
+        page.set_data({"snapshots": []})
+        pending = client.requests[-2:]
+        self.assertEqual(len(pending), 2)
+        for request in pending:
+            self.assertIn("site=N&unit=1&outage=N101", request[1])
+        page.set_data({"snapshots": []})
+        current = client.requests[-2:]
+        for request in pending:
+            request[3]({"units": [{"code": "N1", "history": [old]}]}, None)
+        self.assertEqual(table.rowCount(), 0)
+        for request in current:
+            request[3](data, None)
+        self.assertEqual(table.item(0, 1).text(), "B10")
+        self.assertEqual(table.item(0, 4).text(), "new\n<original>")
+        page.set_data({"snapshots": []})
+        failed = client.requests[-2:]
+        for request in failed:
+            request[3](None, "Read failed")
+        self.assertEqual(table.rowCount(), 0)
+        self.assertIn("Read failed", history.findChild(QPlainTextEdit).toPlainText())
+        retry = next(control for control in details.findChildren(QPushButton) if control.text() == "重试")
+        retry.click()
+        client.requests[-1][3](data, None)
+        self.assertEqual(table.rowCount(), 1)
+        history.reject()
+        details.reject()
+        count = len(client.requests)
+        page.set_data({"snapshots": []})
+        self.assertEqual(len(client.requests), count)
+        failed[-1][3]({"units": []}, None)
+        self.assertEqual(table.rowCount(), 1)
+
+    def test_overview_insight_dialog_refreshes_after_changes_and_deletions(self):
+        from qt_shell.native_charts import VisualizationWorkspace
+        page = VisualizationWorkspace()
+        def data(depth):
+            return {"snapshots": [{"unit": "N1", "outage": "N101", "order": 1, "tubes": [
+                {"tube": 2, "coverage": "defect", "max_depth": depth}]}]}
+        page.set_data(data(25))
+        page.open_overview_insight("war")
+        table = page.insight_dialog.findChild(QTableWidget)
+        self.assertEqual(table.item(0, 4).text(), "25%")
+        page.set_data(data(35))
+        self.assertEqual(table.item(0, 4).text(), "35%")
+        page.set_data({"snapshots": []})
+        self.assertEqual(table.rowCount(), 0)
+
+    def test_hidden_unit_history_does_not_stretch_trend_charts(self):
+        page = NativeAnalyticsPage(Client())
+        page.resize(1480, 880)
+        page.show()
+        vis = page.visualization
+        vis.set_data({"snapshots": [
+            {"unit": f"N{unit}", "outage": f"N{unit}01", "order": 1,
+             "tubes": [{"tube": tube, "coverage": "NDD"} for tube in range(1, 51)]}
+            for unit in range(1, 21)]})
+        QTest.qWait(150)
+        self.assertGreater(page.scroll.verticalScrollBar().maximum(), 1000)
+        heading = vis.overview_page.findChild(QLabel, "sectionHeading")
+        self.assertEqual(heading.height(), 42)
+        self.assertLessEqual(heading.geometry().top(), 5)
+        self.assertEqual(vis.overview_page.findChild(QWidget, "unitOverviewHeading").height(), 60)
+        self.assertLessEqual(page.site_coverage_host.parentWidget().geometry().top(), 18)
+        self.assertLessEqual(vis.overview.height(), 380)
+        vis.setCurrentIndex(1)
+        QTest.qWait(100)
+        self.assertLess(vis.total.view.height(), 800)
+        self.assertLess(page.scroll.verticalScrollBar().maximum(), 200)
+        vis.setCurrentIndex(0)
+        QTest.qWait(100)
+        self.assertGreater(page.scroll.verticalScrollBar().maximum(), 1000)
+
+    def test_navigation_account_and_site_filters_fit_supported_widths(self):
+        window = NativeMainWindow(Client(), {"username": "viewer", "display_name": "A very long display name for testing",
+                                              "permissions": ["data.read"]})
+        window.show()
+        for width in (1024, 1480):
+            window.resize(width, 940)
+            window.nav.setCurrentIndex(2)
+            self.app.processEvents()
+            account = window.account_button
+            self.assertLessEqual(account.name_label.fontMetrics().horizontalAdvance(account.name_label.text()),
+                                 account.name_label.width())
+            self.assertIn("A very long display name", account.accessibleName())
+            self.assertLessEqual(window.settings_button.mapTo(window, window.settings_button.rect().topRight()).x(), width)
+            page = window.stack.widget(3)
+            columns = page.site_coverage.columnCount()
+            self.assertGreater(columns, 2)
+            self.assertLessEqual(columns, 8)
+            for control in page.site_coverage_buttons.values():
+                self.assertLessEqual(control.coverage_label.geometry().right(), control.width())
 
     def test_global_coverage_does_not_change_with_filtered_chart(self):
         page = NativeAnalyticsPage(Client())
@@ -775,6 +1024,41 @@ class NativeParityTests(unittest.TestCase):
         self.assertEqual(imported[0]["inserted"], 2)
         self.assertTrue(imported[0]["partial"])
         self.assertEqual(wizard.result["files"][0]["batch_id"], 10)
+
+    def test_import_sources_queue_and_busy_controls_follow_selected_route(self):
+        wizard = ImportWizard(Client(), DataWorkbench.MAPPING_FIELDS, {})
+        wizard.resize(900, 768)
+        wizard.show()
+        self.app.processEvents()
+        self.assertTrue(wizard.queue_table.isVisible())
+        self.assertFalse(wizard.rpt_note.isVisible())
+        wizard.set_sources(["first.xlsx", "second.xlsx"])
+        wizard.queue_table.selectRow(1)
+        self.assertEqual(wizard.queue_summary.text(), "2 个文件")
+        self.assertEqual(wizard.queue_table.item(1, 0).text(), "second.xlsx")
+        self.assertTrue(wizard.queue_table.item(1, 0).toolTip().endswith("second.xlsx"))
+        wizard.set_busy(True)
+        self.assertFalse(wizard.browse_source.isEnabled())
+        self.assertFalse(wizard.remove_file.isEnabled())
+        wizard.set_busy(False)
+        wizard.remove_file.click()
+        self.assertEqual(len(wizard.source_paths), 1)
+        wizard.source_tabs.setCurrentIndex(1)
+        self.app.processEvents()
+        self.assertEqual(wizard.mode.currentData(), "directory")
+        self.assertTrue(wizard.rpt_note.isVisible())
+        self.assertFalse(wizard.queue_heading.isVisible())
+        self.assertFalse(wizard.queue_table.isVisible())
+        self.assertFalse(wizard.path.isReadOnly())
+        wizard.path.setText("D:/isolated-rpt-source")
+        self.assertLess(wizard.browse_source.mapTo(wizard, wizard.browse_source.rect().bottomRight()).x(),
+                        wizard.width())
+        wizard.source_tabs.setCurrentIndex(0)
+        self.assertEqual(len(wizard.source_paths), 1)
+        self.assertTrue(wizard.path.text().endswith("first.xlsx"))
+        self.assertTrue(wizard.queue_heading.isVisible())
+        wizard.source_tabs.setCurrentIndex(1)
+        self.assertEqual(wizard.path.text(), "D:/isolated-rpt-source")
 
     def test_queue_preflight_failure_writes_nothing(self):
         client = Client()

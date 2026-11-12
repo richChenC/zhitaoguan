@@ -10,7 +10,7 @@ from functools import lru_cache
 from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QObject, QPoint, QPointF, QRect, QRectF, QSaveFile, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPalette, QPen, QPolygonF
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QHBoxLayout, QLabel, QLayout, QMessageBox, QPushButton, QSizePolicy, QToolTip, QWidget,
+    QComboBox, QFileDialog, QHBoxLayout, QLabel, QLayout, QMessageBox, QPushButton, QSizePolicy, QToolTip, QVBoxLayout, QWidget,
 )
 
 from .constants import UI_DIR, USER_DATA
@@ -37,7 +37,10 @@ def canonical_site(value):
 
 @lru_cache(maxsize=128)
 def icon(name, theme="light"):
-    source = QIcon(str(UI_DIR / "assets" / "icons" / f"{name}.svg"))
+    path = UI_DIR / "assets" / "icons" / f"{name}.svg"
+    if not path.is_file():
+        path = Path(__file__).parent / "assets" / f"{name}.svg"
+    source = QIcon(str(path))
     if theme != "dark" or source.isNull():
         return source
     result = QIcon()
@@ -59,6 +62,93 @@ def button(text, name=None, callback=None):
     if callback:
         control.clicked.connect(callback)
     return control
+
+
+class AccountIdentityButton(QPushButton):
+    def __init__(self, user, callback, parent=None):
+        super().__init__(parent)
+        self.display_name = str(user.get("display_name") or user.get("username") or "账户").strip()
+        self.setObjectName("accountIdentity")
+        self.setAccessibleName(f"{self.display_name}，已登录账户")
+        self.setToolTip(f"{self.display_name} · {user.get('username', '')}\n账户与权限 · 已登录")
+        self.setFixedHeight(34)
+        self.setMinimumWidth(118)
+        self.setMaximumWidth(154)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 12, 0)
+        row.setSpacing(9)
+        self.avatar = QLabel(self.display_name[:2] or "账户")
+        self.avatar.setObjectName("accountAvatar")
+        self.avatar.setFixedSize(28, 28)
+        self.avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        row.addWidget(self.avatar)
+        summary = QVBoxLayout()
+        summary.setSpacing(0)
+        self.name_label = QLabel()
+        self.name_label.setObjectName("accountName")
+        self.name_label.setMinimumWidth(0)
+        self.name_label.setTextFormat(Qt.TextFormat.PlainText)
+        summary.addWidget(self.name_label)
+        status = QLabel("● 已登录")
+        status.setObjectName("accountStatus")
+        summary.addWidget(status)
+        row.addLayout(summary, 1)
+        for label in (self.avatar, self.name_label, status):
+            label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.clicked.connect(callback)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        available = max(0, self.width() - 28 - 9 - 12)
+        self.name_label.setText(self.name_label.fontMetrics().elidedText(
+            self.display_name, Qt.TextElideMode.ElideRight, available))
+
+
+class SiteCoverageButton(QPushButton):
+    def __init__(self, site, name, parent=None):
+        super().__init__(parent)
+        self.site, self.site_name = site, name
+        self.setObjectName("siteCoverage")
+        self.setCheckable(True)
+        self.setFixedHeight(38)
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(8, 3, 8, 3)
+        row.setSpacing(5)
+        labels = QVBoxLayout()
+        labels.setSpacing(0)
+        self.name_label = QLabel(name)
+        self.name_label.setObjectName("siteName")
+        self.detail_label = QLabel()
+        self.detail_label.setObjectName("siteDetail")
+        labels.addWidget(self.name_label)
+        labels.addWidget(self.detail_label)
+        row.addLayout(labels, 1)
+        self.coverage_label = QLabel("—")
+        self.coverage_label.setObjectName("siteCoverageValue")
+        row.addWidget(self.coverage_label)
+        for label in (self.name_label, self.detail_label, self.coverage_label):
+            label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.set_summary(0, 0, 0)
+
+    def set_summary(self, units, reported, total):
+        value = f"{reported / total:.1%}".replace(".0%", "%") if total else "—"
+        code = {"P": "HZ", "C": "CN"}.get(self.site, self.site)
+        self.detail_label.setText(f"{code + ' · ' if code else ''}{units} 台机组")
+        self.coverage_label.setText(value)
+        self.setText(f"{self.site_name}\n{units} 台机组 · {value}")
+        self.setAccessibleName(f"{self.site_name} · {units} 台机组 · 覆盖 {value}")
+        self.setToolTip(f"筛选{self.site_name} · 全库各机组最新大修检测覆盖 {reported}/{total} 根")
+
+    def paintEvent(self, event):
+        # Child labels supply the two-column contents; retain QPushButton semantics.
+        from PySide6.QtWidgets import QStyle, QStyleOptionButton, QStylePainter
+        option = QStyleOptionButton()
+        self.initStyleOption(option)
+        option.text = ""
+        painter = QStylePainter(self)
+        painter.drawControl(QStyle.ControlElement.CE_PushButton, option)
 
 
 class ToolFlowLayout(QLayout):
@@ -393,6 +483,100 @@ class ScopeBar(QWidget):
     def clear(self):
         self.set_scope({})
         self._emit()
+
+
+class AnalyticsScopeBar(ScopeBar):
+    """Keep cross-site unit identities distinct while sharing workspace scopes."""
+    def __init__(self, client, parent=None):
+        self.selected_sites = set()
+        super().__init__(client, parent)
+        self.site.hide()
+        for label in self.findChildren(QLabel):
+            if label.text() == "基地":
+                label.hide()
+
+    def _loaded(self, data, error):
+        if error or not data:
+            self.setToolTip(error or "范围读取失败")
+            return
+        previous = self._requested_scope or self.values()
+        self._overview_combinations = data.get("combinations") or []
+        self.combinations = list(self._overview_combinations)
+        self._loaded_once = True
+        self.site.blockSignals(True)
+        self.site.clear()
+        self.site.addItem("全部基地", "")
+        for site in sorted({canonical_site(row["site"]) for row in self.combinations}):
+            self.site.addItem(SITE_NAMES.get(site, site), site)
+        self.site.blockSignals(False)
+        self.set_scope(previous, force=True, keep_sites=True)
+        self.loaded.emit(self.values())
+
+    def _available_rows(self):
+        return [row for row in self.combinations
+                if not self.selected_sites or canonical_site(row["site"]) in self.selected_sites]
+
+    def _fill_units(self):
+        previous = self.unit.currentData()
+        self.unit.blockSignals(True)
+        self.unit.clear()
+        self.unit.addItem("全部机组", "")
+        codes = {(canonical_site(row["site"]), int(row["unit_id"])) for row in self._available_rows()}
+        for site, number in sorted(codes):
+            code = f"{site}{number}"
+            self.unit.addItem(f"{code}号机组", code)
+        self.unit.setCurrentIndex(max(0, self.unit.findData(previous)))
+        self.unit.blockSignals(False)
+
+    def _fill_outages(self):
+        previous = self.outage.currentData()
+        code = self.unit.currentData()
+        self.outage.blockSignals(True)
+        self.outage.clear()
+        self.outage.addItem("全部大修", "")
+        rows = [row for row in self._available_rows()
+                if not code or f"{canonical_site(row['site'])}{int(row['unit_id'])}" == code]
+        for outage in sorted({row["outage"] for row in rows}, reverse=True):
+            self.outage.addItem(outage, outage)
+        self.outage.setCurrentIndex(max(0, self.outage.findData(previous)))
+        self.outage.blockSignals(False)
+
+    def values(self):
+        code = self.unit.currentData() or ""
+        match = re.fullmatch(r"([A-Z]+)(\d+)", code)
+        site = match[1] if match else next(iter(self.selected_sites)) if len(self.selected_sites) == 1 else ""
+        return {"site": site, "unit": match[2] if match else "", "outage": self.outage.currentData() or ""}
+
+    def set_sites(self, sites):
+        self.selected_sites = set(sites)
+        self.set_scope({}, keep_sites=True)
+        self._emit()
+
+    def set_scope(self, scope, *, force=False, keep_sites=False):
+        site = canonical_site(scope.get("site"))
+        if not keep_sites:
+            self.selected_sites = {site} if site else set()
+        self.site.blockSignals(True)
+        single = next(iter(self.selected_sites)) if len(self.selected_sites) == 1 else ""
+        self.site.setCurrentIndex(max(0, self.site.findData(single)))
+        self.site.blockSignals(False)
+        self._fill_units()
+        self.unit.blockSignals(True)
+        code = f"{site}{scope.get('unit')}" if site and scope.get("unit") else ""
+        self.unit.setCurrentIndex(max(0, self.unit.findData(code)))
+        self.unit.blockSignals(False)
+        self._fill_outages()
+        self.outage.blockSignals(True)
+        self.outage.setCurrentIndex(max(0, self.outage.findData(scope.get("outage") or "")))
+        self.outage.blockSignals(False)
+        self._requested_scope = self.values()
+
+    def _site_changed(self):
+        self.selected_sites = {self.site.currentData()} if self.site.currentData() else set()
+        super()._site_changed()
+
+    def clear(self):
+        self.set_sites(set())
 
 
 class PlateMap(QWidget):
@@ -814,6 +998,31 @@ def workspace_styles(theme="light", density="comfortable"):
         QMainWindow, QDialog, QWidget#appRoot, QWidget#workspaceBody {{ background:{bg}; }}
         QScrollArea {{ background:{bg}; border:0; }}
         QWidget#topNavigation {{ background:{surface}; border-bottom:1px solid {line}; }}
+        QPushButton#accountIdentity {{ background:transparent; border:0; border-right:1px solid {line};
+            border-radius:0; padding:0; min-height:34px; text-align:left; }}
+        QPushButton#accountIdentity:hover {{ background:{hover}; }}
+        QLabel#accountAvatar {{ background:{"#203b3a" if dark else "#e9f5f3"}; color:{accent};
+            border:1px solid {"#32625e" if dark else "#c5e2df"}; border-radius:14px;
+            font-size:11px; font-weight:700; }}
+        QLabel#accountName {{ color:{text}; font-size:12px; font-weight:700; }}
+        QLabel#accountStatus {{ color:{muted}; font-size:10px; }}
+        QPushButton#siteCoverage {{ background:{control}; border:1px solid transparent;
+            padding:0; min-height:32px; border-radius:4px; }}
+        QPushButton#siteCoverage:checked {{ background:{accent_soft}; border-color:{accent}; }}
+        QLabel#siteName {{ font-size:11px; font-weight:600; }}
+        QLabel#siteDetail {{ color:{muted}; font-size:10px; }}
+        QLabel#siteCoverageValue {{ color:{accent}; font-size:19px; font-weight:700; }}
+        QWidget#unitSiteGroup {{ background:{surface}; border:1px solid {line}; border-radius:5px; }}
+        QWidget#unitSiteHeading {{ background:{accent_soft}; }}
+        QWidget#unitRow {{ border-top:1px solid {line}; }}
+        QLabel#unitName {{ font-weight:600; }}
+        QLabel#unitDepth {{ font-size:18px; font-weight:700; }}
+        QLabel#unitCoverage {{ color:{accent}; font-size:16px; font-weight:600; }}
+        QPushButton#disclosureHeader {{ text-align:left; border:0; border-radius:0; background:transparent;
+            padding:0 3px; min-height:25px; font-size:11px; font-weight:400; }}
+        QPushButton#disclosureHeader:hover {{ color:{accent}; background:{hover}; }}
+        QProgressBar#unitMeter {{ border:0; border-radius:0; background:{control}; min-height:4px; max-height:4px; }}
+        QProgressBar#unitMeter::chunk {{ background:{accent}; border:0; border-radius:0; }}
         QWidget#filterBand, QWidget#workspacePanel {{ background:{surface}; border:1px solid {line}; border-radius:6px; }}
         QWidget#stateActionBand {{ background:{control}; border:1px solid {line}; border-radius:4px; }}
         QWidget#taskDrawer {{ background:{surface}; border:1px solid {line}; border-radius:6px; }}
@@ -835,8 +1044,20 @@ def workspace_styles(theme="light", density="comfortable"):
         QTabBar#mainNavigation::tab:selected {{ background:{accent_soft}; border-color:{line}; color:{accent}; }}
         QLabel#pageTitle {{ color:{text}; font-size:20px; font-weight:600; padding-top:2px; }}
         QLabel#muted {{ color:{muted}; }}
+        QWizard#importWorkspace QWizardPage {{ background:{bg}; }}
+        QWidget#importSourcePanel {{ background:{surface}; border:1px solid {line}; border-radius:7px; }}
+        QLabel#importRouteTitle {{ font-size:13px; font-weight:600; }}
+        QTabBar#importSourceTabs::tab {{ min-height:40px; padding:7px 12px; text-align:left; font-size:11px; }}
+        QTabBar#importSourceTabs::tab:selected {{ background:{accent_soft}; }}
         QLabel#metricValue {{ font-size:24px; font-weight:600; }}
         QPushButton#metricValue {{ font-size:24px; font-weight:600; border:0; text-align:left; padding:0; }}
+        QWidget#overviewMetric {{ border-right:1px solid {line}; border-bottom:1px solid {line}; }}
+        QWidget#overviewMetric QLabel#muted {{ font-size:11px; }}
+        QLabel#metricNote {{ font-size:10px; color:{muted}; }}
+        QLabel#sectionHeading {{ padding:12px; border-bottom:1px solid {line}; font-size:12px; font-weight:600; }}
+        QPushButton#metricValue[metric="war"] {{ color:#ba414c; }}
+        QPushButton#metricValue[metric="ndd"] {{ color:{muted}; }}
+        QPushButton#metricValue[metric="missing"] {{ color:{"#e4b961" if dark else "#946414"}; }}
         QPushButton#overviewInsight {{ text-align:left; min-height:72px; padding:6px 12px; }}
         QPushButton[insight="peak"] {{ border-left:3px solid #c64e53; }}
         QPushButton[insight="position"] {{ border-left:3px solid {accent}; }}

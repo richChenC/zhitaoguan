@@ -9,16 +9,17 @@ from PySide6.QtCharts import (
     QBarCategoryAxis, QBarSeries, QBarSet, QChart, QChartView, QLineSeries,
     QScatterSeries, QValueAxis, QHorizontalStackedBarSeries, QAbstractBarSeries,
 )
-from PySide6.QtCore import QPointF, Qt, Signal
+from PySide6.QtCore import QPointF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
     QGraphicsSimpleTextItem, QGridLayout, QHBoxLayout, QLabel, QPlainTextEdit, QSpinBox, QSplitter,
-    QTabWidget, QTableWidget, QTableWidgetItem, QToolTip, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QSizePolicy, QTabWidget, QTableWidget, QTableWidgetItem, QToolTip, QVBoxLayout, QWidget,
 )
 
 from .native_components import PlateMap, PositionHeatmap, SITE_NAMES, button, export_widget_image
 from .native_analysis_data import channel_frequency, depth_distribution, status_change, valid_depth
+from .native_unit_overview import UnitOverview
 
 PALETTE = ["#1874b9", "#b28a22", "#b45e73", "#648743", "#bb7540"]
 
@@ -269,12 +270,14 @@ class ChartPanel(QWidget):
 
 
 class VisualizationWorkspace(QTabWidget):
+    dataChanged = Signal()
     scopeChanged = Signal(dict)
 
     def __init__(self, parent=None, *, client=None, permissions=None):
         super().__init__(parent)
         self.client = client
         self.data = {}
+        self._unit_history_rows = {}
         self.severity_levels = [30, 50]
         self.severity_colors = ["#79b98c", "#e5a83b", "#df4b45"]
         self._longitudinal_cache = {}
@@ -287,22 +290,43 @@ class VisualizationWorkspace(QTabWidget):
         self.overview_page = QWidget()
         overview_layout = QVBoxLayout(self.overview_page)
         overview_layout.setContentsMargins(0, 0, 0, 0)
+        overview_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.summary_labels = {}
+        self.summary_notes = {}
         self._insight_titles = {}
-        overview_layout.addWidget(QLabel("当前范围概况  ·  所选范围各机组最新大修 · 按管统计"))
+        heading = QLabel("当前范围概况  ·  所选范围各机组最新大修 · 按管统计")
+        heading.setObjectName("sectionHeading")
+        heading.setFixedHeight(42)
+        overview_layout.addWidget(heading)
         metrics = QGridLayout()
+        metrics.setSpacing(0)
+        self.metrics_layout, self.metric_hosts = metrics, []
         for index, (key, title) in enumerate((("units", "分析机组"), ("coverage", "检测覆盖"),
                                              ("war", "WAR 检出"), ("ndd", "NDD"),
                                              ("review", "结论待核对"), ("missing", "无检测记录"))):
             host = QWidget()
-            box = QVBoxLayout(host)
-            box.addWidget(QLabel(title))
+            host.setObjectName("overviewMetric")
+            host.setFixedHeight(76)
+            box = QHBoxLayout(host)
+            box.setContentsMargins(12, 8, 12, 8)
+            labels = QVBoxLayout()
+            labels.setSpacing(4)
+            label = QLabel(title)
+            label.setObjectName("muted")
+            labels.addWidget(label)
+            note = QLabel("当前范围" if key == "units" else "根 · 不等同于 NDD" if key == "missing" else "根")
+            note.setObjectName("metricNote")
+            labels.addWidget(note)
+            self.summary_notes[key] = note
+            box.addLayout(labels, 1)
             value = button("0", callback=lambda _=False, name=key: self.open_overview_insight(name))
             value.setObjectName("metricValue")
+            value.setProperty("metric", key)
             box.addWidget(value)
             self.summary_labels[key] = value
             self._insight_titles[key] = title
             metrics.addWidget(host, 0, index)
+            self.metric_hosts.append(host)
         overview_layout.addLayout(metrics)
         insights = QGridLayout()
         self.insight_buttons = {}
@@ -311,6 +335,7 @@ class VisualizationWorkspace(QTabWidget):
                                              ("maintenance", "维护状态覆盖"), ("quality", "检测记录核查"))):
             control = button(f"{title}\n—")
             control.setObjectName("overviewInsight")
+            control.setFixedHeight(82)
             control.setProperty("insight", key)
             control.clicked.connect(lambda _=False, name=key: self.open_overview_insight(name))
             self.insight_buttons[key] = control
@@ -318,9 +343,17 @@ class VisualizationWorkspace(QTabWidget):
             insights.addWidget(control, 0, index)
         overview_layout.addLayout(insights)
         self.overview = panel()
+        self.overview.setMaximumHeight(380)
         overview_charts = QSplitter()
-        overview_charts.addWidget(self.overview)
+        overview_column = QWidget()
+        column_layout = QVBoxLayout(overview_column)
+        column_layout.setContentsMargins(0, 0, 0, 0)
+        column_layout.addWidget(self.overview)
+        column_layout.addStretch(1)
+        overview_charts.addWidget(overview_column)
         heat_host = QWidget()
+        heat_host.setMinimumHeight(520)
+        heat_host.setMaximumHeight(620)
         heat_layout = QVBoxLayout(heat_host)
         heat_layout.addWidget(QLabel("历史磨损集中位置"))
         heat_controls = QHBoxLayout()
@@ -358,21 +391,18 @@ class VisualizationWorkspace(QTabWidget):
         overview_charts.addWidget(heat_host)
         overview_charts.setSizes([700, 700])
         overview_layout.addWidget(overview_charts, 1)
-        unit_heading = QHBoxLayout()
+        unit_header = QWidget()
+        unit_header.setObjectName("unitOverviewHeading")
+        unit_header.setFixedHeight(60)
+        unit_heading = QHBoxLayout(unit_header)
+        unit_heading.setContentsMargins(12, 0, 12, 0)
         unit_heading.addWidget(QLabel("基地机组对照"), 1)
-        unit_heading.addWidget(button("查看管板", "search", self.open_unit_overview))
-        unit_heading.addWidget(button("完整性与维护来源", "history", self.open_unit_history))
-        overview_layout.addLayout(unit_heading)
-        self.unit_overview = QTreeWidget()
-        self.unit_overview.setHeaderLabels(["基地 / 机组 / 大修", "最新大修", "峰值深度", "检测覆盖",
-                                            "WAR", "NDD", "无检测记录", "记录与核查"])
-        self.unit_overview.setMinimumHeight(330)
-        self.unit_overview.setAlternatingRowColors(True)
-        self.unit_overview.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.unit_overview.setColumnWidth(0, 260)
-        for column in range(1, 7):
-            self.unit_overview.setColumnWidth(column, 105)
-        self.unit_overview.itemDoubleClicked.connect(lambda *_: self.open_unit_overview())
+        overview_layout.addWidget(unit_header)
+        self.unit_overview = UnitOverview()
+        self.unit_overview.plateRequested.connect(self.open_unit_overview)
+        self.unit_overview.historyRequested.connect(self.open_unit_history)
+        self.unit_overview.recordsRequested.connect(self.open_unit_records)
+        self.unit_overview.tubesRequested.connect(self.open_unit_tubes)
         overview_layout.addWidget(self.unit_overview)
         self.addTab(self.overview_page, "总体概况")
         self.trends = QTabWidget()
@@ -475,6 +505,42 @@ class VisualizationWorkspace(QTabWidget):
         self._build_change_page()
         self.risk.removeTab(self.risk.indexOf(self.longitudinal))
         self.insertTab(3, self.longitudinal, "单管完整历史")
+        self.currentChanged.connect(self._fit_current_page)
+        self._fit_current_page()
+
+    def set_metric_columns(self, columns):
+        if columns == getattr(self, "_metric_columns", None):
+            return
+        self._metric_columns = columns
+        for index, host in enumerate(self.metric_hosts):
+            self.metrics_layout.removeWidget(host)
+            self.metrics_layout.addWidget(host, index // columns, index % columns)
+        self.updateGeometry()
+
+    def _fit_current_page(self, *_):
+        # QTabWidget normally sizes every page to the largest hidden page.
+        for index in range(self.count()):
+            policy = QSizePolicy.Policy.Preferred if index == self.currentIndex() else QSizePolicy.Policy.Ignored
+            self.widget(index).setSizePolicy(QSizePolicy.Policy.Preferred, policy)
+        self.updateGeometry()
+
+    def sizeHint(self):
+        page = self.currentWidget()
+        if page is None:
+            return super().sizeHint()
+        hint = page.sizeHint()
+        return QSize(max(hint.width(), self.tabBar().sizeHint().width()) + 4,
+                     hint.height() + self.tabBar().sizeHint().height() + 4)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        page = self.currentWidget()
+        if page is None:
+            return super().heightForWidth(width)
+        height = page.heightForWidth(max(0, width - 4)) if page.hasHeightForWidth() else page.sizeHint().height()
+        return max(height, page.minimumSizeHint().height()) + self.tabBar().sizeHint().height() + 4
 
     def _publish_scope(self):
         import re
@@ -543,6 +609,48 @@ class VisualizationWorkspace(QTabWidget):
         self.replacements.bars("机组累计明确换管次数", [
             (unit, sum(tube.get("lifetime_replacements", 0) for tube in snap["tubes"]))
             for unit, snap in latest.items()], "按机组全部已记录历史统计；移位不计为换管", "换管次数")
+        self.dataChanged.emit()
+
+    def _watch_data_dialog(self, dialog, refresh):
+        self.dataChanged.connect(refresh)
+        dialog.finished.connect(lambda *_: self.dataChanged.disconnect(refresh))
+
+    def _watch_unit_dialog(self, dialog, unit, outage, render, *, require_snapshot=False):
+        from urllib.parse import urlencode
+        state = {"request": 0, "closed": False}
+        dialog.finished.connect(lambda *_: state.update(closed=True))
+        retry = button("重试", "refresh-cw")
+        retry.hide()
+        dialog.layout().insertWidget(dialog.layout().count() - 1, retry)
+
+        def refresh():
+            state["request"] += 1
+            generation = state["request"]
+            retry.hide()
+            has_snapshot = any(item["unit"] == unit and item["outage"] == outage
+                               for item in self.data.get("snapshots") or [])
+            if (self.client is None or ((unit, outage) in self._unit_history_rows
+                                        and (not require_snapshot or has_snapshot))):
+                render(self._unit_history_rows.get((unit, outage)), self.data, None)
+                return
+            match = re.fullmatch(r"([A-Z]+)(\d+)", unit)
+            if not match:
+                return
+            render(None, {}, "正在读取当前范围的历史记录...")
+
+            def loaded(data, error):
+                if state["closed"] or generation != state["request"]:
+                    return
+                entry = next((entry for item in (data or {}).get("units") or [] if item["code"] == unit
+                              for entry in item.get("history") or [] if entry["outage"] == outage), None)
+                failure = error or ("历史记录读取失败" if data is None else None)
+                render(entry, data or {}, failure)
+                retry.setVisible(bool(failure))
+            params = {"site": match[1], "unit": match[2], "outage": outage}
+            self.client.get("/api/analysis/visualization?" + urlencode(params), loaded)
+        retry.clicked.connect(refresh)
+        self._watch_data_dialog(dialog, refresh)
+        refresh()
 
     def refresh_overview(self, *_):
         if not self.data:
@@ -568,6 +676,7 @@ class VisualizationWorkspace(QTabWidget):
             else:
                 counts["review"] += 1
         coverage = (len(tubes) - counts["missing"]) / len(tubes) * 100 if tubes else 0
+        self.summary_notes["coverage"].setText(f"{len(tubes) - counts['missing']} / {len(tubes)} 根")
         for key, control in self.summary_labels.items():
             value = len(latest) if key == "units" else f"{coverage:g}%" if key == "coverage" else counts[key]
             control.setText(str(value))
@@ -633,86 +742,11 @@ class VisualizationWorkspace(QTabWidget):
         self.heat_presets.setExclusive(True)
 
     def refresh_unit_overview(self, latest):
-        if getattr(self, "_unit_tree_data", None) is self.data:
-            return
-        self._unit_tree_data = self.data
-        expanded = set()
-        def remember(item):
-            if item.isExpanded():
-                expanded.add(tuple(item.data(0, Qt.ItemDataRole.UserRole) or ()))
-            for index in range(item.childCount()):
-                remember(item.child(index))
-        root = self.unit_overview.invisibleRootItem()
-        for index in range(root.childCount()):
-            remember(root.child(index))
-        selected = self.unit_overview.currentItem()
-        selected_key = selected.data(0, Qt.ItemDataRole.UserRole) if selected else None
-        self.unit_overview.clear()
-        self._unit_history_rows = {}
-        sites = {}
-        units = {unit["code"]: unit for unit in self.data.get("units") or []}
-        for unit, snapshot in sorted(latest.items()):
-            site = snapshot.get("site") or re.match(r"^[A-Z]+", unit)[0]
-            if site not in sites:
-                group = QTreeWidgetItem([SITE_NAMES.get(site, site)])
-                group.setData(0, Qt.ItemDataRole.UserRole, (site,))
-                self.unit_overview.addTopLevelItem(group)
-                group.setExpanded(True)
-                sites[site] = group
-            tubes = snapshot.get("tubes") or []
-            depths = [valid_depth(tube) for tube in tubes if valid_depth(tube) is not None]
-            count = Counter(tube.get("coverage") for tube in tubes)
-            reported = len(tubes) - count["missing"]
-            info = units.get(unit, {})
-            history = list(info.get("history") or [])
-            gaps = info.get("missing_outages") or []
-            item = QTreeWidgetItem([unit, snapshot["outage"], f"{max(depths):g}%" if depths else "/",
-                                   f"{reported}/{len(tubes)}", str(count["defect"]), str(count["NDD"]),
-                                   str(count["missing"]),
-                                   f"检测 {len(info.get('detection_outages') or [])} 次 · 编号缺口 {len(gaps)} 次"])
-            key = (unit, snapshot["outage"])
-            item.setData(0, Qt.ItemDataRole.UserRole, key)
-            sites[site].addChild(item)
-            if key in expanded:
-                item.setExpanded(True)
-            if key == selected_key:
-                self.unit_overview.setCurrentItem(item)
-            for entry in sorted(history, key=lambda row: row["order"]):
-                counts = entry.get("counts") or {}
-                detection = sum(counts.values()) - counts.get("missing", 0)
-                child = QTreeWidgetItem([entry["outage"], "", "", f"{detection}/50",
-                                        str(counts.get("defect", 0)), str(counts.get("NDD", 0)),
-                                        str(counts.get("missing", 0)),
-                                        f"{entry.get('records', 0)} 条检测记录"
-                                        + (" · 仅维护记录" if not entry.get("records") else "")])
-                history_key = (unit, entry["outage"])
-                child.setData(0, Qt.ItemDataRole.UserRole, history_key)
-                item.addChild(child)
-                self._unit_history_rows[history_key] = entry
-                if history_key == selected_key:
-                    self.unit_overview.setCurrentItem(child)
-            for outage in gaps:
-                gap = QTreeWidgetItem([outage, "", "", "无记录", "", "", "", "本库编号缺口，不能据此判断实际未大修"])
-                item.addChild(gap)
-                gap.setData(0, Qt.ItemDataRole.UserRole, (unit, outage))
-                gap.setToolTip(7, gap.text(7))
-        for site, group in sites.items():
-            snapshots = [snapshot for snapshot in latest.values()
-                         if (snapshot.get("site") or re.match(r"^[A-Z]+", snapshot["unit"])[0]) == site]
-            tubes = [tube for snapshot in snapshots for tube in snapshot.get("tubes") or []]
-            counts = Counter(tube.get("coverage") for tube in tubes)
-            group.setText(3, f"{len(tubes) - counts['missing']}/{len(tubes)}")
-            for column, code in ((4, "defect"), (5, "NDD"), (6, "missing")):
-                group.setText(column, str(counts[code]))
-            group.setText(7, f"{len(snapshots)} 台机组 · 各取最新大修")
+        self.unit_overview.set_data(self.data, latest)
+        self._unit_history_rows = self.unit_overview.history
 
-    def open_unit_overview(self):
-        item = self.unit_overview.currentItem()
-        key = item.data(0, Qt.ItemDataRole.UserRole) if item else None
-        if not key or len(key) != 2:
-            return
-        key = tuple(key)
-        unit, outage = key
+    def open_unit_overview(self, unit, outage):
+        key = (unit, outage)
         index = next((index for index, snap in enumerate(self.data.get("snapshots") or [])
                       if snap["unit"] == unit and snap["outage"] == outage), None)
         if index is not None:
@@ -726,13 +760,8 @@ class VisualizationWorkspace(QTabWidget):
                 self.setCurrentIndex(2)
                 self.scopeChanged.emit({"site": match[1], "unit": match[2], "outage": outage})
 
-    def open_unit_history(self):
-        item = self.unit_overview.currentItem()
-        key = item.data(0, Qt.ItemDataRole.UserRole) if item else None
-        if not key or len(key) != 2:
-            return
-        unit, outage = key
-        entry = self._unit_history_rows.get(tuple(key))
+    def open_unit_history(self, unit, outage):
+        entry = self._unit_history_rows.get((unit, outage))
         if entry is None:
             return
         dialog = QDialog(self)
@@ -746,32 +775,162 @@ class VisualizationWorkspace(QTabWidget):
                  "unquantified_tubes": "WAR 深度缺失", "state_missing_tubes": "截至本次无维护记录",
                  "state_current_tubes": "本次有维护记录", "state_current_missing_tubes": "本次无维护记录",
                  "state_review_tubes": "维护顺序或状态待核对", "inherited_plug_tubes": "沿用历史堵管"}
-        lines = [f"检测记录：{entry.get('records', 0)} 条"]
-        for field, title in names.items():
-            numbers = entry.get(field) or []
-            lines.append(f"{title}（{len(numbers)} 根）：{'、'.join(map(str, numbers)) or '无'}")
-        for field, title in (("defect", "WAR"), ("NDD", "NDD"), ("incomplete", "待核对结论")):
-            lines.append(f"{title}管号：" + ("、".join(map(str, (entry.get("detection_tubes") or {}).get(field) or [])) or "无"))
-        facts.setPlainText("\n\n".join(lines))
         tabs.addTab(facts, "检测与维护完整性")
-        sources = entry.get("state_sources") or []
-        table = QTableWidget(len(sources), 6)
+        table = QTableWidget(0, 6)
         table.setHorizontalHeaderLabels(["管号", "最近维护大修", "截至本次有效状态", "原始备注", "来源", "待核对原因"])
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.horizontalHeader().setStretchLastSection(True)
-        for row, record in enumerate(sources):
-            for column, value in enumerate((record["tube"], record["outage"], record["label"], record.get("note", ""),
-                                             record.get("source", ""), "；".join(record.get("warnings") or []))):
-                cell = QTableWidgetItem(str(value))
-                cell.setToolTip(str(value))
-                table.setItem(row, column, cell)
         table.setColumnWidth(3, 300)
         table.setColumnWidth(4, 220)
         tabs.addTab(table, "维护原文与来源")
         layout.addWidget(tabs)
         layout.addWidget(button("关闭", "x", dialog.accept))
+        def render(entry, data, error):
+            table.setRowCount(0)
+            if error or entry is None:
+                facts.setPlainText(error or "当前库中没有该次大修的检测或维护记录")
+                return
+            lines = [f"检测记录：{entry.get('records', 0)} 条"]
+            for field, title in names.items():
+                numbers = entry.get(field) or []
+                lines.append(f"{title}（{len(numbers)} 根）：{'、'.join(map(str, numbers)) or '无'}")
+            for field, title in (("defect", "WAR"), ("NDD", "NDD"), ("incomplete", "待核对结论")):
+                numbers = (entry.get("detection_tubes") or {}).get(field) or []
+                lines.append(f"{title}管号：" + ("、".join(map(str, numbers)) or "无"))
+            facts.setPlainText("\n\n".join(lines))
+            sources = entry.get("state_sources") or []
+            table.setRowCount(len(sources))
+            for row, record in enumerate(sources):
+                for column, value in enumerate((record["tube"], record["outage"], record["label"],
+                                                 record.get("note", ""), record.get("source", ""),
+                                                 "；".join(record.get("warnings") or []))):
+                    cell = QTableWidgetItem(str(value))
+                    cell.setToolTip(str(value))
+                    table.setItem(row, column, cell)
+        self._watch_unit_dialog(dialog, unit, outage, render)
         dialog.open()
         self.unit_history_dialog = dialog
+
+    def open_unit_tubes(self, unit, outage, numbers, kind):
+        if not numbers:
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"{unit} · {outage} · {'维护状态' if kind == 'state' else '检测记录'}管号明细")
+        dialog.resize(900, 560)
+        layout = QVBoxLayout(dialog)
+        status = QLabel()
+        status.setWordWrap(True)
+        layout.addWidget(status)
+        table = QTableWidget(len(numbers), 5)
+        table.setHorizontalHeaderLabels(["管号", "管板位置", "检测结论", "有效维护状态", "原始备注"])
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setStretchLastSection(True)
+        names = {"defect": "WAR", "NDD": "NDD", "missing": "无检测记录", "incomplete": "待核对"}
+        def render(entry, data, error):
+            table.setRowCount(0)
+            status.setText(error or (f"已更新 · 当前查看 {len(numbers)} 根管" if entry is not None
+                                    else "当前库中没有该次大修的检测或维护记录"))
+            if error or entry is None:
+                return
+            snapshots = [snapshot for snapshot in data.get("snapshots") or []
+                         if snapshot["unit"] == unit and snapshot["outage"] == outage]
+            tubes = {int(tube["tube"]): tube for snapshot in snapshots for tube in snapshot.get("tubes") or []}
+            sources = {int(record["tube"]): record for record in entry.get("state_sources") or []}
+            conclusions = {int(number): names.get(code, code) for code, values in
+                           (entry.get("detection_tubes") or {}).items() for number in values}
+            table.setRowCount(len(numbers))
+            for row, number in enumerate(numbers):
+                tube, source = tubes.get(int(number), {}), sources.get(int(number), {})
+                values = (number, tube.get("position", ""),
+                          names.get(tube.get("coverage"), conclusions.get(int(number), "无检测记录")),
+                          source.get("label") or tube.get("state_label") or "未记录", source.get("note", ""))
+                for column, value in enumerate(values):
+                    item = QTableWidgetItem(str(value))
+                    item.setToolTip(str(value))
+                    table.setItem(row, column, item)
+        layout.addWidget(table)
+        layout.addWidget(button("查看本次管板", "search", lambda: self.open_unit_overview(unit, outage)))
+        layout.addWidget(button("关闭", "x", dialog.accept))
+        self._watch_unit_dialog(dialog, unit, outage, render, require_snapshot=True)
+        dialog.open()
+        self.unit_tubes_dialog = dialog
+
+    def open_unit_records(self, unit, outage):
+        if self.client is None:
+            return
+        from urllib.parse import urlencode
+        match = re.fullmatch(r"([A-Z]+)(\d+)", unit)
+        if not match:
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"{unit} · {outage} · 原始检测表")
+        dialog.resize(1100, 650)
+        layout = QVBoxLayout(dialog)
+        status = QLabel("正在读取原始检测记录...")
+        layout.addWidget(status)
+        fields = (("thimble_id", "通道"), ("position", "堆芯位置"), ("indication", "原始结论"),
+                  ("percent", "深度%"), ("location", "磨损位置"), ("channel", "测量通道"),
+                  ("analysis", "备注"), ("filename", "数据文件"))
+        table = QTableWidget(0, len(fields))
+        table.setHorizontalHeaderLabels([title for _, title in fields])
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(table)
+        controls = QHBoxLayout()
+        previous, following = button("上一页", "chevron-left"), button("下一页", "chevron-right")
+        for control in (previous, following):
+            controls.addWidget(control)
+        retry = button("重试", "refresh-cw")
+        retry.hide()
+        controls.addWidget(retry)
+        controls.addStretch()
+        controls.addWidget(button("关闭", "x", dialog.accept))
+        layout.addLayout(controls)
+        state = {"page": 1, "request": 0, "closed": False}
+        dialog.finished.connect(lambda *_: state.update(closed=True))
+
+        def load(page):
+            state["page"], state["request"] = page, state["request"] + 1
+            request = state["request"]
+            status.setText(f"正在读取第 {page} 页原始检测记录...")
+            table.setEnabled(False)
+            retry.hide()
+            previous.setEnabled(False)
+            following.setEnabled(False)
+            params = {"site": match[1], "unit": match[2], "outage": outage, "raw": 1,
+                      "core": 0, "size": 100, "page": page, "auto_ndd": 0}
+
+            def loaded(data, error):
+                if state["closed"] or request != state["request"]:
+                    return
+                if error or not data:
+                    status.setText(error or "原始检测记录读取失败")
+                    table.setRowCount(0)
+                    table.setEnabled(True)
+                    previous.setEnabled(page > 1)
+                    retry.show()
+                    return
+                rows = data.get("items") or []
+                total = data.get("total", 0)
+                table.setRowCount(len(rows))
+                table.setEnabled(True)
+                for row, record in enumerate(rows):
+                    for column, (field, _) in enumerate(fields):
+                        value = record.get(field)
+                        item = QTableWidgetItem("" if value is None else str(value))
+                        item.setToolTip(item.text())
+                        table.setItem(row, column, item)
+                status.setText(f"共 {total} 条原始检测记录 · 第 {page} 页")
+                previous.setEnabled(page > 1)
+                following.setEnabled(page * 100 < total)
+            self.client.get("/api/findings?" + urlencode(params), loaded)
+        previous.clicked.connect(lambda: load(state["page"] - 1))
+        following.clicked.connect(lambda: load(state["page"] + 1))
+        retry.clicked.connect(lambda: load(state["page"]))
+        dialog.open()
+        self.unit_records_dialog = dialog
+        self._watch_data_dialog(dialog, lambda: load(state["page"]))
+        load(1)
 
     def open_overview_insight(self, key):
         rows = list(self._insight_rows.get(key) or [])
@@ -781,19 +940,24 @@ class VisualizationWorkspace(QTabWidget):
         dialog.setWindowTitle(self._insight_titles[key])
         dialog.resize(900, 560)
         layout = QVBoxLayout(dialog)
-        table = QTableWidget(len(rows), 6)
+        table = QTableWidget(0, 6)
         table.setHorizontalHeaderLabels(["机组", "大修", "管号", "管板位置", "最大报告深度", "有效维护状态"])
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.horizontalHeader().setStretchLastSection(True)
-        for index, (snap, tube) in enumerate(rows):
-            depth = valid_depth(tube)
-            for column, value in enumerate((snap["unit"], snap["outage"], tube["tube"], tube.get("position", ""),
-                                             f"{depth:g}%" if depth is not None else "—",
-                                             tube.get("state_label") or "未记录")):
-                table.setItem(index, column, QTableWidgetItem(str(value)))
+        def refresh():
+            rows = self._insight_rows.get(key) or []
+            table.setRowCount(len(rows))
+            for index, (snap, tube) in enumerate(rows):
+                depth = valid_depth(tube)
+                for column, value in enumerate((snap["unit"], snap["outage"], tube["tube"], tube.get("position", ""),
+                                                 f"{depth:g}%" if depth is not None else "—",
+                                                 tube.get("state_label") or "未记录")):
+                    table.setItem(index, column, QTableWidgetItem(str(value)))
         layout.addWidget(table)
         layout.addWidget(button("关闭", "x", dialog.accept))
+        self._watch_data_dialog(dialog, refresh)
+        refresh()
         dialog.open()
         self.insight_dialog = dialog
 
@@ -804,17 +968,20 @@ class VisualizationWorkspace(QTabWidget):
         layout = QVBoxLayout(dialog)
         table = QTableWidget(0, 4)
         table.setHorizontalHeaderLabels(["机组", "大修", "通道", "最大深度"])
-        rows = [(snapshot, tube) for snapshot in self.data.get("snapshots") or []
-                for tube in snapshot.get("tubes") or [] if tube.get("position") == position
-                and valid_depth(tube) is not None and valid_depth(tube) > self.heat_threshold.value()]
-        table.setRowCount(len(rows))
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        for row, (snapshot, tube) in enumerate(rows):
-            for col, value in enumerate((snapshot["unit"], snapshot["outage"], tube["tube"], tube["max_depth"])):
-                table.setItem(row, col, QTableWidgetItem(str(value)))
+        def refresh():
+            rows = [(snapshot, tube) for snapshot in self.data.get("snapshots") or []
+                    for tube in snapshot.get("tubes") or [] if tube.get("position") == position
+                    and valid_depth(tube) is not None and valid_depth(tube) > self.heat_threshold.value()]
+            table.setRowCount(len(rows))
+            for row, (snapshot, tube) in enumerate(rows):
+                for col, value in enumerate((snapshot["unit"], snapshot["outage"], tube["tube"], tube["max_depth"])):
+                    table.setItem(row, col, QTableWidgetItem(str(value)))
         table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(table)
         layout.addWidget(button("关闭", "x", dialog.accept))
+        self._watch_data_dialog(dialog, refresh)
+        refresh()
         dialog.exec()
 
     def refresh_snapshot(self, *_):
@@ -889,6 +1056,8 @@ class VisualizationWorkspace(QTabWidget):
     def set_severity(self, levels, colors):
         if self.severity_levels != levels or self.severity_colors != colors:
             self.severity_levels, self.severity_colors = list(levels), list(colors)
+            self.unit_overview.levels, self.unit_overview.colors = list(levels), list(colors)
+            self.unit_overview._data = None
             self.refresh_overview()
 
     def refresh_trends(self, *_):

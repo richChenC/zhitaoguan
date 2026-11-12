@@ -2866,6 +2866,10 @@ def overview() -> dict:
     with connect() as db:
         stats = dict(db.execute("SELECT COUNT(*) findings, COUNT(DISTINCT outage) outages, COUNT(DISTINCT unit_id) units, COUNT(DISTINCT analyst) analysts FROM statistical_findings WHERE is_deleted=0").fetchone())
         stats["source_findings"] = db.execute("SELECT COUNT(*) FROM findings WHERE is_deleted=0").fetchone()[0]
+        analysts = [row[0] for row in db.execute(
+            "SELECT DISTINCT analyst FROM statistical_findings WHERE is_deleted=0 AND TRIM(COALESCE(analyst,''))<>'' ORDER BY analyst")]
+        indications = [row[0] for row in db.execute(
+            "SELECT DISTINCT TRIM(indication) FROM statistical_findings WHERE is_deleted=0 AND TRIM(COALESCE(indication,'')) NOT IN ('','/') ORDER BY 1")]
         outages = [row[0] for row in db.execute("SELECT DISTINCT outage FROM statistical_findings WHERE is_deleted=0 ORDER BY outage DESC")]
         units = [row[0] for row in db.execute("SELECT DISTINCT unit_id FROM statistical_findings WHERE is_deleted=0 ORDER BY unit_id")]
         site_expr = analysis_reporting.site_prefix_sql()
@@ -2891,7 +2895,8 @@ def overview() -> dict:
             scope.update(expected_tubes=50, actual_tubes=len(tubes),
                          missing_tubes=sorted(set(range(1, 51)) - tubes),
                          coverage_complete=len(tubes) == 50)
-    return {"stats": stats, "sites": sites, "outages": outages, "units": units, "combinations": combinations, "history": history,
+    return {"stats": stats, "sites": sites, "outages": outages, "units": units, "analysts": analysts,
+            "indications": indications, "combinations": combinations, "history": history,
             "coverage_warnings": [scope for scope in history if not scope["coverage_complete"]]}
 
 
