@@ -64,7 +64,8 @@ class NativeQtTests(unittest.TestCase):
 
     def test_findings_model_has_stable_columns_and_rows(self):
         model = FindingsModel()
-        self.assertEqual(model.columnCount(), 18)
+        self.assertEqual(model.columnCount(), 19)
+        self.assertNotIn("maintenance_status", model.editable_fields)
         model.replace([{
             "site_code": "N",
             "outage": "N101",
@@ -85,7 +86,7 @@ class NativeQtTests(unittest.TestCase):
         window = NativeMainWindow(client, {"username": "tester", "permissions": []})
         self.assertEqual(window.nav.count(), 5)
         self.assertEqual(window.stack.count(), 5)
-        self.assertEqual(window.workbench.model.columnCount(), 18)
+        self.assertEqual(window.workbench.model.columnCount(), 19)
         self.assertIsInstance(window.stack.widget(1), NativeStatePage)
         self.assertIsInstance(window.stack.widget(2), NativeThreeDPage)
         self.assertIsInstance(window.stack.widget(3), NativeAnalyticsPage)
@@ -173,7 +174,7 @@ class NativeQtTests(unittest.TestCase):
         self.assertEqual(payload, {"outage": "N101", "unit_id": 1, "format": "xlsx"})
         page.close()
 
-    def test_state_single_edit_guards_complex_and_concurrent_records(self):
+    def test_state_inline_edit_preserves_complex_events_and_concurrency(self):
         class Client:
             def __init__(self):
                 self.requests = []
@@ -185,18 +186,20 @@ class NativeQtTests(unittest.TestCase):
         client = Client()
         page = NativeStatePage(client, {"permissions": ["state.write"]})
         page.current = {"outage": "N101", "unit_id": 1, "thimble_id": 1,
-                        "events": ["shifted", "plugged"], "updated_at": "version"}
+                        "state": "plugged", "events": ["shifted", "plugged"], "updated_at": "version",
+                        "unsigned_offset_mm": 42, "source": "original"}
+        page._populate_editor()
         with patch("qt_shell.native_windows.QMessageBox.warning"):
             page._save()
         self.assertEqual(client.requests, [])
-        page.current["events"] = ["shifted"]
-        page.state.setCurrentIndex(page.state.findData("shifted"))
         page.offset.setText("-42")
         page._save()
         path, payload = client.requests[-1]
         self.assertEqual(path, "/api/state")
         self.assertEqual(payload["expected_updated_at"], "version")
-        self.assertNotIn("source", payload)
+        self.assertEqual(set(payload["events"]), {"plugged", "shifted"})
+        self.assertEqual(payload["offset_mm"], -42)
+        self.assertEqual(payload["source"], "original")
         page.close()
 
     def test_advanced_state_editor_preserves_events_and_concurrency(self):

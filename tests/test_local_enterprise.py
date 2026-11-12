@@ -150,6 +150,49 @@ class LocalEnterpriseTests(unittest.TestCase):
         self.assertEqual(self.request('/api/auth/logout','POST',{},cookie)[0],200)
         self.assertEqual(self.request('/api/auth/me',cookie=cookie)[0],401)
 
+    def test_remembered_session_lifetime_idle_and_restart_boundary(self):
+        status, body, headers = self.request('/api/auth/login', 'POST',
+                                            {'username':'admin', 'password':self.password, 'remember':True})
+        self.assertEqual(status, 200)
+        cookie = headers['Set-Cookie'].split(';')[0]
+        self.assertIn('Max-Age=604800', headers['Set-Cookie'])
+        digest = hashlib.sha256(local_security.token_from_cookie(cookie).encode()).hexdigest()
+        now = int(time.time())
+        with server.connect() as db:
+            row = db.execute('SELECT expires_at-created_at FROM login_sessions WHERE token_hash=?', (digest,)).fetchone()
+            self.assertEqual(row[0], 604800)
+            db.execute('UPDATE login_sessions SET last_seen=? WHERE token_hash=?', (now-1900, digest))
+        self.assertIsNotNone(local_security.session(server, cookie))
+        local_security._activity.pop(digest, None)
+        with server.connect() as db:
+            db.execute('UPDATE login_sessions SET last_seen=? WHERE token_hash=?', (now-28801, digest))
+        self.assertIsNone(local_security.session(server, cookie))
+        with patch.object(local_security, 'INSTANCE', 'restarted'):
+            self.assertIsNone(local_security.session(server, cookie))
+
+    def test_login_lock_feedback_does_not_extend_existing_lock(self):
+        for attempt in range(5):
+            status, body, _ = self.request('/api/auth/login', 'POST', {'username':'admin', 'password':'wrong'})
+            self.assertEqual(status, 401)
+            if attempt < 4:
+                self.assertEqual(body['remaining_attempts'], 4-attempt)
+        self.assertGreater(body['locked_seconds'], 0)
+        with server.connect() as db:
+            original = dict(db.execute('SELECT failures,locked_until FROM users WHERE username=?', ('admin',)).fetchone())
+        status, body, _ = self.request('/api/auth/login', 'POST', {'username':'admin', 'password':self.password})
+        self.assertEqual(status, 401)
+        self.assertGreater(body['locked_seconds'], 0)
+        with server.connect() as db:
+            current = dict(db.execute('SELECT failures,locked_until FROM users WHERE username=?', ('admin',)).fetchone())
+        self.assertEqual(current, original)
+
+    def test_user_catalog_reports_role_permissions_and_last_login(self):
+        status, body, _ = self.request('/api/auth/users', cookie=self.cookie)
+        self.assertEqual(status, 200)
+        self.assertTrue(body['users'][0]['last_login'])
+        admin = next(role for role in body['roles'] if role['code'] == 'admin')
+        self.assertEqual(set(admin['permissions']), set(local_security.PERMISSIONS))
+
     def test_role_changes_and_disable_revoke_existing_sessions(self):
         user,cookie,ident=self.user('editor')
         self.assertEqual(self.request('/api/auth/users/update','POST',{'id':ident,'active':False},self.cookie)[0],200)

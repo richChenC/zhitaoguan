@@ -46,6 +46,7 @@ def main():
             stage = state["stage"]
             if stage == 0 and login and login.submit.isEnabled():
                 assert login.initialized is False
+                login.grab().save(str(work / "setup.png"))
                 login.username.setText("sessionprobe")
                 login.display_name.setText("Native Session Probe")
                 login.password.setText("NativeSession@2026")
@@ -61,6 +62,15 @@ def main():
             elif stage == 3 and login and login.submit.isEnabled():
                 assert login.initialized is True
                 assert login.password.text() == ""
+                for width, height, theme in ((1080, 760, "light"), (460, 640, "dark")):
+                    login.preferences.save(theme=theme)
+                    login._apply_theme()
+                    login.resize(width, height)
+                    login.grab().save(str(work / f"login-{width}-{theme}.png"))
+                    assert login.username.isVisible() and login.password.isVisible() and login.submit.isVisible()
+                    assert login.username.width() >= 250, ("username width", login.username.width())
+                    assert login.submit.mapTo(login, login.submit.rect().bottomRight()).y() < login.height(), "submit clipped"
+                login.remember.setChecked(True)
                 login.username.setText("sessionprobe")
                 login.password.setText("NativeSession@2026")
                 QTest.mouseClick(login.submit, Qt.MouseButton.LeftButton)

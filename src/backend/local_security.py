@@ -41,15 +41,20 @@ COOKIE = 'thimble_session'
 INSTANCE = secrets.token_hex(16)
 SESSION_SECONDS = 8 * 3600
 IDLE_SECONDS = 30 * 60
+REMEMBER_SECONDS = 7 * 24 * 3600
+REMEMBER_IDLE_SECONDS = 8 * 3600
+MAX_LOGIN_FAILURES = 5
+LOCK_SECONDS = 300
 _principal = ContextVar('thimble_principal', default=None)
 _DUMMY = None
 _activity = {}
 
 
 class AccessError(ValueError):
-    def __init__(self, message, status=403):
+    def __init__(self, message, status=403, details=None):
         super().__init__(message)
         self.status = status
+        self.details = details or {}
 
 
 def actor():
@@ -174,29 +179,46 @@ def login(server, data):
     if _DUMMY is None:
         _DUMMY = hash_password(secrets.token_urlsafe(24))
     username = str(data.get('username',''))[:64].lower()
+    lifetime = REMEMBER_SECONDS if data.get('remember') is True else SESSION_SECONDS
     now = int(time.time())
     raw_token = secrets.token_urlsafe(32)
+    failures = None
+    locked_until = 0
     with server.connect() as db:
         db.execute('BEGIN IMMEDIATE')
         user = db.execute('SELECT * FROM users WHERE username=?',(username,)).fetchone()
         valid = verify_password(data.get('password',''), user['password_hash'] if user else _DUMMY)
         if not user or not valid or not user['active'] or user['locked_until'] > now:
-            if user:
+            if user and user['locked_until'] <= now:
                 failures = user['failures'] + 1
+                locked_until = now + LOCK_SECONDS if failures >= MAX_LOGIN_FAILURES else 0
                 db.execute('UPDATE users SET failures=?,locked_until=? WHERE id=?',
-                           (failures, max(user['locked_until'],now + 300) if failures >= 5 else 0,user['id']))
+                           (failures, locked_until, user['id']))
+            elif user:
+                failures, locked_until = user['failures'], user['locked_until']
             event(db,'login','failed')
             result = None
         else:
             db.execute('UPDATE users SET failures=0,locked_until=0 WHERE id=?',(user['id'],))
             db.execute('DELETE FROM login_sessions WHERE expires_at<=? OR service_instance<>?', (now,INSTANCE))
             db.execute('INSERT INTO login_sessions VALUES(?,?,?,?,?,?)',
-                       (hashlib.sha256(raw_token.encode()).hexdigest(),user['id'],now,now+SESSION_SECONDS,now,INSTANCE))
+                       (hashlib.sha256(raw_token.encode()).hexdigest(),user['id'],now,now+lifetime,now,INSTANCE))
             result = public_user(db,user)
             with identity(result):
                 event(db,'login')
     if result is None:
-        raise AccessError('用户名或密码错误、账户被停用或暂时锁定，请稍后重试',401)
+        details = {}
+        if user and not user['active']:
+            message = '账户已停用，请联系系统管理员'
+            details['account_disabled'] = True
+        elif locked_until > now:
+            message = '账户已锁定，请稍后重试'
+            details['locked_seconds'] = max(0, int(locked_until - now))
+        else:
+            message = '用户名或密码错误'
+            if failures is not None and failures < MAX_LOGIN_FAILURES:
+                details['remaining_attempts'] = MAX_LOGIN_FAILURES - failures
+        raise AccessError(message, 401, details)
     return result, raw_token
 
 
@@ -216,11 +238,17 @@ def session(server, cookie):
     digest = hashlib.sha256(raw.encode()).hexdigest()
     now = int(time.time())
     with server.connect() as db:
-        user = db.execute('SELECT u.*,s.token_hash,s.last_seen FROM users u JOIN login_sessions s ON s.user_id=u.id WHERE s.token_hash=? AND s.expires_at>? AND s.service_instance=? AND u.active=1',
+        user = db.execute('SELECT u.*,s.token_hash,s.last_seen,(s.expires_at-s.created_at) AS session_seconds FROM users u JOIN login_sessions s ON s.user_id=u.id WHERE s.token_hash=? AND s.expires_at>? AND s.service_instance=? AND u.active=1',
                           (digest,now,INSTANCE)).fetchone()
-        if not user or _activity.get(digest,user['last_seen']) <= now-IDLE_SECONDS:
+        if not user:
+            return None
+        idle = REMEMBER_IDLE_SECONDS if (user['session_seconds'] or 0) > SESSION_SECONDS else IDLE_SECONDS
+        if _activity.get(digest,user['last_seen']) <= now-idle:
+            _activity.pop(digest, None)
             return None
         _activity[digest] = now
+        if len(_activity) > 8192:
+            _activity.clear()
         # Progress polling must not wait for the import writer's transaction.
         # Sessions never survive a service restart; the in-process idle clock
         # remains authoritative when SQLite is temporarily busy.
@@ -236,9 +264,10 @@ def session(server, cookie):
         return public_user(db,user)
 
 
-def cookie_header(token=''):
+def cookie_header(token='', max_age=0):
     # HTTP loopback only. Secure cannot be set until transport uses HTTPS.
-    return f'{COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/' + ('' if token else '; Max-Age=0')
+    header = f'{COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/'
+    return header + ('; Max-Age=0' if not token else f'; Max-Age={int(max_age)}' if max_age else '')
 
 
 def update_user(server,data):
@@ -340,8 +369,16 @@ def auth_get(server, handler, path):
         return {'user':_principal.get()}
     if path=='/api/auth/users':
         with server.connect() as db:
-            return {'users':[public_user(db,u) for u in db.execute('SELECT * FROM users ORDER BY username')],
-                    'roles':[{'code':code,'label':values[0]} for code,values in ROLES.items()]}
+            users = []
+            for user in db.execute('SELECT * FROM users ORDER BY username'):
+                item = public_user(db, user)
+                last = db.execute("SELECT created_at FROM security_events WHERE event_type='login' "
+                                  "AND outcome='success' AND operator=? ORDER BY created_at DESC LIMIT 1",
+                                  (user['username'],)).fetchone()
+                item['last_login'] = last[0] if last else ''
+                users.append(item)
+            return {'users':users,
+                    'roles':[{'code':code,'label':values[0],'permissions':sorted(values[1])} for code,values in ROLES.items()]}
     if path in ('/api/security/events','/api/security/exports','/api/schema-migrations'):
         table = {'/api/security/events':'security_events','/api/security/exports':'export_audits','/api/schema-migrations':'schema_migrations'}[path]
         with server.connect() as db:
@@ -393,7 +430,7 @@ def auth_post(server, handler, path, data):
         return create_user(server,data,setup=True)
     if path=='/api/auth/login':
         user, token = login(server,data)
-        handler.auth_cookie = cookie_header(token)
+        handler.auth_cookie = cookie_header(token, REMEMBER_SECONDS if data.get('remember') is True else 0)
         return {'user':user}
     if path=='/api/auth/logout':
         raw = token_from_cookie(handler.headers.get('Cookie'))
@@ -498,7 +535,7 @@ def http_boundary(method):
                             server._auto_backup("state_delete")
                         return function(handler)
             except AccessError as error:
-                return handler.json_response({'error':str(error)},error.status)
+                return handler.json_response({'error':str(error), **error.details},error.status)
             except (ValueError,sqlite3.DatabaseError) as error:
                 message = str(error) if isinstance(error,ValueError) else '本地数据库不可用，请使用已校验的备份恢复'
                 return handler.json_response({'error':message},400 if isinstance(error,ValueError) else 503)

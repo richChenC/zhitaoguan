@@ -102,6 +102,7 @@ class FormCellDelegate(QStyledItemDelegate):
 
 class ReportPreview(QScrollArea):
     cellEdited = Signal(str, str)
+    zoomChanged = Signal(float)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -207,6 +208,7 @@ class ReportPreview(QScrollArea):
 
     def set_zoom(self, value):
         self.zoom = max(.5, min(1.5, value))
+        self.zoomChanged.emit(self.zoom)
         width = int(850 * self.zoom)
         for table in self.tables:
             table.setProperty("reportZoom", self.zoom)

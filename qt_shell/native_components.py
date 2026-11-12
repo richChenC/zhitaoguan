@@ -8,7 +8,7 @@ import re
 from functools import lru_cache
 
 from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QObject, QPoint, QPointF, QRect, QRectF, QSaveFile, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPen
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPalette, QPen, QPolygonF
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QHBoxLayout, QLabel, QLayout, QMessageBox, QPushButton, QSizePolicy, QToolTip, QWidget,
 )
@@ -19,6 +19,13 @@ SITE_NAMES = {"D": "大亚湾", "L": "岭澳", "N": "宁德", "H": "红沿河",
               "F": "防城港", "Y": "阳江", "T": "台山", "P": "惠州",
               "LF": "陆丰", "C": "苍南"}
 STATE_NAMES = {"normal": "正常", "plugged": "堵管", "shifted": "移位", "replaced": "换管"}
+STATE_PALETTE = {
+    "normal": ("#d8f0e2", "#218a67", "#14553d"),
+    "plugged": ("#f8d7dc", "#c23b52", "#7c2538"),
+    "shifted": ("#ffe3b0", "#c47700", "#713f00"),
+    "replaced": ("#d7e6fb", "#2e6fb8", "#1b4d91"),
+    "missing": ("#edf1f3", "#9baab3", "#44545e"),
+}
 SITE_ALIASES = {"CNPS": "D", "LNPS": "L", "NDNP": "N", "LHNP": "H",
                 "BLNP": "F", "YJNP": "Y", "TSNP": "T", "HENP": "P", "CNMP": "C", "LFNP": "LF"}
 
@@ -59,6 +66,7 @@ class ToolFlowLayout(QLayout):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.items = []
+        self.bottom_aligned = False
         self.setContentsMargins(0, 0, 0, 0)
         self.setSpacing(6)
 
@@ -92,24 +100,36 @@ class ToolFlowLayout(QLayout):
         for item in self.items:
             if not item.isEmpty():
                 size = size.expandedTo(item.minimumSize())
-        return size
+        margins = self.contentsMargins()
+        return size + QSize(margins.left() + margins.right(), margins.top() + margins.bottom())
 
     def sizeHint(self):
         return self.minimumSize()
 
     def _arrange(self, rect, apply):
-        x, y, height = rect.x(), rect.y(), 0
+        margins = self.contentsMargins()
+        area = rect.adjusted(margins.left(), margins.top(), -margins.right(), -margins.bottom())
+        x, y, height = area.x(), area.y(), 0
+        line = []
+
+        def place():
+            if apply:
+                for entry, position, size in line:
+                    entry.setGeometry(QRect(QPoint(position, y + (height - size.height() if self.bottom_aligned else 0)), size))
+
         for item in self.items:
             if item.isEmpty():
                 continue
             size = item.sizeHint()
-            if x > rect.x() and x + size.width() > rect.right() + 1:
-                x, y, height = rect.x(), y + height + self.spacing(), 0
-            if apply:
-                item.setGeometry(QRect(QPoint(x, y), size))
+            if x > area.x() and x + size.width() > area.right() + 1:
+                place()
+                line = []
+                x, y, height = area.x(), y + height + self.spacing(), 0
+            line.append((item, x, size))
             x += size.width() + self.spacing()
             height = max(height, size.height())
-        return y + height - rect.y()
+        place()
+        return y + height - rect.y() + margins.bottom()
 
 
 def export_widget_image(parent, client, widget, title):
@@ -147,8 +167,9 @@ class Preferences(QObject):
     changed = Signal()
     defaults = {"theme": "light", "density": "comfortable", "animations": True,
                 "start_page": 0, "remember_page": True, "last_page": 0,
-                "report_policy": "manual", "source_path": "",
-                "depth_levels": [20, 40, 60], "depth_colors": ["#39a78e", "#edbd50", "#df8252", "#c64e53"]}
+                "auto_ndd": True, "notification_duration": 3000, "notification_sound": False,
+                "report_policy": "manual", "source_path": "", "login_username": "",
+                "depth_levels": [30, 50], "depth_colors": ["#79b98c", "#e5a83b", "#df4b45"]}
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -183,16 +204,20 @@ class Preferences(QObject):
         for key, choices in options.items():
             if data.get(key) in choices:
                 values[key] = data[key]
-        for key in ("animations", "remember_page"):
+        for key in ("animations", "remember_page", "auto_ndd", "notification_sound"):
             if isinstance(data.get(key), bool):
                 values[key] = data[key]
+        if type(data.get("notification_duration")) is int and data["notification_duration"] in (0, 3000, 5000):
+            values["notification_duration"] = data["notification_duration"]
         for key in ("start_page", "last_page"):
             if type(data.get(key)) is int and 0 <= data[key] <= 4:
                 values[key] = data[key]
         if isinstance(data.get("source_path"), str):
             values["source_path"] = data["source_path"]
+        if isinstance(data.get("login_username"), str) and re.fullmatch(r"[A-Za-z0-9_.-]{0,64}", data["login_username"]):
+            values["login_username"] = data["login_username"]
         levels, colors = data.get("depth_levels"), data.get("depth_colors")
-        if (isinstance(levels, list) and len(levels) == 3
+        if (isinstance(levels, list) and len(levels) in (2, 3)
                 and all(type(value) is int and 0 < value <= 100 for value in levels)
                 and sorted(set(levels)) == levels
                 and isinstance(colors, list) and len(colors) == len(levels) + 1
@@ -230,11 +255,14 @@ class ScopeBar(QWidget):
     changed = Signal(dict)
     loaded = Signal(dict)
 
-    def __init__(self, client, parent=None, *, allow_all=True):
+    def __init__(self, client, parent=None, *, allow_all=True, stacked=False):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.client = client
         self.allow_all = allow_all
         self.combinations = []
+        self.extra_combinations = []
+        self._overview_combinations = []
         self._requested_scope = {}
         self._loaded_once = False
         self.site, self.unit, self.outage = QComboBox(), QComboBox(), QComboBox()
@@ -244,10 +272,27 @@ class ScopeBar(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         for text, control in (("基地", self.site), ("机组", self.unit), ("大修", self.outage)):
-            layout.addWidget(QLabel(text))
-            layout.addWidget(control)
+            if stacked:
+                from PySide6.QtWidgets import QVBoxLayout
+                field = QWidget()
+                field_layout = QVBoxLayout(field)
+                field_layout.setContentsMargins(0, 0, 0, 0)
+                field_layout.setSpacing(5)
+                field_layout.addWidget(QLabel(text))
+                field_layout.addWidget(control)
+                layout.addWidget(field, 1)
+            else:
+                layout.addWidget(QLabel(text))
+                layout.addWidget(control)
         self.reset = button("清除筛选", "rotate-ccw", self.clear)
         self.refresh = button("刷新数据", "refresh-cw", self.reload)
+        if stacked:
+            self.setObjectName("filterBand")
+            layout.setContentsMargins(12, 10, 12, 10)
+            layout.setAlignment(Qt.AlignmentFlag.AlignBottom)
+            for control, text in ((self.reset, "清除筛选"), (self.refresh, "刷新数据")):
+                control.setText("")
+                control.setToolTip(text)
         layout.addWidget(self.reset)
         layout.addWidget(self.refresh)
         layout.addStretch()
@@ -264,7 +309,11 @@ class ScopeBar(QWidget):
             self.setToolTip(error or "范围读取失败")
             return
         previous = self._requested_scope or self.values()
-        self.combinations = data.get("combinations") or []
+        self._overview_combinations = data.get("combinations") or []
+        self.combinations = list(self._overview_combinations)
+        for row in self.extra_combinations:
+            if row not in self.combinations:
+                self.combinations.append(row)
         self._loaded_once = True
         self.site.blockSignals(True)
         self.site.clear()
@@ -272,8 +321,12 @@ class ScopeBar(QWidget):
         for site in sorted({canonical_site(row["site"]) for row in self.combinations}):
             self.site.addItem(SITE_NAMES.get(site, site), site)
         self.site.blockSignals(False)
-        self.set_scope(previous)
+        self.set_scope(previous, force=True)
         self.loaded.emit(self.values())
+
+    def set_extra_combinations(self, rows):
+        self.extra_combinations = list(rows)
+        self._loaded({"combinations": self._overview_combinations}, None)
 
     def values(self):
         if not self._loaded_once and self._requested_scope:
@@ -318,9 +371,13 @@ class ScopeBar(QWidget):
         self._requested_scope = self.values()
         self.changed.emit(self.values())
 
-    def set_scope(self, scope):
-        self._requested_scope = {"site": canonical_site(scope.get("site")),
-                                 "unit": str(scope.get("unit") or ""), "outage": scope.get("outage") or ""}
+    def set_scope(self, scope, *, force=False):
+        requested = {"site": canonical_site(scope.get("site")),
+                     "unit": str(scope.get("unit") or ""), "outage": scope.get("outage") or ""}
+        if not force and self._loaded_once and requested == self.values():
+            self._requested_scope = requested
+            return
+        self._requested_scope = requested
         self.site.blockSignals(True)
         self.site.setCurrentIndex(max(0, self.site.findData(canonical_site(scope.get("site")))))
         self.site.blockSignals(False)
@@ -376,7 +433,7 @@ class PlateMap(QWidget):
         if self.mode == "state":
             if row.get("state_recorded") in (0, False) or row.get("recorded") in (0, False):
                 return QColor("#e1e7eb")
-            return QColor({"plugged": "#c64e53", "shifted": "#e0ad36", "replaced": "#6d64b0",
+            return QColor({"plugged": "#c64e53", "shifted": "#e0ad36", "replaced": "#5c91ce",
                            "normal": "#39a78e"}.get(row.get("state"), "#e1e7eb"))
         if self.mode == "coverage":
             return QColor({"defect": "#c64e53", "NDD": "#39a78e", "ndd": "#39a78e",
@@ -438,11 +495,313 @@ class PlateMap(QWidget):
         QToolTip.hideText()
 
 
+class TubeStateGrid(PlateMap):
+    """Fifty maintenance selectors in the same ten-column order as TRAE."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.multiselect = False
+        self._drag_value = None
+        self._drag_last = None
+        self.setMinimumSize(400, 320)
+
+    def mousePressEvent(self, event):
+        if self.multiselect and event.button() == Qt.MouseButton.LeftButton:
+            for tube, rect in self.hit_regions.items():
+                if rect.contains(event.position()):
+                    self._drag_value = tube not in self.selected
+                    self._drag_last = tube
+                    self.selected.symmetric_difference_update({tube})
+                    self.update()
+                    self.tubeClicked.emit(tube)
+                    return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        for tube, rect in self.hit_regions.items():
+            if not rect.contains(event.position()):
+                continue
+            if self.multiselect and self._drag_value is not None and event.buttons() & Qt.MouseButton.LeftButton:
+                if tube != self._drag_last:
+                    self._drag_last = tube
+                    if self._drag_value:
+                        self.selected.add(tube)
+                    else:
+                        self.selected.discard(tube)
+                    self.update()
+                    self.tubeClicked.emit(tube)
+                return
+            row = self.rows.get(tube) or {}
+            events = row.get("events") or row.get("current_events") or [row.get("state")]
+            label = row.get("state_label") or " · ".join(STATE_NAMES.get(code, "") for code in events)
+            detail = f"{tube:02}号管 · {label or '未维护'}"
+            if "shifted" in events:
+                distance = row.get("offset_mm", row.get("maintenance_offset_mm"))
+                unsigned = row.get("unsigned_offset_mm", row.get("maintenance_unsigned_offset_mm"))
+                detail += (f"\n移位距离：{float(distance):+g} mm" if distance is not None else
+                           f"\n移位距离：{unsigned} mm（方向待核对）" if unsigned is not None else "\n移位距离待核对")
+            QToolTip.showText(event.globalPosition().toPoint(), detail, self)
+            return
+        QToolTip.hideText()
+
+    def mouseReleaseEvent(self, event):
+        self._drag_value = self._drag_last = None
+        super().mouseReleaseEvent(event)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.hit_regions = {}
+        gap = 8
+        width = (self.width() - gap * 11) / 10
+        height = min(64, (self.height() - gap * 6) / 5)
+        dark = self.palette().color(QPalette.ColorRole.WindowText).lightness() > 128
+        for tube in range(1, 51):
+            row = self.rows.get(tube) or {}
+            recorded = bool(row) and row.get("state_recorded", row.get("recorded", True)) not in (False, 0)
+            rect = QRectF(gap + (tube - 1) % 10 * (width + gap),
+                          gap + (tube - 1) // 10 * (height + gap), width, height)
+            self.hit_regions[tube] = rect
+            names = row.get("events") or row.get("current_events") or [row.get("state", "normal")]
+            active = [code for code in ("plugged", "shifted", "replaced") if code in names] if recorded else []
+            colors = [STATE_PALETTE[code] for code in active] or [STATE_PALETTE["normal" if recorded else "missing"]]
+            clip = QPainterPath()
+            clip.addRoundedRect(rect, 5, 5)
+            painter.save()
+            painter.setClipPath(clip)
+            for index, (fill, _edge, _ink) in enumerate(colors):
+                color = QColor(fill)
+                if dark:
+                    color.setAlpha(42)
+                painter.fillRect(QRectF(rect.x() + index * width / len(colors), rect.y(),
+                                        width / len(colors), height), color)
+            painter.restore()
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(QColor("#087d79" if tube in self.selected else colors[0][1]),
+                                2 if tube in self.selected else 1,
+                                Qt.PenStyle.SolidLine if recorded else Qt.PenStyle.DashLine))
+            painter.drawRoundedRect(rect, 5, 5)
+            painter.setPen(self.palette().color(QPalette.ColorRole.WindowText) if dark else QColor(colors[0][2]))
+            font = painter.font()
+            font.setPixelSize(13)
+            font.setBold(True)
+            painter.setFont(font)
+            painter.drawText(QRectF(rect.x(), rect.y() + 6, width, height / 2 - 3),
+                             Qt.AlignmentFlag.AlignCenter, f"{tube:02}")
+            font.setPixelSize(10)
+            font.setBold(False)
+            painter.setFont(font)
+            label = row.get("state_label") or ("复合处理" if len(names) > 1 else STATE_NAMES.get(row.get("state"), "正常"))
+            if len(label) > 6:
+                label = "复合处理" if not row.get("needs_review") else "待核对"
+            painter.drawText(QRectF(rect.x(), rect.y() + height / 2, width, height / 2 - 4),
+                             Qt.AlignmentFlag.AlignCenter, label if recorded else "未维护")
+
+
+class PositionHeatmap(QWidget):
+    positionClicked = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.counts = {}
+        self.hit_regions = {}
+        self.setMinimumSize(300, 320)
+        self.setMouseTracking(True)
+
+    def set_counts(self, counts):
+        self.counts = dict(counts)
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        cell = min((self.width() - 42) / 15, (self.height() - 38) / 15)
+        left, top = (self.width() - cell * 15) / 2 + 10, 28
+        columns = "RPNMLKJHGFEDCBA"
+        widths = (3, 7, 9, 11, 13, 13, 15, 15, 15, 13, 13, 11, 9, 7, 3)
+        font = painter.font()
+        font.setPixelSize(11)
+        painter.setFont(font)
+        painter.fillRect(self.rect(), QColor("#ffffff"))
+        self.hit_regions = {}
+        peak = max(self.counts.values(), default=1) or 1
+        for column, label in enumerate(columns):
+            painter.setPen(QColor("#48647a"))
+            painter.drawText(QRectF(left + column * cell, 3, cell, 20), Qt.AlignmentFlag.AlignCenter, label)
+        for row, width in enumerate(widths):
+            painter.setPen(QColor("#48647a"))
+            painter.drawText(QRectF(left - 27, top + row * cell, 24, cell), Qt.AlignmentFlag.AlignCenter, f"{row + 1:02}")
+            for column in range((15 - width) // 2, (15 + width) // 2):
+                position = f"{columns[column]}{row + 1}"
+                count = self.counts.get(position, 0)
+                rect = QRectF(left + column * cell, top + row * cell, cell, cell)
+                color = QColor("#ffffff")
+                if count:
+                    color = QColor.fromHsvF(.035, .18 + .62 * count / peak, 1 - .22 * count / peak)
+                painter.setBrush(color)
+                painter.setPen(QPen(QColor("#d6e2e7"), 1))
+                painter.drawRect(rect)
+                if count:
+                    painter.setPen(QColor("#ffffff" if count / peak > .65 else "#263842"))
+                    painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(count))
+                self.hit_regions[position] = rect
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            for position, rect in self.hit_regions.items():
+                if rect.contains(event.position()):
+                    self.positionClicked.emit(position)
+                    return
+
+    def mouseMoveEvent(self, event):
+        for position, rect in self.hit_regions.items():
+            if rect.contains(event.position()):
+                QToolTip.showText(event.globalPosition().toPoint(), f"{position} · 超阈 {self.counts.get(position, 0)} 次", self)
+                return
+        QToolTip.hideText()
+
+
+class ReferencePlateMap(PlateMap):
+    """The drawing's 15-row grid, with odd/even channel numbers in each circle."""
+    unitChanged = Signal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parity = "both"
+        self.parity_rows = {1: {}, 0: {}}
+        self.setMinimumSize(300, 330)
+
+    def set_records(self, rows, unit=1, selected=()):
+        self.unit = int(unit or 1)
+        self.selected = set(selected)
+        self.parity_rows = {1: {}, 0: {}}
+        for row in rows:
+            parity = int(row.get("unit_id") or self.unit) % 2
+            tube = int(row.get("thimble_id") or 0)
+            previous = self.parity_rows[parity].get(tube)
+            if previous is None or (row.get("percent") or 0) > (previous.get("percent") or 0):
+                self.parity_rows[parity][tube] = row
+        self.update()
+
+    def _record_color(self, parity, tube):
+        row = self.parity_rows[parity].get(tube)
+        return self._color(row) if row and (row.get("percent") or 0) > 0 else QColor("#ffffff")
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        cell = min((self.width() - 112) / 15, (self.height() - 106) / 15)
+        left, top = (self.width() - cell * 15) / 2, (self.height() - cell * 15) / 2
+        columns = "RPNMLKJHGFEDCBA"
+        widths = (3, 7, 9, 11, 13, 13, 15, 15, 15, 13, 13, 11, 9, 7, 3)
+        font = painter.font()
+        font.setPixelSize(10)
+        painter.setFont(font)
+        painter.setPen(QPen(QColor("#9aa5ad"), 1))
+        painter.setBrush(QColor("#ffffff"))
+        for row, width in enumerate(widths):
+            for column in range((15 - width) // 2, (15 + width) // 2):
+                painter.drawRect(QRectF(left + column * cell, top + row * cell, cell, cell))
+        painter.setPen(QColor("#52616c"))
+        for column, label in enumerate(columns):
+            painter.drawText(QRectF(left + column * cell, top - 25, cell, 20),
+                             Qt.AlignmentFlag.AlignCenter, label)
+        for row in range(15):
+            painter.drawText(QRectF(left - 29, top + row * cell, 24, cell),
+                             Qt.AlignmentFlag.AlignCenter, f"{row + 1:02}")
+        self.hit_regions = {}
+        diameter = cell * .88
+        for channel in self.channels:
+            match = re.fullmatch(r"([A-Z])(\d+)", channel["pos"])
+            x = left + (columns.index(match[1]) + .5) * cell
+            y = top + (int(match[2]) - .5) * cell
+            rect = QRectF(x - diameter / 2, y - diameter / 2, diameter, diameter)
+            odd, even = int(channel["serialOdd"]), int(channel["serialEven"])
+            painter.setPen(Qt.PenStyle.NoPen)
+            if self.parity == "both":
+                painter.setBrush(self._record_color(1, odd))
+                painter.drawPie(rect, 90 * 16, 180 * 16)
+                painter.setBrush(self._record_color(0, even))
+                painter.drawPie(rect, -90 * 16, 180 * 16)
+            else:
+                parity = 1 if self.parity == "odd" else 0
+                painter.setBrush(self._record_color(parity, odd if parity else even))
+                painter.drawEllipse(rect)
+            active = odd if self.unit % 2 else even
+            painter.setPen(QPen(QColor("#087d79" if active in self.selected else "#607783"),
+                                2 if active in self.selected else 1))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawEllipse(rect)
+            painter.setPen(QColor("#233b46"))
+            if self.parity == "both":
+                painter.drawLine(QPointF(x, rect.top()), QPointF(x, rect.bottom()))
+                painter.drawText(QRectF(rect.left(), rect.top(), diameter / 2, diameter),
+                                 Qt.AlignmentFlag.AlignCenter, str(odd))
+                painter.drawText(QRectF(x, rect.top(), diameter / 2, diameter),
+                                 Qt.AlignmentFlag.AlignCenter, str(even))
+            else:
+                painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(odd if self.parity == "odd" else even))
+            self.hit_regions[(odd, even)] = rect
+        painter.setPen(QColor("#263a43"))
+        for label, rect in (("180°", QRectF(left, top - 48, cell * 15, 20)),
+                            ("0°", QRectF(left, top + cell * 15 + 17, cell * 15, 20)),
+                            ("90°", QRectF(left - 51, top + 7 * cell + 12, 38, 20)),
+                            ("270°", QRectF(left + 15 * cell + 9, top + 7 * cell + 12, 42, 20)),
+                            ("OUTLET", QRectF(left + 15 * cell + 2, top + 7 * cell - 30, 52, 20)),
+                            ("INLET", QRectF(left + 12 * cell, top - 11, 58, 20))):
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
+
+        def arrow(x1, y1, x2, y2):
+            import math
+            angle = math.atan2(y2 - y1, x2 - x1)
+            painter.setPen(QPen(QColor("#263a43"), 1.5))
+            painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+            painter.setBrush(QColor("#263a43"))
+            painter.drawPolygon(QPolygonF([QPointF(x2, y2),
+                QPointF(x2 - 7 * math.cos(angle - .45), y2 - 7 * math.sin(angle - .45)),
+                QPointF(x2 - 7 * math.cos(angle + .45), y2 - 7 * math.sin(angle + .45))]))
+        arrow(left - 48, top + 7 * cell, left - 9, top + 7 * cell)
+        arrow(left + 15 * cell + 9, top + 7 * cell, left + 15 * cell + 48, top + 7 * cell)
+        for x, y, dx, dy in ((2.9, 1, -.6, -.9), (12, .1, -.6, .9),
+                             (2.9, 14, -.6, .9), (12, 14.9, -.6, -.9)):
+            arrow(left + x * cell, top + y * cell, left + (x + dx) * cell, top + (y + dy) * cell)
+
+    def _hit(self, point):
+        for (odd, even), rect in self.hit_regions.items():
+            if rect.contains(point):
+                parity = (1 if point.x() < rect.center().x() else 0) if self.parity == "both" else (
+                    1 if self.parity == "odd" else 0)
+                return odd if parity else even, parity, odd, even
+        return None
+
+    def mousePressEvent(self, event):
+        hit = self._hit(event.position())
+        if hit and event.button() == Qt.MouseButton.LeftButton:
+            tube, parity, _, _ = hit
+            if self.unit % 2 != parity:
+                self.unit = 1 if parity else 2
+                self.unitChanged.emit(self.unit)
+            self.selected = {tube}
+            self.update()
+            self.tubeClicked.emit(tube)
+
+    def mouseMoveEvent(self, event):
+        hit = self._hit(event.position())
+        if hit:
+            tube, parity, odd, even = hit
+            channel = next(c for c in self.channels if int(c["serialOdd"]) == odd)
+            row = self.parity_rows[parity].get(tube) or {}
+            QToolTip.showText(event.globalPosition().toPoint(),
+                             f"{channel['pos']} · 奇数 {odd} / 偶数 {even}\n"
+                             f"当前 {tube}号管 · 最大磨损 {row.get('percent', '/')}%", self)
+        else:
+            QToolTip.hideText()
+
+
 def workspace_styles(theme="light", density="comfortable"):
     dark = theme == "dark"
     bg, surface, text, line, muted = (
         ("#111719", "#1c2527", "#e5eeec", "#3b4c4d", "#a8b8b5") if dark else
-        ("#f2f5f7", "#ffffff", "#263842", "#d8e1e6", "#647580"))
+        ("#f3f6f7", "#ffffff", "#23465b", "#d4e0e6", "#647c8c"))
     accent = "#3fb3a6" if dark else "#087d79"
     accent_soft = "#1b3234" if dark else "#e9f5f4"
     control = "#2b393b" if dark else "#f8fafb"
@@ -452,10 +811,37 @@ def workspace_styles(theme="light", density="comfortable"):
     height = 28 if density == "compact" else 34
     return f"""
         QWidget {{ color:{text}; font-family:"Microsoft YaHei","Microsoft YaHei UI","Segoe UI",sans-serif; font-size:12px; }}
-        QMainWindow, QDialog {{ background:{bg}; }}
+        QMainWindow, QDialog, QWidget#appRoot, QWidget#workspaceBody {{ background:{bg}; }}
+        QScrollArea {{ background:{bg}; border:0; }}
         QWidget#topNavigation {{ background:{surface}; border-bottom:1px solid {line}; }}
+        QWidget#filterBand, QWidget#workspacePanel {{ background:{surface}; border:1px solid {line}; border-radius:6px; }}
+        QWidget#stateActionBand {{ background:{control}; border:1px solid {line}; border-radius:4px; }}
+        QWidget#taskDrawer {{ background:{surface}; border:1px solid {line}; border-radius:6px; }}
+        QLabel#drawerTitle {{ font-size:16px; font-weight:600; }}
+        QWidget#taskDrawer QTabBar::tab {{ padding:8px 10px; }}
+        QLabel#stateEffectiveSummary {{ background:{accent_soft}; border-left:3px solid {accent};
+            color:{text}; padding:10px; }}
+        QPushButton[stateSummary] {{ text-align:left; background:{control}; min-height:48px; }}
+        QPushButton[stateSummary="normal"] {{ border-left:3px solid #79b98c; }}
+        QPushButton[stateSummary="plugged"] {{ border-left:3px solid #c64e53; }}
+        QPushButton[stateSummary="shifted"] {{ border-left:3px solid #e0ad36; }}
+        QPushButton[stateSummary="replaced"] {{ border-left:3px solid #5c91ce; }}
+        QLabel#filterLabel {{ color:{muted}; font-size:11px; }}
+        QPushButton[primary="true"] {{ background:{accent}; color:white; border-color:{accent}; font-weight:600; }}
+        QPushButton[primary="true"]:disabled {{ background:{control}; color:{muted}; border-color:{line}; }}
+        QPushButton[danger="true"] {{ color:#c24858; border-color:#dfadb6; }}
+        QTabBar#mainNavigation {{ background:{surface}; }}
+        QTabBar#mainNavigation::tab {{ padding:9px 13px; margin:0 3px; border:1px solid transparent; border-radius:3px; }}
+        QTabBar#mainNavigation::tab:selected {{ background:{accent_soft}; border-color:{line}; color:{accent}; }}
         QLabel#pageTitle {{ color:{text}; font-size:20px; font-weight:600; padding-top:2px; }}
         QLabel#muted {{ color:{muted}; }}
+        QLabel#metricValue {{ font-size:24px; font-weight:600; }}
+        QPushButton#metricValue {{ font-size:24px; font-weight:600; border:0; text-align:left; padding:0; }}
+        QPushButton#overviewInsight {{ text-align:left; min-height:72px; padding:6px 12px; }}
+        QPushButton[insight="peak"] {{ border-left:3px solid #c64e53; }}
+        QPushButton[insight="position"] {{ border-left:3px solid {accent}; }}
+        QPushButton[insight="maintenance"] {{ border-left:3px solid #5a9b78; }}
+        QPushButton[insight="quality"] {{ border-left:3px solid #bf942e; }}
         QPushButton, QToolButton {{ min-height:{height}px; padding:0 12px;
             background:{surface}; border:1px solid {line}; border-radius:4px; }}
         QPushButton:hover, QToolButton:hover {{ border-color:{accent}; background:{hover}; }}
@@ -466,7 +852,8 @@ def workspace_styles(theme="light", density="comfortable"):
             background:{surface}; border:1px solid {line}; border-radius:4px; padding:0 8px; }}
         QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus,
         QPlainTextEdit:focus, QTextEdit:focus {{ border:1px solid {accent}; }}
-        QComboBox::drop-down {{ width:24px; border:0; }}
+        QComboBox::drop-down {{ subcontrol-origin:padding; subcontrol-position:top right; width:24px; border:0; }}
+        QComboBox::down-arrow {{ image:url("{(Path(__file__).parent / 'assets' / 'chevron-down.svg').as_posix()}"); width:12px; height:12px; }}
         QComboBox QAbstractItemView {{ background:{surface}; border:1px solid {line};
             selection-background-color:{selected}; selection-color:{text}; padding:4px; }}
         QAbstractItemView, QTextEdit, QPlainTextEdit, QTextBrowser {{ background:{surface};
@@ -502,7 +889,8 @@ def workspace_styles(theme="light", density="comfortable"):
         QCheckBox {{ spacing:7px; }}
         QCheckBox::indicator {{ width:16px; height:16px; border:1px solid {line}; border-radius:3px;
             background:{surface}; }}
-        QCheckBox::indicator:checked {{ background:{accent}; border-color:{accent}; }}
+        QCheckBox::indicator:checked {{ background:{accent}; border-color:{accent};
+            image:url("{(Path(__file__).parent / 'assets' / 'check-white.svg').as_posix()}"); }}
         QScrollBar:vertical {{ width:10px; background:{control}; margin:2px; }}
         QScrollBar::handle:vertical {{ min-height:30px; background:{line}; border-radius:5px; }}
         QScrollBar::handle:vertical:hover {{ background:{accent}; }}

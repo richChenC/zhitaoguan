@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QAbstractTableModel, QIODevice, QModelIndex, QObject, QSaveFile, QUrl, QTimer, Qt, Signal
+from PySide6.QtCore import QAbstractTableModel, QEvent, QIODevice, QModelIndex, QObject, QSaveFile, QUrl, QTimer, Qt, Signal
 from PySide6.QtGui import QCloseEvent, QColor, QImage, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QInputDialog,
+    QMenu,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -49,7 +50,7 @@ from PySide6.QtWidgets import (
 from .constants import APP_ICON, OUTPUT_DIR, PRODUCT_NAME, REPORT_DIR, USER_DATA
 from .native_client import NativeClient
 from .native_components import (
-    PlateMap, ScopeBar, STATE_NAMES, ToolFlowLayout, WorkspaceContext, button, canonical_site, export_widget_image, icon, workspace_styles,
+    PlateMap, ReferencePlateMap, TubeStateGrid, ScopeBar, STATE_NAMES, STATE_PALETTE, ToolFlowLayout, WorkspaceContext, button, canonical_site, export_widget_image, icon, workspace_styles,
 )
 
 
@@ -58,11 +59,11 @@ class FindingsModel(QAbstractTableModel):
     selectionChanged = Signal()
     headers = ["选择", "序号", "大修", "机组", "通道编号", "堆芯位置", "三字符", "幅值（V）",
                "相位", "磨损深度（壁厚%）", "磨损位置", "测量通道", "探头类型",
-               "分析人员", "数据", "数据组", "备注", "堵管移位信息"]
+               "分析人员", "数据", "数据组", "维护状态", "备注", "堵管移位信息"]
     fields = ["_checked", "_number", "outage", "unit_id", "thimble_id", "position",
               "indication", "volts", "degrees", "percent", "location", "channel",
-              "probe", "analyst", "filename", "calgroup", "analysis", "maintenance_text"]
-    editable_fields = set(fields[4:])
+              "probe", "analyst", "filename", "calgroup", "maintenance_status", "analysis", "maintenance_text"]
+    editable_fields = set(fields[4:]) - {"maintenance_status"}
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -92,13 +93,18 @@ class FindingsModel(QAbstractTableModel):
                 return self.page_offset + index.row() + 1
             value = row.get(field, "")
             if role == Qt.ItemDataRole.DisplayRole and field == "indication":
-                value = row.get("display_conclusion") or value
+                value = row.get("display_conclusion", value) or "未标注"
+            if field == "maintenance_status":
+                return " · ".join(STATE_NAMES.get(state, "未记录") for state in
+                                  row.get("maintenance_statuses", ["unrecorded"]))
             if value is None:
                 return ""
             if field == "percent" and role == Qt.ItemDataRole.DisplayRole:
                 return f"{value:g}%" if isinstance(value, (int, float)) else str(value)
             return str(value)
         if role == Qt.ItemDataRole.ToolTipRole:
+            if field == "maintenance_status":
+                return row.get("maintenance_status_source") or "未找到维护记录"
             return str(row.get(field) or "")
         if role == Qt.ItemDataRole.TextAlignmentRole and index.column() in {1, 3, 4, 7, 8, 9}:
             return int(Qt.AlignmentFlag.AlignCenter)
@@ -160,6 +166,7 @@ class DataWorkbench(QWidget):
     scopeChanged = Signal(dict)
     dataChanged = Signal()
     selectionChanged = Signal(list)
+    recycleRequested = Signal()
     MAPPING_FIELDS = (
         ("机组号", "机组号", True),
         ("通道编号", "通道编号", True),
@@ -186,52 +193,99 @@ class DataWorkbench(QWidget):
         self.model.editRequested.connect(self._edit_cell)
         self.model.selectionChanged.connect(self._selection_changed)
         self._query_number = 0
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 16, 18, 16)
-        title = QLabel("数据工作台")
-        title.setObjectName("pageTitle")
-        layout.addWidget(title)
+        self.sort_field, self.sort_order = "", "asc"
+        self.column_filters = {}
+        self.auto_ndd = True
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        content = QWidget()
+        self.scroll.setWidget(content)
+        outer.addWidget(self.scroll)
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(18, 14, 18, 18)
+        layout.setSpacing(12)
         self.summary = QLabel("正在读取数据概况...")
         self.summary.setObjectName("muted")
-        layout.addWidget(self.summary)
 
-        actions = QHBoxLayout()
+        band = QWidget()
+        band.setObjectName("filterBand")
+        band_layout = QVBoxLayout(band)
+        band_layout.setContentsMargins(14, 12, 14, 8)
+        band_layout.setSpacing(10)
+        self.filter_flow = ToolFlowLayout()
+        self.filter_flow.bottom_aligned = True
+        self.filter_fields = []
+        band_layout.addLayout(self.filter_flow)
+        band_layout.addWidget(self.summary)
+        actions = ToolFlowLayout()
         self.ledger = button("导出综合台账", "file-down", self.export_ledger)
         self.delete = button("删除所选", "trash-2", self.delete_selected)
-        self.clear = button("清空记录", "trash-2", self.clear_records)
-        self.scope_bar = ScopeBar(client)
+        self.clear = button("清空业务数据", "trash-2", self.clear_records)
+        self.clear.setProperty("danger", True)
+        self.scope_bar = ScopeBar(client, self)
         self.site, self.unit, self.outage = self.scope_bar.site, self.scope_bar.unit, self.scope_bar.outage
         self.scope_bar.changed.connect(self._apply_scope)
-        layout.addWidget(self.scope_bar)
-        filters = QHBoxLayout()
+        self.scope_bar.hide()
+        self.detection_status = QComboBox()
+        for label, value in (("全部结论", ""), ("NDD", "ndd"), ("WAR", "war"), ("未标注", "blank")):
+            self.detection_status.addItem(label, value)
+        self.maintenance_status = QComboBox()
+        for label, value in (("全部维护状态", ""), ("正常", "normal"), ("堵管", "plugged"),
+                             ("换管", "replaced"), ("移位", "shifted"), ("未记录", "unrecorded")):
+            self.maintenance_status.addItem(label, value)
         self.analyst = QLineEdit()
-        self.analyst.setPlaceholderText("分析人员")
+        self.analyst.setPlaceholderText("输入姓名，如 张三")
         self.channel = QLineEdit()
-        self.channel.setPlaceholderText("通道号")
+        self.channel.setPlaceholderText("如 6")
         from PySide6.QtGui import QIntValidator
         self.channel.setValidator(QIntValidator(1, 50, self.channel))
         self.page_size = QSpinBox()
         self.page_size.setRange(20, 500)
         self.page_size.setValue(100)
-        self.search = QPushButton("查询")
+        self.search = button("应用筛选", "funnel")
+        self.search.setProperty("primary", True)
         self.search.clicked.connect(self.apply_filters)
-        self.import_button = QPushButton("导入 Excel")
+        self.import_button = button("导入数据", "download")
+        self.import_button.setProperty("primary", True)
         self.import_button.clicked.connect(self.import_excel)
         self.import_folder_button = QPushButton("导入 RPT 文件夹")
         self.import_folder_button.clicked.connect(self.import_rpt_folder)
+        self.import_folder_button.hide()
         if self.permissions is not None and "data.import" not in self.permissions:
             self.import_button.setEnabled(False)
             self.import_folder_button.setEnabled(False)
             self.import_button.setToolTip("当前账户没有导入数据权限")
             self.import_folder_button.setToolTip("当前账户没有导入数据权限")
-        for widget in (self.analyst, self.channel, self.page_size, self.search):
-            filters.addWidget(widget)
-        filters.addStretch()
-        for widget in (self.import_button, self.import_folder_button, self.ledger, self.delete, self.clear):
+        for label, control in (("基地", self.site), ("机组", self.unit), ("大修批次", self.outage),
+                               ("检测结论", self.detection_status), ("维护状态", self.maintenance_status),
+                               ("分析人员", self.analyst), ("通道编号", self.channel)):
+            field = QWidget()
+            field.setFixedWidth(164)
+            self.filter_fields.append(field)
+            field_layout = QVBoxLayout(field)
+            field_layout.setContentsMargins(0, 0, 0, 0)
+            field_layout.setSpacing(4)
+            caption = QLabel(label)
+            caption.setObjectName("filterLabel")
+            field_layout.addWidget(caption)
+            control.setMinimumWidth(0)
+            field_layout.addWidget(control)
+            self.filter_flow.addWidget(field)
+        self.reset_filters = button("清除条件", "rotate-ccw", self.reset_query)
+        self.filter_flow.addWidget(self.search)
+        self.filter_flow.addWidget(self.reset_filters)
+        self.analyst.returnPressed.connect(self.apply_filters)
+        self.channel.returnPressed.connect(self.apply_filters)
+        self.recycle_button = button("回收站", "archive-restore", self.recycleRequested.emit)
+        self.recycle_button.setEnabled(self.permissions is None or "data.delete" in self.permissions)
+        for widget in (self.import_button, self.ledger, self.delete, self.recycle_button, self.clear):
             actions.addWidget(widget)
-        actions.addStretch()
-        layout.addLayout(actions)
-        layout.addLayout(filters)
+        actions.addWidget(button("", "refresh-cw", self.load_findings))
+        band_layout.addLayout(actions)
+        layout.addWidget(band)
         for control, permission in ((self.ledger, "export.create"), (self.delete, "data.delete"),
                                     (self.clear, "data.purge")):
             control.setEnabled(self.permissions is None or permission in self.permissions)
@@ -239,16 +293,48 @@ class DataWorkbench(QWidget):
         self.table = QTableView()
         self.table.setModel(self.model)
         self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.EditKeyPressed)
         self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.verticalHeader().setDefaultSectionSize(32)
+        self.table.verticalHeader().setDefaultSectionSize(37)
+        self.table.verticalHeader().hide()
         self.table.setColumnWidth(0, 45)
         self.table.setColumnWidth(1, 50)
         self.table.clicked.connect(self._record_clicked)
+        self.table.horizontalHeader().setSectionsClickable(True)
+        self.table.horizontalHeader().sectionClicked.connect(self.sort_column)
+        self.table.horizontalHeader().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.horizontalHeader().customContextMenuRequested.connect(self.filter_column)
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.splitter.addWidget(self.table)
+        self.splitter.setChildrenCollapsible(False)
+        table_host = QWidget()
+        table_host.setMinimumHeight(320)
+        table_host.setObjectName("workspacePanel")
+        table_layout = QVBoxLayout(table_host)
+        table_layout.setContentsMargins(0, 0, 0, 0)
+        table_layout.setSpacing(0)
+        table_heading = QHBoxLayout()
+        table_heading.setContentsMargins(14, 8, 14, 8)
+        self.records_title = QLabel("检测记录")
+        table_heading.addWidget(self.records_title)
+        table_heading.addStretch()
+        self.selection_info = QLabel("已勾选 0 条")
+        table_heading.addWidget(self.selection_info)
+        table_heading.addWidget(button("全选本页", "check-check", self.toggle_page))
+        table_heading.addWidget(button("清除勾选", "x", self.clear_selection))
+        self.field_mode = QTabBar()
+        self.field_mode.setExpanding(False)
+        for text, mode in (("重点字段", "key"), ("全部字段", "all")):
+            self.field_mode.setTabData(self.field_mode.addTab(text), mode)
+        self.field_mode.currentChanged.connect(self._set_field_mode)
+        table_heading.addWidget(self.field_mode)
+        table_layout.addLayout(table_heading)
+        table_layout.addWidget(self.table, 1)
+        self.splitter.addWidget(table_host)
         map_host = QWidget()
+        map_host.setMinimumHeight(420)
+        map_host.setObjectName("workspacePanel")
         map_layout = QVBoxLayout(map_host)
         map_heading = QHBoxLayout()
         map_heading.addWidget(QLabel("堆芯分布"))
@@ -256,19 +342,27 @@ class DataWorkbench(QWidget):
         self.map_unit.setRange(1, 99)
         self.map_unit.setPrefix("机组 ")
         self.map_unit.valueChanged.connect(self._update_plate)
-        map_heading.addWidget(self.map_unit)
+        self.map_unit.hide()
         map_heading.addWidget(button("导出图片", "download", self.export_plate))
         map_layout.addLayout(map_heading)
-        self.plate = PlateMap()
+        self.parity_tabs = QTabBar()
+        self.parity_tabs.addTab("综合显示")
+        self.parity_tabs.addTab("奇数机组")
+        self.parity_tabs.addTab("偶数机组")
+        self.parity_tabs.setExpanding(False)
+        self.parity_tabs.currentChanged.connect(self._set_plate_parity)
+        map_layout.addWidget(self.parity_tabs)
+        self.plate = ReferencePlateMap()
         self.plate.tubeClicked.connect(self._tube_clicked)
+        self.plate.unitChanged.connect(self.map_unit.setValue)
         map_layout.addWidget(self.plate, 1)
         self.plate_detail = QLabel(" ")
         self.plate_detail.setWordWrap(True)
         map_layout.addWidget(self.plate_detail)
-        self.selection_info = QLabel("已勾选 0 条")
-        map_layout.addWidget(self.selection_info)
-        map_layout.addWidget(button("勾选本页 / 取消本页", "check-check", self.toggle_page))
-        map_layout.addWidget(button("清除全部勾选", "x", self.clear_selection))
+        self.plate_stats = QLabel("勾选检测记录后统计缺陷分布")
+        self.plate_stats.setObjectName("muted")
+        self.plate_stats.setWordWrap(True)
+        map_layout.addWidget(self.plate_stats)
         self.splitter.addWidget(map_host)
         # TRAE workbench keeps the table and inspection map closer to a 3:2
         # split on wide screens, so the map remains readable instead of being
@@ -279,6 +373,8 @@ class DataWorkbench(QWidget):
         layout.addWidget(self.splitter, 1)
         self.core_rows = []
         bottom = QHBoxLayout()
+        bottom.setContentsMargins(10, 6, 10, 6)
+        bottom.setSpacing(8)
         self.status = QLabel("准备就绪")
         self.edit_hint = QLabel("双击可编辑字段")
         self.edit_hint.setObjectName("muted")
@@ -296,9 +392,11 @@ class DataWorkbench(QWidget):
         bottom.addWidget(self.edit_hint)
         bottom.addStretch(1)
         bottom.addWidget(self.edit_button)
+        bottom.addWidget(QLabel("每页"))
+        bottom.addWidget(self.page_size)
         bottom.addWidget(self.prev)
         bottom.addWidget(self.next)
-        layout.addLayout(bottom)
+        table_layout.addLayout(bottom)
         self.page = 1
         self.pages = 1
         self._import_task: str | None = None
@@ -310,8 +408,69 @@ class DataWorkbench(QWidget):
         self._progress_timer = QTimer(self)
         self._progress_timer.setInterval(400)
         self._progress_timer.timeout.connect(self._poll_import_progress)
+        self._set_field_mode()
+        self.page_size.valueChanged.connect(self.apply_filters)
         self.load_overview()
         self.load_findings()
+
+    def _set_field_mode(self, *_):
+        important = {"_checked", "_number", "outage", "unit_id", "thimble_id", "position",
+                     "indication", "percent", "location", "maintenance_status", "analysis"}
+        for column, field in enumerate(self.model.fields):
+            self.table.setColumnHidden(column, self.field_mode.currentIndex() == 0 and field not in important)
+        self.table.setColumnWidth(self.model.fields.index("percent"), 120)
+        self.table.setColumnWidth(self.model.fields.index("maintenance_status"), 125)
+
+    def _set_plate_parity(self, index):
+        self.plate.parity = ("both", "odd", "even")[index]
+        self.plate.update()
+
+    def reset_query(self):
+        self.analyst.clear()
+        self.channel.clear()
+        self.detection_status.setCurrentIndex(0)
+        self.maintenance_status.setCurrentIndex(0)
+        self.column_filters.clear()
+        self.sort_field = ""
+        self.table.horizontalHeader().setSortIndicatorShown(False)
+        self.scope_bar.clear()
+
+    def sort_column(self, section):
+        field = self.model.fields[section]
+        if field.startswith("_"):
+            return
+        self.sort_order = "desc" if self.sort_field == field and self.sort_order == "asc" else "asc"
+        self.sort_field = field
+        header = self.table.horizontalHeader()
+        header.setSortIndicatorShown(True)
+        header.setSortIndicator(section, Qt.SortOrder.DescendingOrder if self.sort_order == "desc"
+                                else Qt.SortOrder.AscendingOrder)
+        self.apply_filters()
+
+    def filter_column(self, point):
+        section = self.table.horizontalHeader().logicalIndexAt(point)
+        if section < 0:
+            return
+        field = self.model.fields[section]
+        if field.startswith("_") or field == "maintenance_status":
+            return
+        value, accepted = QInputDialog.getText(self, "筛选列", self.model.headers[section],
+                                               text=self.column_filters.get(field, ""))
+        if accepted:
+            if value.strip():
+                self.column_filters[field] = value.strip()
+            else:
+                self.column_filters.pop(field, None)
+            self.apply_filters()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        width = max(144, min(250, (event.size().width() - 36 - 28 - 244) // 7 - 6))
+        for field in self.filter_fields:
+            field.setFixedWidth(width)
+        self.filter_flow.invalidate()
+        self.splitter.setOrientation(Qt.Orientation.Vertical if event.size().width() <= 1120
+                                     else Qt.Orientation.Horizontal)
 
     def _params(self) -> str:
         from urllib.parse import urlencode
@@ -319,6 +478,11 @@ class DataWorkbench(QWidget):
             "page": self.page, "size": self.page_size.value(),
             **self.scope_bar.values(), "analyst": self.analyst.text().strip(),
             "thimble": self.channel.text().strip(),
+            "detection_status": self.detection_status.currentData(),
+            "maintenance_status": self.maintenance_status.currentData(),
+            "auto_ndd": "1" if self.auto_ndd else "0",
+            "sort": self.sort_field, "order": self.sort_order,
+            **{f"column_{key}": value for key, value in self.column_filters.items()},
         }
         return "?" + urlencode({key: value for key, value in values.items() if value != ""})
 
@@ -377,6 +541,7 @@ class DataWorkbench(QWidget):
         self.page = int(data.get("page") or 1)
         self.model.page_offset = (self.page - 1) * self.page_size.value()
         self.model.replace(data.get("items") or [])
+        self.records_title.setText(f"检测记录    共 {data.get('total', 0):,} 条")
         self.core_rows = data.get("core_items") or []
         self._update_plate()
         self.pages = max(1, int(data.get("pages") or 1))
@@ -446,6 +611,42 @@ class DataWorkbench(QWidget):
         self.model.layoutChanged.emit()
         self._selection_changed()
 
+    def refresh_selection(self):
+        ids = list(self.model.selected)
+        if not ids:
+            return
+        generation = getattr(self, "_selection_refresh", 0) + 1
+        self._selection_refresh = generation
+        chunks = [ids[start:start + 400] for start in range(0, len(ids), 400)]
+        refreshed = {}
+        pending = len(chunks)
+        failed = False
+
+        def loaded(data, error):
+            nonlocal pending, failed
+            if generation != self._selection_refresh:
+                return
+            failed |= bool(error or not data)
+            for row in (data or {}).get("items") or []:
+                refreshed[row["id"]] = row
+            pending -= 1
+            if pending:
+                return
+            if failed:
+                self.status.setText("所选记录刷新失败，导出前请重新核对选择范围")
+                return
+            for finding_id in ids:
+                if finding_id in self.model.selected:
+                    if finding_id in refreshed:
+                        self.model.selected[finding_id] = refreshed[finding_id]
+                    else:
+                        self.model.selected.pop(finding_id)
+            self.model.layoutChanged.emit()
+            self._selection_changed()
+        for chunk in chunks:
+            self.client.get("/api/findings?raw=1&sources=1&core=0&size=500&ids="
+                            + ",".join(map(str, chunk)), loaded)
+
     def toggle_page(self):
         checked = not all(row["id"] in self.model.selected for row in self.model.rows)
         for row in self.model.rows:
@@ -463,8 +664,17 @@ class DataWorkbench(QWidget):
         selected = [row["thimble_id"] for row in self.model.selected.values() if int(row["unit_id"]) == unit]
         if getattr(self, "_workspace_tube", 0):
             selected.append(self._workspace_tube)
-        self.plate.set_data([row for row in self.core_rows if int(row.get("unit_id") or 0) == unit],
-                            unit, selected)
+        rows = list(self.model.selected.values())
+        scopes = {(row.get("outage"), row.get("unit_id")) for row in rows}
+        self.plate.set_records(rows if len(scopes) == 1 else [], unit, selected)
+        if rows and len(scopes) != 1:
+            self.plate_stats.setText("已保留跨机组或大修的勾选；缺陷分布需选择同一机组、同次大修")
+        elif rows:
+            defects = [row for row in rows if row.get("detection_status") != "ndd" and (row.get("percent") or 0) > 0]
+            self.plate_stats.setText(f"已选 {len(rows)} 条 · 缺陷管 {len({row['thimble_id'] for row in defects})} 根"
+                                     f" · 最大磨损 {max((row['percent'] for row in defects), default=0):g}%")
+        else:
+            self.plate_stats.setText("勾选检测记录后统计缺陷分布")
 
     def _record_clicked(self, index):
         row = self.model.row(index)
@@ -929,12 +1139,23 @@ class SimpleApiPage(QWidget):
 
 
 class StateModel(QAbstractTableModel):
-    headers = ["基地", "大修号", "机组", "通道", "位置", "状态", "位移 mm", "备注", "更新时间"]
-    fields = ["site_code", "outage", "unit_id", "thimble_id", "position", "state", "offset_mm", "note", "updated_at"]
+    validationError = Signal(str)
+    headers = ["选择", "大修", "机组", "管号", "状态", "位移 mm", "备注", "来源", "更新时间", "操作"]
+    fields = ["_checked", "outage", "unit_id", "thimble_id", "state", "offset_mm", "note", "source", "updated_at", "_actions"]
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.rows: list[dict[str, Any]] = []
+        self.editable = False
+        self.drafts = {}
+        self.selected = set()
+
+    @staticmethod
+    def key(row):
+        return (row["outage"], row["unit_id"], row["thimble_id"])
+
+    def displayed(self, row):
+        return self.drafts.get(self.key(row), row)
 
     def rowCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.rows)
@@ -945,12 +1166,83 @@ class StateModel(QAbstractTableModel):
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or index.row() >= len(self.rows):
             return None
-        if role == Qt.ItemDataRole.DisplayRole:
-            value = self.rows[index.row()].get(self.fields[index.column()], "")
+        field = self.fields[index.column()]
+        source = self.rows[index.row()]
+        row = self.displayed(source)
+        if role == Qt.ItemDataRole.CheckStateRole and field == "_checked":
+            return Qt.CheckState.Checked if self.key(source) in self.selected else Qt.CheckState.Unchecked
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole, Qt.ItemDataRole.ToolTipRole):
+            value = row.get(field, "")
+            if field == "state" and role != Qt.ItemDataRole.EditRole:
+                return row.get("event_label") or STATE_NAMES.get(value, value)
+            if field == "_actions":
+                return "保存     撤销" if self.editable else ""
+            if field == "offset_mm" and value is None and role != Qt.ItemDataRole.EditRole:
+                unsigned = row.get("unsigned_offset_mm")
+                return f"{unsigned}（方向待核对）" if unsigned is not None else ""
             return "" if value is None else str(value)
-        if role == Qt.ItemDataRole.TextAlignmentRole and index.column() in {2, 3, 6}:
+        if role == Qt.ItemDataRole.TextAlignmentRole and field in {"unit_id", "thimble_id", "offset_mm"}:
             return int(Qt.AlignmentFlag.AlignCenter)
         return None
+
+    def flags(self, index):
+        flags = super().flags(index)
+        if not index.isValid():
+            return flags
+        field = self.fields[index.column()]
+        if field == "_checked":
+            flags |= Qt.ItemFlag.ItemIsUserCheckable
+        if self.editable and field in {"state", "note", "offset_mm"}:
+            row = self.displayed(self.rows[index.row()])
+            if field != "offset_mm" or "shifted" in (row.get("events") or [row.get("state")]):
+                flags |= Qt.ItemFlag.ItemIsEditable
+        return flags
+
+    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+        if not index.isValid():
+            return False
+        source = self.rows[index.row()]
+        key, field = self.key(source), self.fields[index.column()]
+        if field == "_checked" and role == Qt.ItemDataRole.CheckStateRole:
+            if value in (Qt.CheckState.Checked, Qt.CheckState.Checked.value):
+                self.selected.add(key)
+            else:
+                self.selected.discard(key)
+            self.dataChanged.emit(index, index, [role])
+            return True
+        if not self.flags(index) & Qt.ItemFlag.ItemIsEditable or role != Qt.ItemDataRole.EditRole:
+            return False
+        draft = dict(self.displayed(source))
+        draft.setdefault("expected_updated_at", source.get("updated_at"))
+        if field == "state":
+            if value not in STATE_NAMES:
+                return False
+            draft.update(state=value, events=[] if value == "normal" else [value], event_label=STATE_NAMES[value])
+            draft["_state_changed"] = True
+            if value != "shifted":
+                draft["offset_mm"] = 0
+                draft.pop("_offset_input", None)
+            if value != "replaced":
+                draft["replacement_stage"] = "unknown"
+        elif field == "offset_mm":
+            import math
+            raw = str(value).strip()
+            try:
+                distance = float(raw) if raw else None
+                if distance is not None and not math.isfinite(distance):
+                    raise ValueError()
+            except ValueError:
+                self.validationError.emit("位移量必须是有限数字。")
+                return False
+            if source.get("unsigned_offset_mm") is not None and raw and raw[0] not in "+-":
+                self.validationError.emit("原记录方向未确认，请填写带正负号的位移量。")
+                return False
+            draft.update(offset_mm=distance, _offset_input=raw)
+        else:
+            draft["note"] = str(value)
+        self.drafts[key] = draft
+        self.dataChanged.emit(self.index(index.row(), 0), self.index(index.row(), self.columnCount() - 1))
+        return True
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role != Qt.ItemDataRole.DisplayRole:
@@ -961,6 +1253,47 @@ class StateModel(QAbstractTableModel):
         self.beginResetModel()
         self.rows = rows
         self.endResetModel()
+
+
+class StateRowDelegate(QStyledItemDelegate):
+    actionRequested = Signal(int, str)
+
+    def createEditor(self, parent, option, index):
+        if index.model().fields[index.column()] == "state":
+            editor = QComboBox(parent)
+            row = index.model().displayed(index.model().rows[index.row()])
+            if len(row.get("events") or []) > 1:
+                editor.addItem(row.get("event_label") or "保持复合处理", "__compound__")
+            for code, name in STATE_NAMES.items():
+                editor.addItem(name, code)
+            return editor
+        return QLineEdit(parent)
+
+    def setEditorData(self, editor, index):
+        if isinstance(editor, QComboBox):
+            row = index.model().displayed(index.model().rows[index.row()])
+            value = "__compound__" if len(row.get("events") or []) > 1 else row.get("state")
+            editor.setCurrentIndex(max(0, editor.findData(value)))
+        else:
+            editor.setText(str(index.data(Qt.ItemDataRole.EditRole) or ""))
+
+    def setModelData(self, editor, model, index):
+        value = editor.currentData() if isinstance(editor, QComboBox) else editor.text()
+        if value != "__compound__":
+            model.setData(index, value)
+
+    def editorEvent(self, event, model, option, index):
+        if model.fields[index.column()] == "_actions":
+            if not model.editable:
+                return False
+            if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
+                action = "save" if event.position().x() < option.rect.center().x() else "delete"
+                self.actionRequested.emit(index.row(), action)
+                return True
+            if event.type() == QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self.actionRequested.emit(index.row(), "save")
+                return True
+        return super().editorEvent(event, model, option, index)
 
 
 class StateImportModel(QAbstractTableModel):
@@ -1101,62 +1434,214 @@ class StateDirectionDelegate(QStyledItemDelegate):
         model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
 
 
+class StateNoteEdit(QPlainTextEdit):
+    def text(self):
+        return self.toPlainText()
+
+    def setText(self, value):
+        self.setPlainText(value)
+
+
 class NativeStatePage(QWidget):
     def __init__(self, client: NativeClient, user: dict[str, Any] | None = None, parent=None):
         super().__init__(parent)
         self.client = client
         self.permissions = None if user is None else set(user.get("permissions", []))
         self.model = StateModel(self)
+        self.model.editable = self.permissions is None or "state.write" in self.permissions
+        self.model.validationError.connect(lambda text: self.message.setText(text))
+        self.record_page = 1
+        self.record_size = 50
+        self._inline_inflight = set()
         self.current: dict[str, Any] | None = None
-        layout = QVBoxLayout(self)
+        self._scope_items = []
+        self.pending_rows = []
+        self._state_filter = ""
+        self._load_request = 0
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        body = QWidget()
+        body.setObjectName("workspaceBody")
+        layout = QVBoxLayout(body)
         layout.setContentsMargins(18, 16, 18, 16)
-        title = QLabel("状态处理")
-        title.setObjectName("pageTitle")
-        layout.addWidget(title)
-        self.scope_bar = ScopeBar(client)
-        layout.addWidget(self.scope_bar)
+        scroll.setWidget(body)
+        outer.addWidget(scroll)
+        self.scope_bar = ScopeBar(client, stacked=True)
+        self.add_scope = button("新增大修", "database", self._add_scope)
+        self.scope_bar.layout().insertWidget(self.scope_bar.layout().count() - 1, self.add_scope)
+        scope_band = QWidget()
+        scope_band.setObjectName("filterBand")
+        scope_layout = QVBoxLayout(scope_band)
+        scope_layout.setContentsMargins(12, 10, 12, 10)
+        self.scope_bar.setObjectName("stateScope")
+        scope_layout.addWidget(self.scope_bar)
+        layout.addWidget(scope_band)
         self.scope_bar.changed.connect(self._filter_scope)
+        summary_heading = QHBoxLayout()
+        summary_heading.addWidget(QLabel("状态概览  ·  本次维护 50 根"), 1)
+        self.review_pending = button("待核对 0", "clipboard-check", self._review_pending)
+        summary_heading.addWidget(self.review_pending)
+        scope_layout.addLayout(summary_heading)
+        summary = QHBoxLayout()
+        self.summary_buttons = {}
+        for code, name, glyph in (("maintained", "已维护", "clipboard-check"), ("unmaintained", "未维护", "circle-dashed"),
+                                  ("normal", "正常", "check"), ("plugged", "堵管", "ban"),
+                                  ("shifted", "移位", "move-horizontal"), ("replaced", "换管", "arrow-right-left")):
+            control = button(name + "  —", glyph)
+            control.setProperty("stateSummary", code)
+            control.setMinimumHeight(48)
+            control.setCheckable(True)
+            control.clicked.connect(lambda checked, key=code: self._show_state_summary(key))
+            self.summary_buttons[code] = control
+            summary.addWidget(control, 1)
+        scope_layout.addLayout(summary)
         self.filter_text = QLineEdit()
         self.filter_text.setPlaceholderText("管号或备注")
-        self.filter_text.textChanged.connect(lambda _: self._show_filtered())
-        layout.addWidget(self.filter_text)
+        self.filter_text.textChanged.connect(self._record_scope_changed)
         self.message = QLabel("选择一条管状态记录进行维护")
         self.message.setObjectName("muted")
         layout.addWidget(self.message)
         self.table = QTableView()
         self.table.setModel(self.model)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked
+                                   | QAbstractItemView.EditTrigger.EditKeyPressed)
+        self.row_delegate = StateRowDelegate(self.table)
+        self.row_delegate.actionRequested.connect(self._inline_state_action)
+        self.table.setItemDelegate(self.row_delegate)
         self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.setMinimumHeight(210)
         self.table.horizontalHeader().setStretchLastSection(True)
+        for field, width in (("_checked", 42), ("outage", 90), ("unit_id", 64), ("thimble_id", 64),
+                             ("state", 150), ("offset_mm", 130), ("note", 260), ("source", 200),
+                             ("updated_at", 200), ("_actions", 156)):
+            self.table.setColumnWidth(self.model.fields.index(field), width)
+        self.table.verticalHeader().setDefaultSectionSize(42)
         self.table.clicked.connect(self._select)
-        state_split = QSplitter()
-        state_split.addWidget(self.table)
+        self.state_split = QSplitter()
         map_host = QWidget()
+        map_host.setObjectName("workspacePanel")
         map_layout = QVBoxLayout(map_host)
-        self.plate = PlateMap()
+        map_layout.setContentsMargins(16, 16, 16, 16)
+        map_layout.setSpacing(12)
+        map_title = QHBoxLayout()
+        map_title.addWidget(QLabel("管板"), 1)
+        map_layout.addLayout(map_title)
+        grid_modes = QHBoxLayout()
+        grid_modes.addWidget(QLabel("管位显示"))
+        self.grid_mode = QTabBar()
+        self.grid_mode.addTab("本次记录")
+        self.grid_mode.addTab("截至本次有效")
+        self.grid_mode.setCurrentIndex(1)
+        self.grid_mode.currentChanged.connect(lambda _: self._update_grid())
+        grid_modes.addWidget(self.grid_mode)
+        grid_modes.addStretch()
+        map_layout.addLayout(grid_modes)
+        self.plate = TubeStateGrid()
         self.plate.tubeClicked.connect(self._select_grid_tube)
-        map_layout.addWidget(self.plate, 1)
+        self.plate.setMaximumHeight(390)
+        map_layout.addWidget(self.plate)
+        legend = QLabel("  ".join(
+            f'<span style="color:{STATE_PALETTE[code][1]}">&#9633;</span> {name}'
+            for code, name in (("missing", "未维护"), *STATE_NAMES.items()))
+            + '  <span style="color:#875078">&#9635;</span> 复合处理')
+        legend.setObjectName("muted")
+        map_layout.addWidget(legend)
         self.history = QPlainTextEdit()
         self.history.setReadOnly(True)
         self.history.setMaximumHeight(150)
+        history_toggle = button("单管历次维护", "history", lambda: self.history.setVisible(self.history.isHidden()))
+        map_layout.addWidget(history_toggle)
         map_layout.addWidget(self.history)
-        state_split.addWidget(map_host)
-        state_split.setSizes([800, 360])
-        layout.addWidget(state_split, 1)
+        self.history.hide()
+        map_layout.addStretch()
+        self.state_split.addWidget(map_host)
+        self.editor_host = QWidget()
+        self.editor_host.setObjectName("workspacePanel")
+        editor_layout = QVBoxLayout(self.editor_host)
+        editor_layout.setContentsMargins(16, 16, 16, 16)
+        editor_layout.setSpacing(12)
+        editor_layout.addWidget(QLabel("管状态处理"))
+        self.batch_actions_host = QWidget()
+        self.batch_actions_host.setObjectName("stateActionBand")
+        batch_actions = ToolFlowLayout(self.batch_actions_host)
+        batch_actions.setContentsMargins(10, 8, 10, 8)
+        self.batch_mode = QCheckBox("批量选择")
+        self.batch_mode.toggled.connect(self._batch_mode_changed)
+        self.batch_count = QLabel("已选 0 根")
+        self.batch_all = button("全选50根", "check-check", lambda: self._select_batch(True))
+        self.batch_clear = button("清除", "x", lambda: self._select_batch(False))
+        self.batch_apply = button("处理所选", "check", self._apply_selected_states)
+        for control in (self.batch_mode, self.batch_count, self.batch_clear, self.batch_apply, self.batch_all):
+            batch_actions.addWidget(control)
+        editor_layout.addWidget(self.batch_actions_host)
+        self._batch_busy = False
+        self._batch_offset_touched = False
+        self.batch_editor = self._build_batch_editor()
+        editor_layout.addWidget(self.batch_editor)
+        self.file_actions_host = QWidget()
+        file_actions = QVBoxLayout(self.file_actions_host)
+        file_actions.setContentsMargins(8, 8, 8, 8)
+        file_actions.addWidget(QLabel("维护表文件"))
+        self.file_actions_host.setObjectName("stateActionBand")
+        editor_layout.addWidget(self.file_actions_host)
+        self.bulk_actions_host = QWidget()
+        bulk_layout = QVBoxLayout(self.bulk_actions_host)
+        bulk_layout.setContentsMargins(10, 10, 10, 10)
+        bulk_layout.addWidget(QLabel("批量维护"))
+        bulk_actions = ToolFlowLayout()
+        bulk_layout.addLayout(bulk_actions)
+        self.bulk_actions_host.setObjectName("stateActionBand")
+        editor_layout.addWidget(self.bulk_actions_host)
+        self.single_editor = QWidget()
+        single_layout = QVBoxLayout(self.single_editor)
+        single_layout.setContentsMargins(0, 0, 0, 0)
+        single_layout.setSpacing(12)
+        editor_layout.addWidget(self.single_editor)
+        self.editor_title = QLabel("管号与处理")
+        single_layout.addWidget(self.editor_title)
+        self.editor_tube = QSpinBox()
+        self.editor_tube.setRange(0, 50)
+        self.editor_tube.setSpecialValueText(" ")
+        self.editor_tube.valueChanged.connect(self._select_grid_tube)
+        self.state_split.addWidget(self.editor_host)
+        self.state_split.setSizes([780, 600])
+        layout.addWidget(self.state_split, 3)
         self.all_rows = []
         self._state_scope = {}
         self._scope_request = 0
-        form = QHBoxLayout()
+        form = QFormLayout()
+        self.editor_form = form
         self.state = QComboBox()
         self.state.addItem("正常", "normal")
         self.state.addItem("堵管", "plugged")
         self.state.addItem("移位", "shifted")
         self.state.addItem("换管", "replaced")
+        self.state.addItem("复合处理（多选）", "composite")
+        self.state.currentIndexChanged.connect(self._simple_state_changed)
+        self.event_checks = {}
+        self.event_host = QWidget()
+        event_row = QHBoxLayout(self.event_host)
+        event_row.setContentsMargins(0, 0, 0, 0)
+        for code, name in (("plugged", "堵管"), ("shifted", "移位"), ("replaced", "换管")):
+            control = QCheckBox(name)
+            control.toggled.connect(self._events_changed)
+            self.event_checks[code] = control
+            event_row.addWidget(control)
+        self.replacement_stage = QComboBox()
+        for name, code in (("待核对", "unknown"), ("其他处理在换管前", "before_replacement"),
+                           ("其他处理在换管后", "after_replacement")):
+            self.replacement_stage.addItem(name, code)
         self.offset = QLineEdit()
         self.offset.setPlaceholderText("位移量（mm）")
-        self.note = QLineEdit()
+        self.note = StateNoteEdit()
         self.note.setPlaceholderText("状态备注")
+        self.note.setMinimumHeight(80)
+        self.note.setMaximumHeight(110)
         self.save = QPushButton("保存状态")
         self.save.clicked.connect(self._save)
         self.advanced = QPushButton("新建/复合维护")
@@ -1170,26 +1655,104 @@ class NativeStatePage(QWidget):
             self.new_state.setEnabled(False)
         self.refresh = QPushButton("刷新")
         self.refresh.clicked.connect(self.load)
-        form.addWidget(self.state)
-        form.addWidget(self.offset)
-        form.addWidget(self.note, 1)
-        form.addWidget(self.save)
-        form.addWidget(self.advanced)
-        form.addWidget(self.new_state)
-        form.addWidget(self.refresh)
-        layout.addLayout(form)
-        bulk = QHBoxLayout()
+        tube_fields = QGridLayout()
+        tube_fields.addWidget(QLabel("通道编号"), 0, 0)
+        tube_fields.addWidget(QLabel("管状态"), 0, 1)
+        tube_fields.addWidget(self.editor_tube, 1, 0)
+        tube_fields.addWidget(self.state, 1, 1)
+        tube_fields.setColumnStretch(0, 1)
+        tube_fields.setColumnStretch(1, 1)
+        single_layout.addLayout(tube_fields)
+        form.addRow("本次同时发生", self.event_host)
+        form.addRow("换管顺序", self.replacement_stage)
+        form.addRow("移位距离（mm）", self.offset)
+        self.effective_summary = QLabel("请选择管号")
+        self.effective_summary.setWordWrap(True)
+        self.effective_summary.setObjectName("stateEffectiveSummary")
+        single_layout.addLayout(form)
+        single_layout.addWidget(self.effective_summary)
+        single_layout.addWidget(QLabel("维护依据"))
+        note_actions = QHBoxLayout()
+        self.recognize_note = button("识别维护说明", "search", self._recognize_note)
+        self.generate_note = button("生成备注", "files", self._generate_note)
+        note_actions.addWidget(QLabel("备注"), 1)
+        note_actions.addWidget(self.recognize_note)
+        note_actions.addWidget(self.generate_note)
+        single_layout.addLayout(note_actions)
+        single_layout.addWidget(self.note)
+        self.editor_source = QLabel()
+        self.editor_source.setWordWrap(True)
+        self.editor_source.setObjectName("muted")
+        single_layout.addWidget(self.editor_source)
+        single_layout.addStretch()
+        editor_actions = ToolFlowLayout()
+        for control in (self.advanced, self.new_state, self.refresh, self.save):
+            editor_actions.addWidget(control)
+        self.save.setProperty("primary", True)
+        single_layout.addLayout(editor_actions)
+        table_heading = QHBoxLayout()
+        table_heading.addWidget(QLabel("已维护记录"), 1)
+        self.record_selection = QLabel("筛选 0 条 · 已选 0 条")
+        table_heading.addWidget(self.record_selection)
+        layout.addLayout(table_heading)
+        self.record_scope = ScopeBar(client, self)
+        self.record_scope.hide()
+        record_filters = ToolFlowLayout()
+        for control, name in ((self.record_scope.site, "筛选基地"), (self.record_scope.unit, "筛选机组"),
+                              (self.record_scope.outage, "筛选大修")):
+            control.setAccessibleName(name)
+            record_filters.addWidget(control)
+        self.record_type = QComboBox()
+        for text, code in (("全部状态", ""), *[(name, code) for code, name in STATE_NAMES.items()],
+                           ("复合处理", "composite")):
+            self.record_type.addItem(text, code)
+        self.record_type.setAccessibleName("筛选状态")
+        record_filters.addWidget(self.record_type)
+        self.record_latest = button("选最新", "history", self._latest_record_scope)
+        self.record_clear = button("清除", "rotate-ccw", self._clear_record_filters)
+        for control in (self.record_latest, self.record_clear, self.filter_text):
+            record_filters.addWidget(control)
+        layout.addLayout(record_filters)
+        self.record_categories = QTabBar()
+        self.record_categories.setExpanding(False)
+        for index in range(self.record_type.count()):
+            self.record_categories.addTab("全部" if index == 0 else self.record_type.itemText(index))
+        layout.addWidget(self.record_categories)
+        self.record_scope.changed.connect(self._record_scope_changed)
+        self.record_type.currentIndexChanged.connect(self._record_type_changed)
+        self.record_categories.currentChanged.connect(self.record_type.setCurrentIndex)
+        self.model.dataChanged.connect(self._record_selection_changed)
+        layout.addWidget(self.table, 2)
+        pager = QHBoxLayout()
+        pager.addWidget(QLabel("每页"))
+        self.record_size_box = QComboBox()
+        for size in (50, 100):
+            self.record_size_box.addItem(str(size), size)
+        self.record_size_box.currentIndexChanged.connect(self._record_size_changed)
+        pager.addWidget(self.record_size_box)
+        pager.addStretch()
+        self.record_previous = button("上一页", "chevron-left", lambda: self._change_record_page(-1))
+        self.record_next = button("下一页", "chevron-right", lambda: self._change_record_page(1))
+        self.record_page_label = QLabel()
+        self.record_jump = QSpinBox()
+        self.record_jump.setMinimumWidth(68)
+        self.record_jump.editingFinished.connect(self._jump_record_page)
+        for control in (self.record_previous, self.record_page_label, self.record_next,
+                        QLabel("跳至"), self.record_jump, QLabel("页")):
+            pager.addWidget(control)
+        layout.addLayout(pager)
         self.bulk_scope = QLabel("批量操作以当前选中记录的大修/机组为范围")
         self.bulk_scope.setObjectName("muted")
-        self.bulk_normal = QPushButton("补齐未维护为正常")
+        self.bulk_normal = button("补齐正常", "check-check")
         self.bulk_normal.clicked.connect(self._bulk_normal)
-        self.import_button = QPushButton("导入状态表")
+        self.import_button = button("选择文件", "upload")
         self.import_button.clicked.connect(self._import_state_file)
         self.export_format = QComboBox()
-        self.export_format.addItem("Excel", "xlsx")
-        self.export_format.addItem("Word", "docx")
-        self.export_format.addItem("统计 Excel", "summary")
-        self.export_button = QPushButton("导出当前范围")
+        self.export_format.addItem("Excel 明细及历次汇总", "xlsx")
+        self.export_format.addItem("Excel 历次统计", "summary")
+        self.export_format.addItem("Word 维护统计", "docx")
+        self.export_button = button("导出", "file-down")
+        self.export_button.setFixedWidth(76)
         self.export_button.clicked.connect(self._export_states)
         self.delete_button = QPushButton("删除选中状态")
         self.delete_button.clicked.connect(self._delete_selected)
@@ -1206,69 +1769,472 @@ class NativeStatePage(QWidget):
                 self.delete_button.setToolTip("当前账户没有管状态维护权限")
             if not exportable:
                 self.export_button.setToolTip("当前账户没有导出权限")
-        bulk.addWidget(self.bulk_scope, 1)
-        bulk.addWidget(self.bulk_normal)
-        bulk.addWidget(self.import_button)
-        bulk.addWidget(self.export_format)
-        bulk.addWidget(self.export_button)
-        bulk.addWidget(self.delete_button)
-        layout.addLayout(bulk)
+        writable = self.permissions is None or "state.write" in self.permissions
+        for control in (self.add_scope, self.batch_apply, self.recognize_note, self.generate_note):
+            control.setEnabled(writable)
+        file_row = QGridLayout()
+        file_row.addWidget(QLabel("导入维护表"), 0, 0)
+        file_row.addWidget(QLabel("导出维护表"), 0, 1)
+        file_row.addWidget(self.import_button, 1, 0)
+        file_row.addWidget(self.export_format, 1, 1)
+        file_row.addWidget(self.export_button, 1, 2)
+        file_row.setColumnStretch(1, 1)
+        self.import_button.setFixedWidth(148)
+        file_actions.addLayout(file_row)
+        bulk_actions.addWidget(self.bulk_normal)
+        bulk_actions.addWidget(QLabel("移位"))
+        self.default_direction = QComboBox()
+        for text, value in (("默认正向（+）", "1"), ("默认负向（-）", "-1"), ("方向待核对", "pending")):
+            self.default_direction.addItem(text, value)
+        self.default_direction.setToolTip("明确正负号优先；已确认的历史记录保持原值")
+        self.default_direction.activated.connect(self._save_direction)
+        bulk_actions.addWidget(self.default_direction)
+        self.use_default_offset = button("套用默认方向", "move-horizontal", self._use_default_offset)
+        self.use_default_offset.hide()
+        form.addRow("", self.use_default_offset)
+        table_actions = ToolFlowLayout()
+        table_actions.addWidget(self.bulk_scope)
+        table_actions.addWidget(self.delete_button)
+        layout.addLayout(table_actions)
+        self.state_split.setStretchFactor(0, 48)
+        self.state_split.setStretchFactor(1, 52)
+        self.state_split.setSizes([660, 740])
+        self._clear_editor()
+        self._batch_selection_changed()
+        client.get("/api/settings/state-direction", self._direction_loaded)
         self.load()
+
+    def _clear_editor(self):
+        self.current = None
+        self._recognized_unsigned = None
+        self.editor_title.setText("管号与处理")
+        self.editor_tube.blockSignals(True)
+        self.editor_tube.setValue(0)
+        self.editor_tube.blockSignals(False)
+        self.state.setCurrentIndex(0)
+        for control in self.event_checks.values():
+            control.blockSignals(True)
+            control.setChecked(False)
+            control.blockSignals(False)
+        self.offset.clear()
+        self.note.clear()
+        self.replacement_stage.setCurrentIndex(0)
+        self.editor_source.clear()
+        self.history.clear()
+        self.effective_summary.setText("请选择管号")
+        self.save.setEnabled(False)
+        self._update_event_fields()
+
+    def _direction_loaded(self, data, error):
+        self.default_direction.setEnabled(bool(not error and data and data.get("writable")))
+        if data and not error:
+            self.default_direction.setCurrentIndex(max(0, self.default_direction.findData(data.get("shift_direction"))))
+
+    def _save_direction(self):
+        self.default_direction.setEnabled(False)
+        self.client.post("/api/settings/state-direction",
+                         {"shift_direction": self.default_direction.currentData()}, self._direction_saved)
+
+    def _direction_saved(self, data, error):
+        if error:
+            self.message.setText(error)
+            self.client.get("/api/settings/state-direction", self._direction_loaded)
+        else:
+            self._direction_loaded(data, error)
+
+    def _use_default_offset(self):
+        unsigned = getattr(self, "_recognized_unsigned", None)
+        if unsigned is None:
+            unsigned = (self.current or {}).get("unsigned_offset_mm")
+        if unsigned is None:
+            return
+        direction = self.default_direction.currentData()
+        if direction == "pending":
+            self.message.setText("请先确认正向或负向，再套用已识别距离")
+            self.default_direction.setFocus()
+            return
+        self.offset.setText(f"{float(unsigned) * int(direction):+g}")
 
     def load(self):
         self.message.setText("正在读取状态记录...")
-        self.client.get("/api/states", self._loaded)
+        self._load_request += 1
+        number = self._load_request
+        self.client.get("/api/states", lambda data, error: self._loaded(data, error)
+                        if number == self._load_request else None)
 
     def _loaded(self, data, error):
-        self.current = None
+        editing = self.current
+        dirty = self._editor_dirty()
+        if not dirty:
+            self.current = None
         self.bulk_scope.setText("批量操作以当前选中记录的大修/机组为范围")
         if error or not data:
             self.message.setText(error or "状态读取失败")
             self.model.replace([])
             return
         rows = data.get("items") or []
+        for row in rows:
+            events = row.get("events") or []
+            row["needs_review"] = bool(
+                ("shifted" in events and row.get("offset_mm") is None)
+                or ("replaced" in events and len(events) > 1
+                    and (row.get("replacement_stage") or "unknown") == "unknown"))
         self.all_rows = rows
+        self.pending_rows = data.get("pending") or []
+        extra = list(data.get("scopes") or [])
+        extra.extend({"site": re.match(r"^[A-Z]+", row["outage"])[0],
+                      "unit_id": row["unit_id"], "outage": row["outage"]} for row in rows)
+        self.scope_bar.set_extra_combinations(extra)
+        self.record_scope.extra_combinations = list(extra)
+        self.record_scope._loaded({"combinations": self.scope_bar.combinations}, None)
+        self.review_pending.setText(f"待核对 {len(self._review_items())}")
+        self.review_pending.setEnabled(bool(self.pending_rows) or any(row.get("needs_review") for row in rows))
         self._show_filtered()
-        self.message.setText(f"已加载 {len(rows):,} 条状态记录；保存操作会写入审计历史")
+        self._request_scope()
+        if dirty:
+            self.message.setText("数据已更新，当前未保存的编辑已保留；保存时将核验原记录版本")
+        elif editing:
+            latest = next((row for row in rows if all(row.get(key) == editing.get(key)
+                          for key in ("outage", "unit_id", "thimble_id"))), None)
+            if latest:
+                self.current = latest
+                self._populate_editor()
+        if not dirty:
+            self.message.setText(f"已加载 {len(rows):,} 条状态记录；保存操作会写入审计历史")
+        saved_key = getattr(self, "_select_after_load", None)
+        if saved_key:
+            latest = next((row for row in rows if tuple(row.get(key) for key in
+                          ("outage", "unit_id", "thimble_id")) == saved_key), None)
+            if latest:
+                self.current = latest
+                self._populate_editor()
+                self._select_after_load = None
+        if not self.current:
+            self._clear_editor()
 
     def set_workspace_scope(self, scope):
         normalized = {key: str(scope.get(key) or "") for key in ("site", "unit", "outage")}
+        if normalized != self._state_scope and self._editor_dirty():
+            self.message.setText("其他工作区范围已变化，当前维护草稿已保留；保存或放弃编辑后再切换范围")
+            return
         self.scope_bar.set_scope(normalized)
         if normalized != self._state_scope:
             self._filter_scope(normalized)
         if scope.get("thimble"):
             self.plate.selected = {int(scope["thimble"])}
             self.plate.update()
+            self._select_grid_tube(int(scope["thimble"]))
 
     def _filter_scope(self, scope):
+        if scope != self._state_scope:
+            if not self._allow_editor_change():
+                self.scope_bar.set_scope(self._state_scope)
+                return
+            self._clear_editor()
+            self.plate.selected.clear()
+            self._batch_offset_touched = False
+            self._scope_items = []
         self._state_scope = scope
+        self._show_filtered()
+        self._batch_selection_changed()
+        self._request_scope()
+
+    def _request_scope(self):
+        scope = self._state_scope
         self._scope_request += 1
         number = self._scope_request
-        self._show_filtered()
         if scope.get("outage") and scope.get("unit"):
             from urllib.parse import urlencode
             self.client.get("/api/states/scope?" + urlencode({
                 "outage": scope["outage"], "unit_id": scope["unit"], "details": "maintenance"}),
-                lambda data, error: self.plate.set_data((data or {}).get("items", []),
-                                                        int(scope["unit"]), mode="state")
+                lambda data, error: self._scope_loaded(data)
                 if number == self._scope_request and not error else None)
+
+    def _scope_loaded(self, data):
+        self._scope_items = (data or {}).get("items") or []
+        self._update_grid()
+        self._update_effective_summary()
+        self._batch_selection_changed()
+
+    def _scope_rows(self):
+        scope = self._state_scope
+        return [row for row in self.all_rows
+                if (not scope.get("site") or canonical_site(re.match(r"^[A-Z]+", row["outage"])[0]) == scope["site"])
+                and (not scope.get("unit") or str(row.get("unit_id")) == str(scope["unit"]))
+                and (not scope.get("outage") or row.get("outage") == scope["outage"])]
+
+    def _set_state_filter(self, code):
+        code = "" if self._state_filter == code else code
+        index = self.record_type.findData(code)
+        if index >= 0:
+            self.record_type.setCurrentIndex(index)
+        else:
+            self._state_filter = code
+            self._reset_record_page()
+
+    def _record_scope_changed(self, *_):
+        self.model.selected.clear()
+        self._reset_record_page()
+
+    def _record_type_changed(self, index):
+        self._state_filter = self.record_type.currentData() or ""
+        self.record_categories.setCurrentIndex(index)
+        self._record_scope_changed()
+
+    def _clear_record_filters(self):
+        self.record_scope.set_scope({})
+        self.record_type.setCurrentIndex(0)
+        self.filter_text.blockSignals(True)
+        self.filter_text.clear()
+        self.filter_text.blockSignals(False)
+        self._record_scope_changed()
+
+    def _latest_record_scope(self):
+        scope = self.record_scope.values()
+        candidates = [row for row in self.record_scope.combinations
+                      if (not scope.get("site") or canonical_site(row["site"]) == scope["site"])
+                      and (not scope.get("unit") or str(row["unit_id"]) == scope["unit"])]
+        if not candidates:
+            return
+        latest = max(candidates, key=lambda row: (
+            int(re.search(r"(\d{2})$", row["outage"])[1]), row["outage"], int(row["unit_id"])))
+        selected = {"site": canonical_site(latest["site"]), "unit": str(latest["unit_id"]),
+                    "outage": latest["outage"]}
+        if not self._allow_editor_change():
+            return
+        self._clear_editor()
+        self.scope_bar.set_scope(selected)
+        self.scope_bar.changed.emit(selected)
+        self.record_scope.set_scope(selected)
+        self._record_scope_changed()
+
+    def _record_selection_changed(self, *_):
+        self.record_selection.setText(
+            f"筛选 {getattr(self, '_record_total', 0)} 条 · 已选 {len(self.model.selected)} 条"
+            + (f" · 未保存 {len(self.model.drafts)} 条" if self.model.drafts else ""))
+
+    def _reset_record_page(self, *_):
+        self.record_page = 1
+        self._show_filtered()
+
+    def _show_state_summary(self, code):
+        self.summary_buttons[code].setChecked(code == self._state_filter)
+        scope = dict(self._state_scope)
+        if not scope.get("unit") or not scope.get("outage"):
+            self.message.setText("请选择具体机组和大修")
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"{scope['outage']} · {self.summary_buttons[code].text().split()[0]}明细")
+        dialog.resize(960, 600)
+        layout = QVBoxLayout(dialog)
+        heading = QLabel()
+        layout.addWidget(heading)
+        table = QTableWidget(0, 6)
+        table.setHorizontalHeaderLabels(["管号", "本次状态", "移位 (mm)", "原始备注", "来源", ""])
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setWordWrap(False)
+        table.horizontalHeader().setStretchLastSection(True)
+        table.setColumnWidth(3, 270)
+        layout.addWidget(table, 1)
+        status = QLabel()
+        status.setObjectName("muted")
+        layout.addWidget(status)
+        actions = QHBoxLayout()
+        refresh = button("刷新明细", "refresh-cw")
+        actions.addWidget(refresh)
+        actions.addStretch()
+        actions.addWidget(button("关闭", "x", dialog.close))
+        layout.addLayout(actions)
+        request_number = [0]
+
+        def choose(tube):
+            if self._state_scope != scope:
+                self.message.setText("维护范围已变化，请重新打开当前范围明细")
+                dialog.close()
+                return
+            self._select_grid_tube(tube)
+            dialog.accept()
+
+        def loaded(number, data, error):
+            if number != request_number[0] or not dialog.isVisible():
+                return
+            refresh.setEnabled(True)
+            if error:
+                status.setText(f"维护明细读取失败：{error}")
+                return
+            current = {int(row["thimble_id"]): row for row in (data or {}).get("items", [])
+                       if row.get("outage") == scope["outage"] and str(row.get("unit_id")) == scope["unit"]}
+            rows = [(tube, current.get(tube)) for tube in range(1, 51)]
+            rows = [(tube, row) for tube, row in rows if (
+                bool(row) if code == "maintained" else not row if code == "unmaintained" else
+                bool(row and code in (row.get("events") or [row.get("state")])))]
+            heading.setText(f"{scope['outage']} · {self.summary_buttons[code].text().split()[0]} · {len(rows)} 根")
+            table.setRowCount(len(rows))
+            for index, (tube, row) in enumerate(rows):
+                row = row or {}
+                events = row.get("events") or [row.get("state")]
+                distance = row.get("offset_mm")
+                offset = (f"{float(distance):+g}" if distance is not None else
+                          f"{row['unsigned_offset_mm']}（方向待核对）" if row.get("unsigned_offset_mm") is not None else
+                          "距离待核对") if "shifted" in events else "/"
+                values = (f"#{tube}", row.get("event_label") or STATE_NAMES.get(row.get("state"), "未维护"),
+                          offset, row.get("note") or "/", row.get("source") or "/")
+                for column, value in enumerate(values):
+                    cell = QTableWidgetItem(str(value))
+                    cell.setToolTip(str(value))
+                    table.setItem(index, column, cell)
+                table.setCellWidget(index, 5, button("查看管号", "search", lambda _=False, t=tube: choose(t)))
+            status.setText("本次维护记录；历史有效状态见管板。")
+
+        def reload():
+            request_number[0] += 1
+            number = request_number[0]
+            refresh.setEnabled(False)
+            status.setText("正在重新读取维护明细...")
+            self.client.get("/api/states", lambda data, error: loaded(number, data, error))
+
+        refresh.clicked.connect(reload)
+        dialog.finished.connect(lambda _: request_number.__setitem__(0, request_number[0] + 1))
+        dialog.open()
+        self.summary_dialog = dialog
+        reload()
+
+    def _update_grid(self):
+        scope = self._state_scope
+        rows = self._scope_rows() if scope.get("unit") and scope.get("outage") else []
+        if self.grid_mode.currentIndex() == 1:
+            rows = [{**row, "recorded": bool(row.get("last_maintenance")),
+                     "events": ([code for code, active in (("plugged", row.get("plugged")),
+                                  ("shifted", row.get("shifted")),
+                                  ("replaced", "replaced" in (row.get("current_events") or []))) if active]
+                                or ([row["state"]] if row.get("state") in ("plugged", "shifted", "replaced") else [])),
+                     "offset_mm": row.get("cumulative_offset_mm")}
+                    for row in self._scope_items] if rows or self._scope_items else []
+        selected = set(self.plate.selected)
+        self.plate.set_data(rows, int(scope.get("unit") or 1), mode="state")
+        self.plate.selected = selected
+        self.plate.update()
 
     def _show_filtered(self):
         scope = getattr(self, "_state_scope", {})
-        text = self.filter_text.text().strip()
-        rows = [row for row in getattr(self, "all_rows", [])
-                if (not scope.get("site") or str(row.get("outage") or "").startswith(scope["site"]))
-                and (not scope.get("unit") or str(row.get("unit_id")) == str(scope["unit"]))
-                and (not scope.get("outage") or row.get("outage") == scope["outage"])
-                and (not text or text in str(row.get("thimble_id")) or text in str(row.get("note") or ""))]
-        self.model.replace(rows)
-        self.plate.set_data(rows, int(scope.get("unit") or 1), mode="state")
+        text = self.filter_text.text().strip().casefold()
+        scoped = self._scope_rows()
+        counts = {"maintained": len(scoped), "unmaintained": max(0, 50 - len(scoped))}
+        for code in ("normal", "plugged", "shifted", "replaced"):
+            counts[code] = sum(code in (row.get("events") or [row.get("state")]) for row in scoped)
+        for code, control in self.summary_buttons.items():
+            name = {"maintained": "已维护", "unmaintained": "未维护", **STATE_NAMES}[code]
+            control.setText(f"{name}  {counts[code] if scope.get('unit') and scope.get('outage') else '—'}")
+        record_scope = self.record_scope.values()
+        rows = [row for row in self.all_rows
+                if (not record_scope.get("site") or canonical_site(
+                    re.match(r"^[A-Z]+", row["outage"])[0]) == record_scope["site"])
+                and (not record_scope.get("unit") or str(row.get("unit_id")) == record_scope["unit"])
+                and (not record_scope.get("outage") or row["outage"] == record_scope["outage"])
+                and (not text or any(text in str(value or "").casefold() for value in (
+                    row["outage"], f"#{row['thimble_id']}", row.get("position"), row.get("note"),
+                    row.get("source"), row.get("event_label"))))]
+        if self._state_filter == "unmaintained":
+            rows = []
+        elif self._state_filter == "composite":
+            rows = [row for row in rows if len(row.get("events") or []) > 1]
+        elif self._state_filter not in ("", "maintained"):
+            rows = [row for row in rows if self._state_filter in (row.get("events") or [row.get("state")])]
+        self._record_total = len(rows)
+        self._record_selection_changed()
+        pages = max(1, (len(rows) + self.record_size - 1) // self.record_size)
+        self.record_page = min(self.record_page, pages)
+        offset = (self.record_page - 1) * self.record_size
+        self.model.replace(rows[offset:offset + self.record_size])
+        self.record_page_label.setText(f"{self.record_page} / {pages} · {len(rows)} 条")
+        self.record_previous.setEnabled(self.record_page > 1)
+        self.record_next.setEnabled(self.record_page < pages)
+        self.record_jump.setRange(1, pages)
+        self.record_jump.setValue(self.record_page)
+        if self.model.editable:
+            for index, row in enumerate(self.model.rows):
+                host = QWidget()
+                actions = QHBoxLayout(host)
+                actions.setContentsMargins(2, 2, 2, 2)
+                actions.setSpacing(4)
+                for text, action in (("保存", "save"), ("撤销", "delete")):
+                    control = QPushButton(text)
+                    control.setAccessibleName(f"{text} {row['outage']} 通道{row['thimble_id']} 的维护记录")
+                    control.clicked.connect(lambda _=False, r=dict(row), a=action: self._inline_state_action(r, a))
+                    actions.addWidget(control)
+                self.table.setIndexWidget(self.model.index(index, self.model.fields.index("_actions")), host)
+        self._update_grid()
+
+    def _record_size_changed(self, *_):
+        self.model.selected.clear()
+        self.record_size = self.record_size_box.currentData()
+        self._reset_record_page()
+
+    def _change_record_page(self, delta):
+        self.model.selected.clear()
+        self.record_page = max(1, self.record_page + delta)
+        self._show_filtered()
+
+    def _jump_record_page(self):
+        self.model.selected.clear()
+        self.record_page = self.record_jump.value()
+        self._show_filtered()
+
+    def _inline_state_action(self, row, action):
+        if not self.model.editable:
+            return
+        source = self.model.rows[row] if isinstance(row, int) else row
+        if action == "delete":
+            self._delete_state_rows([source])
+            return
+        key = self.model.key(source)
+        if key in self._inline_inflight:
+            self.message.setText("该记录正在保存，请稍候")
+            return
+        draft = self.model.drafts.get(key)
+        if draft is None:
+            self.message.setText("该记录没有行内修改")
+            return
+        if source.get("unsigned_offset_mm") is not None and draft.get("offset_mm") is None:
+            self.message.setText("原记录方向待核对，请先填写带正负号的位移量；当前修改已保留")
+            return
+        if draft.get("_state_changed") and len(source.get("events") or []) > 1:
+            if QMessageBox.question(self, "确认复合维护变更", "本次行内修改将用单一状态替换原复合事件，是否继续？",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+                return
+        payload = {field: draft.get(field) for field in (
+            "outage", "unit_id", "thimble_id", "state", "events", "offset_mm", "note",
+            "source", "replacement_stage", "expected_updated_at")}
+        self._inline_inflight.add(key)
+        self.client.post("/api/state", payload, lambda data, error: self._inline_state_saved(key, data, error))
+
+    def _inline_state_saved(self, key, data, error):
+        self._inline_inflight.discard(key)
+        if error or not data:
+            self.message.setText(error or "行内修改保存失败，草稿已保留")
+            return
+        self.model.drafts.pop(key, None)
+        self.message.setText("行内修改已保存")
+        self.load()
 
     def _select_grid_tube(self, tube):
-        for index, row in enumerate(self.model.rows):
+        if not 1 <= tube <= 50:
+            return
+        if self.batch_mode.isChecked():
+            self._batch_selection_changed()
+            return
+        if self.current and self.current["thimble_id"] == tube:
+            return
+        if not self._allow_editor_change():
+            if self.current:
+                self.plate.selected = {self.current["thimble_id"]}
+                self.plate.update()
+            return
+        for row in self._scope_rows():
             if row["thimble_id"] == tube:
-                self.table.selectRow(index)
-                self._select(self.model.index(index, 0))
+                self.current = row
+                self._populate_editor()
                 return
         scope = self._state_scope
         if not scope.get("unit") or not scope.get("outage"):
@@ -1277,10 +2243,36 @@ class NativeStatePage(QWidget):
         self.current = {"outage": scope["outage"], "unit_id": int(scope["unit"]),
                         "thimble_id": tube, "state": "normal", "events": [], "note": ""}
         self.message.setText(f"{tube}号管 · 本次尚未维护")
-        self._edit_advanced()
+        self._populate_editor()
 
     def _select(self, index):
-        self.current = self.model.rows[index.row()]
+        if self.batch_mode.isChecked():
+            return
+        if not self._allow_editor_change():
+            return
+        selected = dict(self.model.displayed(self.model.rows[index.row()]))
+        scope = {"site": canonical_site(re.match(r"^[A-Z]+", selected["outage"])[0]),
+                 "unit": str(selected["unit_id"]), "outage": selected["outage"]}
+        if scope != self._state_scope:
+            self._clear_editor()
+            self.scope_bar.set_scope(scope)
+            self.scope_bar.changed.emit(scope)
+        self.current = selected
+        self._populate_editor()
+
+    def _populate_editor(self):
+        if not self.current:
+            return
+        self._recognized_unsigned = None
+        self.editor_tube.blockSignals(True)
+        self.editor_tube.setValue(int(self.current["thimble_id"]))
+        self.editor_tube.blockSignals(False)
+        self.save.setEnabled(self.permissions is None or "state.write" in self.permissions)
+        if not self.batch_mode.isChecked():
+            self.plate.selected = {int(self.current["thimble_id"])}
+            self.plate.update()
+        self.editor_title.setText(f"{self.current['thimble_id']}号管 · {self.current.get('outage', '')} · 管号与处理")
+        self.editor_source.setText(str(self.current.get("source") or ""))
         self.bulk_scope.setText(
             f"当前范围：{self.current.get('outage', '')} · {self.current.get('unit_id', '')}号机组"
         )
@@ -1289,6 +2281,17 @@ class NativeStatePage(QWidget):
         self.state.setCurrentIndex(max(0, idx))
         self.offset.setText("" if self.current.get("offset_mm") is None else str(self.current.get("offset_mm")))
         self.note.setText(str(self.current.get("note") or ""))
+        for code, control in self.event_checks.items():
+            control.blockSignals(True)
+            control.setChecked(code in (self.current.get("events") or [state]))
+            control.blockSignals(False)
+        if len(self._editor_events()) > 1:
+            self.state.setCurrentIndex(self.state.findData("composite"))
+        self.replacement_stage.setCurrentIndex(max(0, self.replacement_stage.findData(
+            self.current.get("replacement_stage") or "unknown")))
+        self.use_default_offset.setVisible(self.current.get("unsigned_offset_mm") is not None)
+        self._update_event_fields()
+        self._update_effective_summary()
         from urllib.parse import urlencode
         self.client.get("/api/state-history?" + urlencode({
             "site": canonical_site(str(self.current["outage"]).rstrip("0123456789")),
@@ -1297,39 +2300,497 @@ class NativeStatePage(QWidget):
             if self.current is selected else None)
 
     def _history_loaded(self, data, error):
-        self.history.setPlainText(error or "\n".join(
-            f"{row.get('created_at', '')} · {row.get('operator', '')} · {row.get('action', '')}\n"
-            f"{row.get('after_json', '')}" for row in (data or {}).get("items", [])))
+        if error:
+            self.history.setPlainText(error)
+            return
+        entries = []
+        for row in (data or {}).get("timeline", []):
+            distance = row.get("offset_mm")
+            unsigned = row.get("unsigned_offset_mm")
+            movement = (f"{float(distance):+g} mm" if distance is not None else
+                        f"{unsigned} mm（方向待核对）" if unsigned is not None else "距离待核对")
+            events = row.get("events") or [row.get("state")]
+            label = row.get("event_label") or " · ".join(STATE_NAMES.get(code, str(code)) for code in events)
+            effective = row.get("effective") or {}
+            entries.append(f"{row.get('outage', '')} · {label}"
+                           + (f" · 移位 {movement}" if "shifted" in events else "")
+                           + f" · 第 {effective.get('generation', 1)} 代管\n"
+                           + f"备注：{row.get('note') or '/'}\n来源：{row.get('source') or '/'}")
+        if not entries:
+            for row in (data or {}).get("items", []):
+                action = {"create": "新增维护", "update": "修订维护", "revoke": "撤销维护"}.get(row.get("action"), "维护操作")
+                entries.append(f"{row.get('created_at', '')} · {row.get('operator', '')} · {action}")
+        self.history.setPlainText("\n\n".join(entries) or "该管暂无维护历史")
 
     def _save(self):
+        if self._batch_busy or self.batch_mode.isChecked():
+            return
         if not self.current:
             QMessageBox.information(self, PRODUCT_NAME, "请先选择状态记录")
             return
-        events = self.current.get("events") or []
-        if len(events) > 1 or self.current.get("unsigned_offset_mm") is not None or self.current.get("offset_confirmed") == 0:
-            QMessageBox.warning(
-                self, PRODUCT_NAME,
-                "该记录包含复合维护事件或尚未确认的位移方向，简化表单不能安全修改。"
-                "请保留原记录，待完整维护界面核对后处理。",
-            )
-            return
-        raw_offset = self.offset.text().strip()
         try:
-            offset = float(raw_offset) if raw_offset else None
-        except ValueError:
-            QMessageBox.warning(self, PRODUCT_NAME, "位移量必须是数字")
+            payload = self._editor_payload()
+        except ValueError as exc:
+            QMessageBox.warning(self, PRODUCT_NAME, str(exc))
             return
-        payload = {
-            "outage": self.current.get("outage"),
-            "unit_id": self.current.get("unit_id"),
-            "thimble_id": self.current.get("thimble_id"),
-            "state": self.state.currentData(),
-            "offset_mm": offset,
-            "note": self.note.text(),
-            "expected_updated_at": self.current.get("updated_at"),
-        }
         self.save.setEnabled(False)
+        self._saving_key = tuple(payload[key] for key in ("outage", "unit_id", "thimble_id"))
+        if self.current.get("recognition_id") is not None:
+            self.client.post("/api/states/batch", {"rows": [payload], "confirmed": True}, self._saved)
+            return
         self.client.post("/api/state", payload, self._saved)
+
+    def _editor_events(self):
+        return [code for code, control in self.event_checks.items() if control.isChecked()]
+
+    def _editor_dirty(self):
+        if not self.current:
+            return False
+        original = self.current.get("events") or (
+            [self.current["state"]] if self.current.get("state") in self.event_checks else [])
+        return (set(self._editor_events()) != set(original)
+                or self.offset.text().strip() != ("" if self.current.get("offset_mm") is None else str(self.current["offset_mm"]))
+                or self.note.text() != str(self.current.get("note") or "")
+                or self.replacement_stage.currentData() != (self.current.get("replacement_stage") or "unknown"))
+
+    def _allow_editor_change(self):
+        if not self._editor_dirty():
+            return True
+        return QMessageBox.question(
+            self, "未保存的维护编辑", "当前编辑尚未保存，是否放弃并切换？",
+            QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel) == QMessageBox.StandardButton.Discard
+
+    def _simple_state_changed(self, *_):
+        if self.state.currentData() == "composite":
+            self._update_event_fields()
+            return
+        for code, control in getattr(self, "event_checks", {}).items():
+            control.blockSignals(True)
+            control.setChecked(code == self.state.currentData())
+            control.blockSignals(False)
+        self._update_event_fields()
+
+    def _events_changed(self, *_):
+        events = self._editor_events()
+        state = ("composite" if len(events) > 1 or self.state.currentData() == "composite" else
+                 next((code for code in ("plugged", "replaced", "shifted") if code in events), "normal"))
+        self.state.blockSignals(True)
+        self.state.setCurrentIndex(max(0, self.state.findData(state)))
+        self.state.blockSignals(False)
+        self._update_event_fields()
+
+    def _update_event_fields(self):
+        if not hasattr(self, "use_default_offset"):
+            return
+        events = self._editor_events()
+        self.editor_form.setRowVisible(self.event_host, self.state.currentData() == "composite")
+        self.editor_form.setRowVisible(self.replacement_stage, "replaced" in events and len(events) > 1)
+        self.editor_form.setRowVisible(self.offset, "shifted" in events)
+        self.use_default_offset.setVisible("shifted" in events and (
+            getattr(self, "_recognized_unsigned", None) is not None
+            or (self.current or {}).get("unsigned_offset_mm") is not None))
+
+    def _editor_payload(self):
+        import math
+        scope = self._state_scope
+        current = self.current or {"outage": scope.get("outage"), "unit_id": scope.get("unit")}
+        events = self._editor_events()
+        if self.state.currentData() == "composite" and len(events) < 2:
+            raise ValueError("复合处理请至少选择两项；单项处理请直接选择对应状态。")
+        raw = self.offset.text().strip() if "shifted" in events else ""
+        try:
+            offset = float(raw) if raw else None
+        except ValueError:
+            raise ValueError("位移量必须是数字。")
+        if offset is not None and not math.isfinite(offset):
+            raise ValueError("位移量必须是有限数字。")
+        unsigned = getattr(self, "_recognized_unsigned", None)
+        if unsigned is None:
+            unsigned = current.get("unsigned_offset_mm")
+        if "shifted" in events and unsigned is not None and (not raw or raw[0] not in "+-"):
+            raise ValueError("原记录方向未确认，请填写带正负号的位移量。")
+        return {"outage": current.get("outage"), "unit_id": current.get("unit_id"),
+                "thimble_id": current.get("thimble_id", self.editor_tube.value()),
+                "state": next((code for code in ("plugged", "replaced", "shifted") if code in events), "normal"),
+                "events": events,
+                "replacement_stage": self.replacement_stage.currentData(),
+                "offset_mm": offset if "shifted" in events else 0,
+                "note": self.note.text(), "source": str(current.get("source") or ""),
+                "expected_updated_at": current.get("updated_at"),
+                **({key: current[key] for key in ("recognition_id", "expected_state") if key in current})}
+
+    def _update_effective_summary(self):
+        tube = (self.current or {}).get("thimble_id")
+        row = next((item for item in self._scope_items if item["thimble_id"] == tube), None)
+        if not row:
+            self.effective_summary.setText("正常表示本次有明确依据确认正常；未维护不等于正常。")
+            return
+        distance = row.get("cumulative_offset_mm")
+        self.effective_summary.setText(
+            f"截至本次有效：{row.get('state_label', '未维护')} · 第 {row.get('generation', 1)} 代管 · "
+            f"累计位移 {distance if distance is not None else '待核对'} mm"
+            + ("\n" + "；".join(row.get("warnings") or []) if row.get("warnings") else ""))
+
+    def _recognize_note(self):
+        if not self.current:
+            self.message.setText("请先选择管号")
+            return
+        selected, original = self.current, self.note.text()
+        self.recognize_note.setEnabled(False)
+        self.client.post("/api/states/recognize-note",
+                         {**selected, "note": original},
+                         lambda data, error: self._note_recognized(selected, original, data, error))
+
+    def _note_recognized(self, selected, original, data, error):
+        self.recognize_note.setEnabled(self.permissions is None or "state.write" in self.permissions)
+        if error:
+            QMessageBox.warning(self, PRODUCT_NAME, error)
+            return
+        if self.current is not selected or self.note.text() != original:
+            self.message.setText("编辑已变化，未应用先前的识别结果")
+            return
+        row = ((data or {}).get("rows") or [{}])[0]
+        self._recognized_unsigned = row.get("unsigned_offset_mm")
+        for code, control in self.event_checks.items():
+            control.blockSignals(True)
+            control.setChecked(code in (row.get("events") or [row.get("state")]))
+            control.blockSignals(False)
+        self._events_changed()
+        self.replacement_stage.setCurrentIndex(max(0, self.replacement_stage.findData(row.get("replacement_stage") or "unknown")))
+        offset = row.get("offset_mm")
+        self.offset.setText("" if offset is None else f"{offset:+g}")
+        self.message.setText("已识别到编辑区，请核对后保存" + (
+            f"；原始位移 {row.get('unsigned_offset_mm')} mm，方向待确认" if data.get("requires_direction") else ""))
+
+    def _generate_note(self):
+        try:
+            row = self._editor_payload()
+        except ValueError as exc:
+            QMessageBox.warning(self, PRODUCT_NAME, str(exc))
+            return
+        labels = [STATE_NAMES[code] for code in row["events"]] or ["正常"]
+        text = f"{row.get('outage') or ''} {row['thimble_id']}号管：" + "、".join(labels)
+        if "shifted" in row["events"]:
+            text += f"，位移 {row['offset_mm']:+g} mm" if row["offset_mm"] is not None else "，位移距离待核对"
+        if "replaced" in row["events"] and len(row["events"]) > 1:
+            text += "，" + self.replacement_stage.currentText()
+        existing = self.note.text()
+        self.note.setText(existing + ("\n" if existing else "") + text)
+
+    def _build_batch_editor(self):
+        host = QWidget()
+        form = self.batch_form = QFormLayout(host)
+        form.setContentsMargins(0, 0, 0, 0)
+        self.batch_selection = QLabel("已选管号：—")
+        self.batch_selection.setWordWrap(True)
+        form.addRow(self.batch_selection)
+        self.batch_state = QComboBox()
+        for name, code in (("正常", "normal"), ("堵管", "plugged"), ("移位", "shifted"),
+                           ("换管", "replaced"), ("复合处理", "composite")):
+            self.batch_state.addItem(name, code)
+        form.addRow("统一处理状态", self.batch_state)
+        self.batch_events_host = QWidget()
+        events = QHBoxLayout(self.batch_events_host)
+        events.setContentsMargins(0, 0, 0, 0)
+        self.batch_events = {}
+        for code, name in (("plugged", "堵管"), ("shifted", "移位"), ("replaced", "换管")):
+            control = QCheckBox(name)
+            self.batch_events[code] = control
+            events.addWidget(control)
+            control.toggled.connect(self._batch_selection_changed)
+        form.addRow("本次同时发生", self.batch_events_host)
+        self.batch_offset = QLineEdit()
+        self.batch_offset.setPlaceholderText("正数正向，负数反向；未知可留空")
+        self.batch_offset.textEdited.connect(self._batch_offset_edited)
+        form.addRow("移位距离（mm）", self.batch_offset)
+        self.batch_offset_hint = QLabel()
+        self.batch_offset_hint.setWordWrap(True)
+        self.batch_offset_hint.setObjectName("muted")
+        form.addRow(self.batch_offset_hint)
+        self.batch_stage = QComboBox()
+        for name, code in (("未确认，标记待核对", "unknown"), ("其他处理在换管前", "before_replacement"),
+                           ("其他处理在换管后", "after_replacement")):
+            self.batch_stage.addItem(name, code)
+        form.addRow("与换管的先后顺序", self.batch_stage)
+        self.batch_note = QPlainTextEdit()
+        self.batch_note.setPlaceholderText("填写本批处理依据或维护说明；原有备注和来源会保留")
+        self.batch_note.setMaximumHeight(100)
+        form.addRow("统一追加备注", self.batch_note)
+        self.batch_state.currentIndexChanged.connect(self._batch_selection_changed)
+        host.hide()
+        return host
+
+    def _batch_event_values(self):
+        state = self.batch_state.currentData()
+        return ([code for code, control in self.batch_events.items() if control.isChecked()]
+                if state == "composite" else [] if state == "normal" else [state])
+
+    def _batch_offset_edited(self, *_):
+        self._batch_offset_touched = True
+        self._batch_selection_changed()
+
+    def _batch_selection_changed(self, *_):
+        active = self.batch_mode.isChecked()
+        selected = self.plate.selected
+        self.batch_count.setText(f"已选 {len(selected)} 根")
+        self.batch_selection.setText("已选管号：" + ("、".join(f"{tube:02}" for tube in sorted(selected)) or "—"))
+        self.batch_apply.setText(f"处理所选（{len(selected)}）" if selected else "处理所选")
+        writable = self.permissions is None or "state.write" in self.permissions
+        self.batch_apply.setEnabled(writable and active and bool(selected) and not self._batch_busy)
+        events = self._batch_event_values()
+        shifted = "shifted" in events
+        self.batch_form.setRowVisible(self.batch_events_host, self.batch_state.currentData() == "composite")
+        self.batch_form.setRowVisible(self.batch_offset, shifted)
+        self.batch_form.setRowVisible(self.batch_offset_hint, shifted)
+        self.batch_form.setRowVisible(self.batch_stage, "replaced" in events and len(events) > 1)
+        if not shifted:
+            return
+        rows = {row["thimble_id"]: row for row in self._scope_rows()}
+        chosen = [rows.get(tube, {}) for tube in sorted(selected)]
+        confirmed = [row.get("offset_mm") for row in chosen
+                     if "shifted" in (row.get("events") or [row.get("state")])
+                     and row.get("offset_mm") is not None and row.get("offset_confirmed", 1)]
+        common = bool(chosen) and len(confirmed) == len(chosen) and len(set(confirmed)) == 1
+        if self._batch_offset_touched:
+            self.batch_offset_hint.setText("已保留手动填写的统一距离，请确认适用于全部所选管。")
+        elif common:
+            self.batch_offset.setText(f"{confirmed[0]:+g}")
+            self.batch_offset_hint.setText(f"已同步共同距离 {confirmed[0]:+g} mm。")
+        else:
+            self.batch_offset.clear()
+            self.batch_offset_hint.setText("所选管的本次距离不一致或待核对，未自动带入；请填写统一距离，或留空标记待核对。")
+
+    def _batch_mode_changed(self, enabled):
+        self.plate.multiselect = enabled
+        self.plate.selected.clear()
+        if enabled and self.current:
+            self.plate.selected.add(int(self.current["thimble_id"]))
+        if not enabled:
+            self._batch_offset_touched = False
+        self.single_editor.setVisible(not enabled)
+        self.batch_editor.setVisible(enabled)
+        self._batch_selection_changed()
+        self.plate.update()
+
+    def _select_batch(self, selected):
+        self.batch_mode.setChecked(True)
+        self.plate.selected = set(range(1, 51)) if selected else set()
+        self._batch_selection_changed()
+        self.plate.update()
+
+    def _apply_selected_states(self):
+        if self._batch_busy or not self.batch_mode.isChecked():
+            return
+        scope = self._state_scope
+        if not scope.get("outage") or not scope.get("unit") or not self.plate.selected:
+            self.message.setText("请选择具体机组、大修及要处理的管号")
+            return
+        try:
+            import math
+            events = self._batch_event_values()
+            if self.batch_state.currentData() == "composite" and len(events) < 2:
+                raise ValueError("复合处理请至少选择两项。")
+            raw = self.batch_offset.text().strip()
+            offset = float(raw) if raw and "shifted" in events else None
+            if offset is not None and (not math.isfinite(offset) or abs(offset) > 1000):
+                raise ValueError("位移量必须是 -1000 至 1000 mm 范围内的有限数字。")
+            note = self.batch_note.toPlainText()
+            if len(note) > 2000:
+                raise ValueError("统一追加备注不能超过 2000 字。")
+            template = {"events": events, "state": next((code for code in ("plugged", "replaced", "shifted")
+                        if code in events), "normal"), "replacement_stage": self.batch_stage.currentData(),
+                        "offset_mm": offset if "shifted" in events else 0, "unsigned_offset_mm": None,
+                        "direction": "pending", "note": note}
+        except ValueError as exc:
+            QMessageBox.warning(self, PRODUCT_NAME, "位移量必须是数字。" if "could not convert" in str(exc) else str(exc))
+            return
+        existing = {row["thimble_id"]: row for row in self._scope_rows()}
+        rows = [{**template, "outage": scope["outage"], "unit_id": int(scope["unit"]), "thimble_id": tube,
+                 "source": "",
+                 "expected_updated_at": existing.get(tube, {}).get("updated_at")}
+                for tube in sorted(self.plate.selected)]
+        payload = {"rows": rows, "mode": "append", "bulk_edit": True, "only_unmaintained": False}
+        self._set_batch_busy(True)
+        self.client.post("/api/states/batch-preview", payload,
+                         lambda data, error: self._selected_preview(payload, data, error))
+
+    def _set_batch_busy(self, busy):
+        self._batch_busy = busy
+        controls = (self.batch_mode, self.batch_all, self.batch_clear, self.batch_editor,
+                    self.scope_bar, self.plate, self.import_button, self.bulk_normal,
+                    self.default_direction, self.table)
+        if busy:
+            self._batch_enabled_before = [(control, control.isEnabled()) for control in controls]
+            for control in controls:
+                control.setEnabled(False)
+        else:
+            for control, enabled in getattr(self, "_batch_enabled_before", []):
+                control.setEnabled(enabled)
+        self._batch_selection_changed()
+
+    def _selected_preview(self, payload, data, error):
+        if error or not data:
+            self._set_batch_busy(False)
+            QMessageBox.warning(self, PRODUCT_NAME, error or "批量预览失败")
+            return
+        if not data.get("affected"):
+            self._set_batch_busy(False)
+            self.message.setText(f"没有可写入的记录；跳过 {data.get('skipped', 0)} 条")
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("批量维护影响预览")
+        dialog.resize(900, 500)
+        layout = QVBoxLayout(dialog)
+        summary = QLabel(f"已选 {len(payload['rows'])} 根 · 可保存 {data['affected']} 根 · "
+                         f"跳过 {data.get('skipped', 0)} 根 · 待核对 {data.get('warnings', 0)} 根\n"
+                         "确认后追加本次处理及备注，保留各管原有记录、来源和历史审计。")
+        summary.setWordWrap(True)
+        layout.addWidget(summary)
+        table = QTableWidget(len(data.get("rows") or []), 5)
+        table.setHorizontalHeaderLabels(["管号", "当前有效状态", "保存后有效状态", "累计位移 mm", "提示"])
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setStretchLastSection(True)
+        for index, row in enumerate(data.get("rows") or []):
+            before, after = row.get("before") or {}, row.get("after") or {}
+            for column, value in enumerate((row["thimble_id"], before.get("state_label", ""),
+                    after.get("state_label", ""), after.get("cumulative_offset_mm"),
+                    "；".join(after.get("warnings") or []))):
+                table.setItem(index, column, QTableWidgetItem("待核对" if value is None else str(value)))
+        table.resizeColumnsToContents()
+        layout.addWidget(table)
+        actions = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        actions.button(QDialogButtonBox.StandardButton.Ok).setText(f"确认保存 {data['affected']} 根")
+        actions.button(QDialogButtonBox.StandardButton.Cancel).setText("返回修改")
+        actions.accepted.connect(dialog.accept)
+        actions.rejected.connect(dialog.reject)
+        layout.addWidget(actions)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            self._set_batch_busy(False)
+            return
+        self.client.post("/api/states/batch", {**payload, "revision": data["revision"], "confirmed": True},
+                         self._selected_batch_saved)
+
+    def _selected_batch_saved(self, data, error):
+        self._set_batch_busy(False)
+        if not error and data:
+            self.plate.selected.clear()
+            self.batch_note.clear()
+            self._batch_offset_touched = False
+            self._batch_selection_changed()
+            self.plate.update()
+        self._batch_saved(data, error)
+
+    def _review_pending(self):
+        review_items = self._review_items()
+        dialog = QDialog(self)
+        dialog.setWindowTitle("导入待核对清单")
+        dialog.resize(1000, 530)
+        layout = QVBoxLayout(dialog)
+        table = QTableWidget(len(review_items), 6)
+        table.setHorizontalHeaderLabels(["大修", "机组", "管号", "识别状态", "待核对原因", "原始说明"])
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setStretchLastSection(True)
+        for index, row in enumerate(review_items):
+            for column, value in enumerate((row["outage"], row["unit_id"], row["thimble_id"],
+                                           row.get("event_label") or STATE_NAMES.get(row.get("state"), "待核对"),
+                                           row.get("review_reason", ""), row.get("note", ""))):
+                table.setItem(index, column, QTableWidgetItem(str(value)))
+        layout.addWidget(table)
+        actions = QHBoxLayout()
+        edit = button("核对所选记录", "wrench")
+        dismiss = button("忽略所选识别", "x")
+        close = button("关闭", "x", dialog.reject)
+        writable = self.permissions is None or "state.write" in self.permissions
+        edit.setEnabled(writable)
+        dismiss.setEnabled(writable)
+        for control in (edit, dismiss, close):
+            actions.addWidget(control)
+        layout.addLayout(actions)
+        def selected_rows():
+            return [review_items[index.row()] for index in table.selectionModel().selectedRows()]
+        def edit_selected():
+            rows = selected_rows()
+            if len(rows) != 1 or not self._allow_editor_change():
+                return
+            row = dict(rows[0])
+            self.current = None
+            self._filter_scope({"site": canonical_site(re.match(r"^[A-Z]+", row["outage"])[0]),
+                                "unit": str(row["unit_id"]), "outage": row["outage"]})
+            self.scope_bar.set_scope(self._state_scope)
+            self.current = row
+            self._populate_editor()
+            self.message.setText(row.get("review_reason") or "核对后保存")
+            dialog.accept()
+        def dismiss_selected():
+            rows = selected_rows()
+            if not rows:
+                return
+            if any(row.get("recognition_id") is None for row in rows):
+                QMessageBox.information(dialog, PRODUCT_NAME, "所选项含已保存的维护记录，请核对编辑；仅待识别结果可忽略。")
+                return
+            if QMessageBox.question(dialog, "忽略识别", f"确认忽略所选 {len(rows)} 条识别结果？",
+                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+                return
+            self.client.post("/api/states/dismiss-recognition",
+                             {"ids": [row["recognition_id"] for row in rows], "confirmed": True},
+                             lambda data, error: QMessageBox.warning(dialog, PRODUCT_NAME, error)
+                             if error else (dialog.accept(), self.load()))
+        edit.clicked.connect(edit_selected)
+        dismiss.clicked.connect(dismiss_selected)
+        dialog.exec()
+
+    def _review_items(self):
+        return self.pending_rows + [{**row, "review_reason": "维护距离、方向或换管前后顺序待核对"}
+                                    for row in self.all_rows if row.get("needs_review")]
+
+    def _add_scope(self):
+        from .native_components import SITE_NAMES
+        dialog = QDialog(self)
+        dialog.setWindowTitle("新增大修范围")
+        form = QFormLayout(dialog)
+        site = QComboBox()
+        for code, name in SITE_NAMES.items():
+            site.addItem(name, code)
+        site.setCurrentIndex(max(0, site.findData(self._state_scope.get("site"))))
+        unit = QSpinBox()
+        unit.setRange(1, 9)
+        unit.setValue(int(self._state_scope.get("unit") or 1))
+        outage = QLineEdit()
+        outage.setMaxLength(5)
+        outage.setPlaceholderText("如 N103、LF198")
+        form.addRow("基地", site)
+        form.addRow("机组", unit)
+        form.addRow("大修编号", outage)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        form.addRow(buttons)
+        buttons.rejected.connect(dialog.reject)
+        def save():
+            code = outage.text().strip().upper()
+            if not re.fullmatch(re.escape(site.currentData()) + str(unit.value()) + r"\d{2}", code):
+                QMessageBox.warning(dialog, PRODUCT_NAME, "大修编号必须与基地和机组一致，例如 N103。")
+                return
+            if not self._allow_editor_change():
+                return
+            buttons.setEnabled(False)
+            def saved(data, error):
+                buttons.setEnabled(True)
+                if error:
+                    QMessageBox.warning(dialog, PRODUCT_NAME, error)
+                    return
+                self.current = None
+                self._state_scope = {"site": site.currentData(), "unit": str(unit.value()), "outage": code}
+                self.scope_bar.set_scope(self._state_scope)
+                self.load()
+                dialog.accept()
+            self.client.post("/api/states/scopes", {"site": site.currentData(), "unit_id": unit.value(), "outage": code}, saved)
+        buttons.accepted.connect(save)
+        dialog.exec()
+
+    def resizeEvent(self, event):
+        self.state_split.setOrientation(Qt.Orientation.Vertical if self.width() < 1120 else Qt.Orientation.Horizontal)
+        super().resizeEvent(event)
 
     def _saved(self, data, error):
         self.save.setEnabled(self.permissions is None or "state.write" in self.permissions)
@@ -1339,6 +2800,10 @@ class NativeStatePage(QWidget):
             QMessageBox.warning(self, PRODUCT_NAME, error)
             return
         QMessageBox.information(self, PRODUCT_NAME, "状态已保存，审计记录已生成")
+        self._select_after_load = getattr(self, "_saving_key", None)
+        if self._select_after_load:
+            self.model.drafts.pop(self._select_after_load, None)
+        self.current = None
         self.load()
 
     def _edit_advanced(self, new: bool = False) -> None:
@@ -1426,6 +2891,7 @@ class NativeStatePage(QWidget):
         self.save.setEnabled(False)
         self.advanced.setEnabled(False)
         self.new_state.setEnabled(False)
+        self._saving_key = tuple(payload[key] for key in ("outage", "unit_id", "thimble_id"))
         self.client.post("/api/state", payload, self._saved)
 
     def _scope_from_current(self) -> dict[str, Any] | None:
@@ -1660,10 +3126,14 @@ class NativeStatePage(QWidget):
 
     def _delete_selected(self) -> None:
         indexes = self.table.selectionModel().selectedRows()
-        if not indexes:
+        checked = [row for row in self.all_rows if self.model.key(row) in self.model.selected]
+        if not indexes and not checked:
             QMessageBox.information(self, PRODUCT_NAME, "请先选择要删除的状态记录")
             return
-        rows = [self.model.rows[index.row()] for index in indexes if 0 <= index.row() < len(self.model.rows)]
+        rows = checked or [self.model.rows[index.row()] for index in indexes if 0 <= index.row() < len(self.model.rows)]
+        self._delete_state_rows(rows)
+
+    def _delete_state_rows(self, rows):
         if QMessageBox.warning(
             self, PRODUCT_NAME,
             f"将撤销 {len(rows)} 条维护记录（检测数据不会删除），是否继续？",
@@ -1673,15 +3143,18 @@ class NativeStatePage(QWidget):
         self.delete_button.setEnabled(False)
         self.client.post(
             "/api/states/delete-batch",
-            {"rows": rows, "confirmed": True},
-            self._delete_done,
+            {"rows": [{**row, "expected_updated_at": row.get("updated_at")} for row in rows], "confirmed": True},
+            lambda data, error, keys=[self.model.key(row) for row in rows]: self._delete_done(data, error, keys),
         )
 
-    def _delete_done(self, data: dict[str, Any] | None, error: str | None) -> None:
+    def _delete_done(self, data: dict[str, Any] | None, error: str | None, keys=()) -> None:
         self.delete_button.setEnabled(self.permissions is None or "state.write" in self.permissions)
         if error or not data:
             QMessageBox.warning(self, PRODUCT_NAME, error or "状态撤销失败")
             return
+        for key in keys:
+            self.model.drafts.pop(key, None)
+            self.model.selected.discard(key)
         QMessageBox.information(self, PRODUCT_NAME, f"已撤销 {data.get('deleted', 0)} 条维护记录")
         self.load()
 
@@ -1692,11 +3165,30 @@ class NativeAnalyticsPage(QWidget):
         self.client = client
         self.permissions = None if user is None else set(user.get("permissions", []))
         self._analysis_request = 0
-        layout = QVBoxLayout(self)
+        self._coverage_request = 0
+        self._coverage_snapshots = {}
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        body = QWidget()
+        self.scroll.setWidget(body)
+        outer.addWidget(self.scroll)
+        layout = QVBoxLayout(body)
         layout.setContentsMargins(18, 16, 18, 16)
-        title = QLabel("数据可视化")
-        title.setObjectName("pageTitle")
-        layout.addWidget(title)
+        self.site_coverage_host = QWidget()
+        self.site_coverage_host.setObjectName("filterBand")
+        self.site_coverage = QGridLayout(self.site_coverage_host)
+        self.site_coverage_buttons = {}
+        from .native_components import SITE_NAMES
+        for index, (site, name) in enumerate((("", "全部基地"), *SITE_NAMES.items())):
+            control = QPushButton(name)
+            control.setCheckable(True)
+            control.clicked.connect(lambda _, value=site: self._select_site(value))
+            self.site_coverage_buttons[site] = control
+            self.site_coverage.addWidget(control, index // 6, index % 6)
+        layout.addWidget(self.site_coverage_host)
         self.scope_bar = ScopeBar(client)
         layout.addWidget(self.scope_bar)
         self.scope_bar.changed.connect(self._scope_selected)
@@ -1711,8 +3203,11 @@ class NativeAnalyticsPage(QWidget):
         self.analysis_old.setPlaceholderText("对比时填写历史大修")
         for widget in (self.analysis_site, self.analysis_unit, self.analysis_outage):
             widget.hide()
-        scope.addWidget(QLabel("历史大修"))
+        history_label = QLabel("历史大修")
+        history_label.hide()
+        scope.addWidget(history_label)
         scope.addWidget(self.analysis_old)
+        self.analysis_old.hide()
         layout.addLayout(scope)
         analysis_actions = QHBoxLayout()
         self.live_button = QPushButton("加载真实管板分析")
@@ -1733,7 +3228,10 @@ class NativeAnalyticsPage(QWidget):
         analysis_actions.addWidget(self.complex_button)
         analysis_actions.addWidget(self.rules_button)
         analysis_actions.addStretch(1)
-        layout.addLayout(analysis_actions)
+        self.advanced_analysis_controls = QWidget()
+        self.advanced_analysis_controls.setLayout(analysis_actions)
+        self.advanced_analysis_controls.hide()
+        layout.addWidget(self.advanced_analysis_controls)
         self.cards = QGridLayout()
         self.labels: dict[str, QLabel] = {}
         for index, (key, caption) in enumerate((
@@ -1750,6 +3248,7 @@ class NativeAnalyticsPage(QWidget):
             box_layout.addWidget(QLabel(caption))
             self.labels[key] = value
             self.cards.addWidget(box, 0, index)
+            box.hide()
         layout.addLayout(self.cards)
         self.analysis_status = QLabel("输入分析范围后加载真实数据。")
         self.analysis_status.setWordWrap(True)
@@ -1786,15 +3285,23 @@ class NativeAnalyticsPage(QWidget):
         self.complex_tabs.addTab(self.coverage_table, "覆盖与状态")
         self.complex_tabs.addTab(self.quality_text, "质量诊断")
         self.complex_tabs.setVisible(False)
-        self.analysis_details = QCheckBox("显示明细与质量诊断")
+        self.analysis_details = QCheckBox("数据核查与高级分析")
         self.analysis_details.toggled.connect(self.complex_tabs.setVisible)
+        self.analysis_details.toggled.connect(self.advanced_analysis_controls.setVisible)
+        self.analysis_details.toggled.connect(self.analysis_old.setVisible)
+        self.analysis_details.toggled.connect(history_label.setVisible)
         layout.addWidget(self.analysis_details)
         layout.addWidget(self.complex_tabs, 1)
         refresh = QPushButton("刷新统计")
         refresh.clicked.connect(self.load)
-        layout.addWidget(refresh, 0, Qt.AlignmentFlag.AlignLeft)
-        layout.addStretch(1)
+        refresh.hide()
+        self.scope_bar.refresh.clicked.connect(self.load_complex_analysis)
         self.load()
+
+    def _select_site(self, site):
+        index = self.scope_bar.site.findData(site)
+        if index >= 0:
+            self.scope_bar.site.setCurrentIndex(index)
 
     def _scope_selected(self, scope):
         self.analysis_site.setText(scope.get("site") or "")
@@ -1813,6 +3320,38 @@ class NativeAnalyticsPage(QWidget):
 
     def load(self):
         self.client.get("/api/analytics/summary", self._loaded)
+        self._coverage_request += 1
+        self._coverage_pending = True
+        number = self._coverage_request
+        self.client.get("/api/analysis/visualization",
+                        lambda data, error: self._coverage_loaded(data, error)
+                        if number == self._coverage_request else None)
+
+    def _coverage_loaded(self, data, error):
+        self._coverage_pending = False
+        waiting = getattr(self, "_unfiltered_analysis_number", None)
+        self._unfiltered_analysis_number = None
+        if waiting is not None and waiting == self._analysis_request:
+            self._complex_loaded(data, error)
+        if error or not data:
+            self.site_coverage_host.setToolTip(error or "基地覆盖读取失败")
+            return
+        self._coverage_snapshots = {}
+        for item in data.get("snapshots") or []:
+            previous = self._coverage_snapshots.get(item["unit"])
+            if previous is None or item["order"] > previous["order"]:
+                self._coverage_snapshots[item["unit"]] = item
+        self._update_coverage()
+
+    def _update_coverage(self):
+        for site, control in self.site_coverage_buttons.items():
+            snapshots = [snapshot for snapshot in self._coverage_snapshots.values()
+                         if not site or re.match(r"^[A-Z]+", snapshot["unit"])[0] == site]
+            tubes = [tube for snapshot in snapshots for tube in snapshot.get("tubes") or []]
+            reported = sum(tube.get("coverage") != "missing" for tube in tubes)
+            name = control.text().split("\n")[0]
+            control.setText(f"{name}\n{len(snapshots)} 台机组 · {reported / len(tubes):.0%}" if tubes else f"{name}\n0 台机组 · —")
+            control.setChecked(site == (self.scope_bar.site.currentData() or ""))
 
     def _loaded(self, data, error):
         if error or not data:
@@ -1916,6 +3455,9 @@ class NativeAnalyticsPage(QWidget):
         self.analysis_status.setText("正在计算趋势、相邻增量和覆盖质量...")
         self._analysis_request += 1
         number = self._analysis_request
+        if not any(params.values()) and getattr(self, "_coverage_pending", False):
+            self._unfiltered_analysis_number = number
+            return
         self.client.get("/api/analysis/visualization?" + urlencode(params),
                         lambda data, error: self._complex_loaded(data, error)
                         if number == self._analysis_request else None)
@@ -1938,6 +3480,7 @@ class NativeAnalyticsPage(QWidget):
             self.complex_tabs.setVisible(False)
             return
         self.visualization.set_data(data)
+        self._update_coverage()
         trends = data.get("trends") or []
         self._fill_table(self.trend_table, [[
             item.get("unit"), item.get("outage"), item.get("records", 0),
@@ -2072,14 +3615,17 @@ class NativeReportsPage(QWidget):
         self._preview_number = 0
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 16, 18, 16)
-        title = QLabel("报告中心")
-        title.setObjectName("pageTitle")
-        layout.addWidget(title)
         self.report_tabs = QTabBar()
         self.report_tabs.addTab("检验报告单")
         self.report_tabs.addTab("检验结果比对表")
-        layout.addWidget(self.report_tabs)
-        self.scope_bar = ScopeBar(client)
+        report_top = QHBoxLayout()
+        report_top.addWidget(self.report_tabs)
+        report_top.addStretch()
+        self.workbench_scope = button("工作台范围", "database", self._use_workbench_scope)
+        report_top.addWidget(self.workbench_scope)
+        layout.addLayout(report_top)
+        self.scope_bar = ScopeBar(client, stacked=True)
+        self.scope_bar.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         layout.addWidget(self.scope_bar)
         self.scope_bar.changed.connect(self._scope_selected)
         scope = QHBoxLayout()
@@ -2103,28 +3649,32 @@ class NativeReportsPage(QWidget):
         self.history_combo.setEditable(False)
         self.history_combo.currentTextChanged.connect(self.old_outage.setText)
         self.old_outage.hide()
-        for label, control in (("历史大修", self.history_combo),):
-            scope.addWidget(QLabel(label))
-            scope.addWidget(control)
+        self.history_label = QLabel("历史大修")
+        scope.addWidget(self.history_label)
+        scope.addWidget(self.history_combo)
         for control in (self.site, self.unit, self.outage):
             control.hide()
         scope.addStretch()
         layout.addLayout(scope)
-        actions = ToolFlowLayout()
-        self.preview = QPushButton("生成预览")
-        self.export = QPushButton("导出报告")
+        actions = QHBoxLayout()
+        self.preview_heading = QLabel("检验报告单预览")
+        actions.addWidget(self.preview_heading)
+        actions.addStretch()
+        self.preview = button("刷新报告", "refresh-cw")
+        report_top.addWidget(self.preview)
+        self.export = button("导出检验报告单", "file-down")
+        self.export.setProperty("primary", True)
         self.export_format = QComboBox()
-        self.export_format.addItem("DOCX", "docx")
-        self.export_format.addItem("XLSX", "xlsx")
-        header = QPushButton("表头信息")
+        self.export_format.addItem("Word (.docx)", "docx")
+        self.export_format.addItem("Excel (.xlsx)", "xlsx")
+        header = button("表头与设备信息", "clipboard-check")
         self.header_button = header
-        self.edit_draft = QPushButton("编辑报告内容")
+        self.edit_draft = QPushButton("修改草稿")
         self.edit_draft.setEnabled(False)
         self.edit_draft.clicked.connect(self.edit_report)
         clear_draft = QPushButton("清除报告修改")
         clear_draft.clicked.connect(self.clear_report_draft)
         self.use_selected = QCheckBox("仅使用工作台勾选记录")
-        actions.addWidget(self.use_selected)
         header.clicked.connect(self.edit_header)
         self.preview.clicked.connect(self.preview_report)
         self.export.clicked.connect(self.export_report)
@@ -2134,14 +3684,41 @@ class NativeReportsPage(QWidget):
         if self.permissions is not None and "export.create" not in self.permissions:
             self.export.setEnabled(False)
             self.export.setToolTip("当前账户没有报告导出权限")
-        actions.addWidget(self.preview)
-        actions.addWidget(self.export)
-        actions.addWidget(self.export_format)
-        actions.addWidget(self.export_copy)
         actions.addWidget(header)
-        actions.addWidget(self.edit_draft)
-        actions.addWidget(clear_draft)
+        actions.addWidget(self.export_format)
+        actions.addWidget(self.export)
         layout.addLayout(actions)
+        self.header_panel = QScrollArea()
+        self.header_panel.setWidgetResizable(True)
+        self.header_panel.setMaximumHeight(300)
+        header_host = QWidget()
+        header_layout = QVBoxLayout(header_host)
+        self.header_edits = {}
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(12)
+        for index, (key, caption) in enumerate(self.HEADER_FIELDS):
+            field = QWidget()
+            field_layout = QVBoxLayout(field)
+            field_layout.setContentsMargins(0, 0, 0, 0)
+            field_layout.setSpacing(4)
+            field_layout.addWidget(QLabel(caption))
+            edit = QLineEdit(self.header_values.get(key, ""))
+            edit.setObjectName(key)
+            edit.editingFinished.connect(self._save_inline_header)
+            field_layout.addWidget(edit)
+            self.header_edits[key] = edit
+            grid.addWidget(field, index // 3, index % 3)
+        header_layout.addLayout(grid)
+        header_actions = QHBoxLayout()
+        self.import_header_button = button("导入表头设置", "upload", self.import_header_settings)
+        header_actions.addWidget(self.import_header_button)
+        header_actions.addWidget(button("导出表头设置", "download", self.export_header_settings))
+        header_actions.addStretch()
+        header_layout.addLayout(header_actions)
+        self.header_panel.setWidget(header_host)
+        self.header_panel.hide()
+        layout.addWidget(self.header_panel)
         self.templates = QListWidget()
         self.templates.currentItemChanged.connect(self._template_changed)
         self.templates.hide()
@@ -2152,10 +3729,19 @@ class NativeReportsPage(QWidget):
         tools.addWidget(button("", "chevron-left", lambda: self.preview_text.horizontalScrollBar().triggerAction(
             self.preview_text.horizontalScrollBar().SliderAction.SliderPageStepSub)))
         tools.addWidget(button("-", None, lambda: self.preview_text.set_zoom(self.preview_text.zoom - .1)))
+        self.zoom_label = QLabel("100%")
+        self.zoom_label.setMinimumWidth(42)
+        self.zoom_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_text.zoomChanged.connect(lambda value: self.zoom_label.setText(f"{value:.0%}"))
+        tools.addWidget(self.zoom_label)
         tools.addWidget(button("+", None, lambda: self.preview_text.set_zoom(self.preview_text.zoom + .1)))
         tools.addWidget(button("适宽", None, self.preview_text.fit_width))
+        tools.addWidget(button("", "chevron-right", lambda: self.preview_text.horizontalScrollBar().triggerAction(
+            self.preview_text.horizontalScrollBar().SliderAction.SliderPageStepAdd)))
         tools.addWidget(button("保存修改并更新预览", "save", self.preview_report))
         tools.addStretch()
+        tools.addWidget(clear_draft)
+        tools.addWidget(self.edit_draft)
         layout.addLayout(tools)
         document = QSplitter(Qt.Orientation.Horizontal)
         document.addWidget(self.preview_text)
@@ -2170,7 +3756,11 @@ class NativeReportsPage(QWidget):
         self.sources_text.setReadOnly(True)
         self.sources_text.setMaximumHeight(90)
         self.sources_text.hide()
-        layout.addWidget(button("来源追溯", "files", lambda: self.sources_text.setVisible(self.sources_text.isHidden())))
+        footer = ToolFlowLayout()
+        footer.addWidget(button("来源追溯", "files", lambda: self.sources_text.setVisible(self.sources_text.isHidden())))
+        footer.addWidget(self.use_selected)
+        footer.addWidget(self.export_copy)
+        layout.addLayout(footer)
         layout.addWidget(self.sources_text)
         self.status = QLabel("正在读取报告模板...")
         layout.addWidget(self.status)
@@ -2181,7 +3771,7 @@ class NativeReportsPage(QWidget):
         layout.addWidget(self.warnings)
         refresh = QPushButton("刷新模板")
         refresh.clicked.connect(self.load)
-        layout.addWidget(refresh, 0, Qt.AlignmentFlag.AlignLeft)
+        refresh.hide()
         self.load()
         self.kind.currentIndexChanged.connect(self._report_mode_changed)
         self.scope_bar.loaded.connect(lambda _scope: self._populate_history())
@@ -2195,6 +3785,15 @@ class NativeReportsPage(QWidget):
         self.draft_edits = []
         self.draft_table.setRowCount(0)
         self.preview_text.setPlainText("选择范围后生成报告预览")
+        self._draft_source_changed = False
+
+    def source_data_changed(self):
+        self._preview_number += 1
+        self.snapshot_id = None
+        self.preview.setEnabled(True)
+        self._draft_source_changed = bool(self.draft_edits)
+        self.status.setText("业务数据已更新；报告草稿已保留，请核对来源后更新预览" if self.draft_edits
+                            else "业务数据已更新，请重新生成报告预览")
 
     def _report_mode_changed(self, *_):
         comparison = self.kind.currentData() == "comparison"
@@ -2203,8 +3802,19 @@ class NativeReportsPage(QWidget):
         if comparison:
             self.use_selected.setChecked(False)
         self.header_button.setVisible(not comparison)
+        if comparison:
+            self.header_panel.hide()
+        self.history_label.setVisible(comparison)
+        self.history_combo.setVisible(comparison)
+        self.export.setText("导出检验结果比对表" if comparison else "导出检验报告单")
+        self.preview_heading.setText("检验结果比对表预览" if comparison else "检验报告单预览")
         self.history_combo.setEnabled(comparison and self.history_combo.count() > 1)
         self._invalidate_report()
+
+    def _use_workbench_scope(self):
+        owner = self.window()
+        if hasattr(owner, "context"):
+            self.set_workspace_scope(owner.context.scope)
 
     def _scope_selected(self, scope):
         before = (self.site.text(), self.unit.value(), self.outage.text())
@@ -2300,6 +3910,57 @@ class NativeReportsPage(QWidget):
             raise OSError(stream.errorString())
 
     def edit_header(self) -> None:
+        self.header_panel.setVisible(self.header_panel.isHidden())
+
+    def _save_inline_header(self):
+        values = {key: edit.text() for key, edit in self.header_edits.items()}
+        if values == self.header_values:
+            return True
+        try:
+            self._save_header(values)
+        except OSError as exc:
+            self.status.setText(str(exc))
+            return False
+        self.header_values = values
+        self.snapshot_id = None
+        self._preview_number += 1
+        self.status.setText("表头已保存，请更新预览")
+        return True
+
+    def import_header_settings(self):
+        path, _ = QFileDialog.getOpenFileName(self, "选择报告表头设置", "", "JSON (*.json)")
+        if not path:
+            return
+        try:
+            data = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+            fields = data.get("fields")
+            if data.get("schema") != "thimble-report-header" or data.get("version") != 1 or not isinstance(fields, dict):
+                raise ValueError("不是受支持的报告表头设置文件")
+            values = {key: fields.get(key, "") for key, _ in self.HEADER_FIELDS}
+            if not all(isinstance(value, str) for value in values.values()):
+                raise ValueError("表头字段必须是文本")
+            self._save_header(values)
+            self.header_values = values
+            for key, edit in self.header_edits.items():
+                edit.setText(values[key])
+            self.snapshot_id = None
+            self._preview_number += 1
+            self.status.setText("表头设置已导入并保存，请更新预览")
+        except (OSError, ValueError, TypeError, AttributeError) as exc:
+            QMessageBox.warning(self, PRODUCT_NAME, f"导入表头失败：{exc}")
+
+    def export_header_settings(self):
+        if not self._save_inline_header():
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "保存报告表头设置", "报告表头设置.json", "JSON (*.json)")
+        if path:
+            try:
+                self._write_json(path, {"schema": "thimble-report-header", "version": 1, "fields": self.header_values})
+                self.status.setText("报告表头设置已导出")
+            except OSError as exc:
+                QMessageBox.warning(self, PRODUCT_NAME, str(exc))
+
+    def edit_header_dialog(self) -> None:
         dialog = QDialog(self)
         dialog.setWindowTitle("报告表头")
         dialog.resize(720, 760)
@@ -2434,7 +4095,7 @@ class NativeReportsPage(QWidget):
         current = self.export_format.currentData()
         self.export_format.clear()
         for fmt in formats:
-            self.export_format.addItem(str(fmt).upper(), str(fmt))
+            self.export_format.addItem({"docx": "Word (.docx)", "xlsx": "Excel (.xlsx)"}.get(fmt, str(fmt).upper()), str(fmt))
         self.export_format.setCurrentIndex(max(0, self.export_format.findData(current)))
 
     def _select_template_for_kind(self, _index: int = -1) -> None:
@@ -2449,7 +4110,7 @@ class NativeReportsPage(QWidget):
                 self.export_format.blockSignals(True)
                 self.export_format.clear()
                 for fmt in formats:
-                    self.export_format.addItem(str(fmt).upper(), str(fmt))
+                    self.export_format.addItem({"docx": "Word (.docx)", "xlsx": "Excel (.xlsx)"}.get(fmt, str(fmt).upper()), str(fmt))
                 preferred = current if current in formats else formats[0]
                 self.export_format.setCurrentIndex(max(0, self.export_format.findData(preferred)))
                 self.export_format.blockSignals(False)
@@ -2478,6 +4139,13 @@ class NativeReportsPage(QWidget):
         return payload
 
     def preview_report(self) -> None:
+        if getattr(self, "_draft_source_changed", False):
+            answer = QMessageBox.question(self, "核对报告草稿",
+                "来源数据已变化，当前草稿仍保留。确认将这些修改应用到当前来源并生成预览？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+            self._draft_source_changed = False
         if self.use_selected.isChecked():
             context = getattr(self.window(), "context", None)
             if not context or not context.selected:
@@ -2970,8 +4638,8 @@ class NativeSettingsPage(QWidget):
         self.change_password = QPushButton("修改当前密码")
         self.change_password.clicked.connect(self.change_current_password)
         account_layout.addRow("", self.change_password)
-        self.users_table = QTableWidget(0, 4)
-        self.users_table.setHorizontalHeaderLabels(["用户名", "显示名称", "角色", "状态"])
+        self.users_table = QTableWidget(0, 5)
+        self.users_table.setHorizontalHeaderLabels(["用户名", "显示名称", "角色", "状态", "最近登录"])
         self.users_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.users_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.users_table.horizontalHeader().setStretchLastSection(True)
@@ -3107,6 +4775,7 @@ class NativeSettingsPage(QWidget):
                 item.get("display_name", ""),
                 "、".join(item.get("roles", [])),
                 "启用" if item.get("active") else "停用",
+                item.get("last_login") or "尚未登录",
             )
             for column, value in enumerate(values):
                 self.users_table.setItem(row, column, QTableWidgetItem(str(value)))
@@ -3359,9 +5028,26 @@ class NativeThreeDPage(QWidget):
         self._syncing_scope = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 16, 18, 16)
-        heading = QLabel("三维检测分布")
-        heading.setObjectName("pageTitle")
-        layout.addWidget(heading)
+        toolbar = QHBoxLayout()
+        self.scene_settings_button = button("", "settings")
+        self.scene_settings_button.setToolTip("三维显示设置")
+        self.scene_settings_button.setCheckable(True)
+        toolbar.addWidget(self.scene_settings_button)
+        self.mode_tabs = QTabBar()
+        for label in ("整体布置", "接口详图", "整管视图", "管座剖视"):
+            self.mode_tabs.addTab(label)
+        self.mode_tabs.setExpanding(False)
+        toolbar.addWidget(self.mode_tabs)
+        self.detection_filter_button = button("检测筛选", "funnel")
+        self.detection_filter_button.setCheckable(True)
+        toolbar.addWidget(self.detection_filter_button)
+        self.plate_view = button("管板图：关", "tube-plate-grid")
+        self.plate_view.setCheckable(True)
+        self.plate_view.toggled.connect(self._plate_view_changed)
+        toolbar.addWidget(self.plate_view)
+        toolbar.addWidget(button("默认视角", "rotate-ccw", self._reset_three_d_view))
+        toolbar.addStretch()
+        layout.addLayout(toolbar)
         controls = QHBoxLayout()
         controls.addWidget(QLabel("检测范围"))
         self.scope = QComboBox()
@@ -3384,14 +5070,20 @@ class NativeThreeDPage(QWidget):
         reset_view.clicked.connect(self._reset_three_d_view)
         controls.addWidget(reset_view)
         controls.addStretch(1)
-        layout.addLayout(controls)
+        scope_host = QWidget()
+        scope_host.setLayout(controls)
+        scope_host.hide()
+        self.detection_filter_button.toggled.connect(scope_host.setVisible)
+        layout.addWidget(scope_host)
         views = QHBoxLayout()
         self.display_mode = QComboBox()
         for label, mode in (("整体布置", "assembly"), ("管板俯视", "plate"),
-                            ("单管全长", "full"), ("管座装配", "socket")):
+                            ("单管全长", "full"), ("管座剖视", "socket"), ("接口详图", "joint")):
             self.display_mode.addItem(label, mode)
         self.display_mode.currentIndexChanged.connect(self._display_changed)
         views.addWidget(self.display_mode)
+        self.display_mode.hide()
+        self.mode_tabs.currentChanged.connect(self._mode_tab_changed)
         self.tube_selector = QSpinBox()
         self.tube_selector.setRange(1, 50)
         self.tube_selector.setPrefix("管号 ")
@@ -3410,7 +5102,13 @@ class NativeThreeDPage(QWidget):
         self.maintenance_preview.toggled.connect(self._rebuild_scene)
         views.addWidget(self.maintenance_preview)
         views.addStretch()
-        layout.addLayout(views)
+        self.scene_settings_host = QWidget()
+        scene_settings_layout = QVBoxLayout(self.scene_settings_host)
+        scene_settings_layout.setContentsMargins(0, 0, 0, 0)
+        scene_settings_layout.addLayout(views)
+        self.scene_settings_host.hide()
+        self.scene_settings_button.toggled.connect(self.scene_settings_host.setVisible)
+        layout.addWidget(self.scene_settings_host)
         tools = QGridLayout()
         self.camera_preset = QComboBox()
         # Keep the seven standard engineering views available as explicit
@@ -3479,7 +5177,7 @@ class NativeThreeDPage(QWidget):
                                    lambda: export_widget_image(self, self.client, self.view, "导出三维视图"))
         tools.addWidget(self.image_export, 0, 7)
         tools.setColumnStretch(8, 1)
-        layout.addLayout(tools)
+        scene_settings_layout.addLayout(tools)
         self.status = QLabel("正在读取检测范围...")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -3520,25 +5218,100 @@ class NativeThreeDPage(QWidget):
             root.setProperty("columns", [{**row, "meshId": f"column-{index}"}
                                          for index, row in enumerate(reference_layout()["structure"]["columns"])])
         self.view_container.setMinimumSize(320, 280)
-        split = QSplitter()
-        split.addWidget(self.view_container)
+        self.scene_host = QWidget()
+        scene_layout = QGridLayout(self.scene_host)
+        scene_layout.setContentsMargins(0, 0, 0, 0)
+        scene_layout.addWidget(self.view_container, 0, 0)
         detail_host = QWidget()
+        detail_host.setObjectName("workspacePanel")
         detail_host.setMinimumWidth(240)
         detail_host.setMaximumWidth(390)
         detail_layout = QVBoxLayout(detail_host)
+        self.data_details_button = button("检测数据", "files")
+        self.data_details_button.setCheckable(True)
+        detail_layout.addWidget(self.data_details_button)
+        details_body = QWidget()
+        details_body_layout = QVBoxLayout(details_body)
+        details_body_layout.setContentsMargins(0, 0, 0, 0)
         self.detail = QLabel("选择管子查看检测记录与维护状态")
         self.detail.setWordWrap(True)
-        detail_layout.addWidget(self.detail)
+        details_body_layout.addWidget(self.detail)
         self.records = QListWidget()
         self.records.currentRowChanged.connect(self._record_selected)
-        detail_layout.addWidget(self.records, 1)
+        details_body_layout.addWidget(self.records, 1)
         self.record_detail = QPlainTextEdit()
         self.record_detail.setReadOnly(True)
-        detail_layout.addWidget(self.record_detail, 1)
-        split.addWidget(detail_host)
-        split.setSizes([1000, 300])
-        layout.addWidget(split, 1)
+        details_body_layout.addWidget(self.record_detail, 1)
+        details_body.setMaximumHeight(450)
+        details_body.hide()
+        detail_layout.addWidget(details_body)
+        self.data_details_button.toggled.connect(details_body.setVisible)
+        scene_layout.addWidget(detail_host, 0, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+        footer = QWidget()
+        footer.setObjectName("workspacePanel")
+        footer_layout = QVBoxLayout(footer)
+        footer_layout.setContentsMargins(8, 5, 8, 5)
+        footer_layout.setSpacing(4)
+        camera_row = QHBoxLayout()
+        self.camera_buttons = []
+        for index in range(self.camera_preset.count()):
+            control = QPushButton(self.camera_preset.itemText(index))
+            control.setCheckable(True)
+            control.setChecked(index == 0)
+            control.clicked.connect(lambda _, value=index: self.camera_preset.setCurrentIndex(value))
+            self.camera_buttons.append(control)
+            camera_row.addWidget(control)
+        camera_row.addWidget(button("适配", None, self._fit_scene))
+        self.auto_rotate = QCheckBox("自动旋转")
+        self.auto_rotate.toggled.connect(self._rotation_changed)
+        camera_row.addWidget(self.auto_rotate)
+        footer_layout.addLayout(camera_row)
+        tube_row = QHBoxLayout()
+        previous_tube = button("", "chevron-left", lambda: self.tube_selector.setValue(max(1, self.tube_selector.value() - 1)))
+        previous_tube.setToolTip("上一根管")
+        tube_row.addWidget(previous_tube)
+        tube_row.addWidget(self.tube_selector)
+        self.tube_slider = QSlider(Qt.Orientation.Horizontal)
+        self.tube_slider.setRange(1, 50)
+        self.tube_slider.setValue(1)
+        self.tube_slider.valueChanged.connect(self.tube_selector.setValue)
+        self.tube_selector.valueChanged.connect(self.tube_slider.setValue)
+        tube_row.addWidget(self.tube_slider, 1)
+        tube_row.addWidget(QLabel("/ 50"))
+        next_tube = button("", "chevron-right", lambda: self.tube_selector.setValue(min(50, self.tube_selector.value() + 1)))
+        next_tube.setToolTip("下一根管")
+        tube_row.addWidget(next_tube)
+        tube_row.addWidget(button("管子详情", "files", self.data_details_button.toggle))
+        footer_layout.addLayout(tube_row)
+        scene_layout.addWidget(footer, 0, 0, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter)
+        layout.addWidget(self.scene_host, 1)
+        self._rotation_timer = QTimer(self)
+        self._rotation_timer.setInterval(33)
+        self._rotation_timer.timeout.connect(self._rotate_scene)
         self.load_overview()
+
+    def _fit_scene(self):
+        for name, value in (("zoomFactor", 1), ("panX", 0), ("panY", 0)):
+            self._set_scene_property(name, value)
+
+    def _rotation_changed(self, checked):
+        if checked and self.isVisible():
+            self._rotation_timer.start()
+        else:
+            self._rotation_timer.stop()
+
+    def _rotate_scene(self):
+        root = self.view.rootObject()
+        if root:
+            self._set_scene_property("yaw", (float(root.property("yaw") or 0) + .6) % 360)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._rotation_changed(self.auto_rotate.isChecked())
+
+    def hideEvent(self, event):
+        self._rotation_timer.stop()
+        super().hideEvent(event)
 
     def _set_scene_property(self, name, value):
         root = self.view.rootObject()
@@ -3552,10 +5325,19 @@ class NativeThreeDPage(QWidget):
         self.measurement_value.clear()
         self._reset_three_d_view()
 
+    def _mode_tab_changed(self, index):
+        self.display_mode.setCurrentIndex((0, 4, 2, 3)[index])
+
+    def _plate_view_changed(self, enabled):
+        self.plate_view.setText("管板图：开" if enabled else "管板图：关")
+        self._set_scene_property("showPlateOverlay", enabled)
+
     def _camera_changed(self):
         yaw, pitch = self.camera_preset.currentData()
         self._set_scene_property("yaw", yaw)
         self._set_scene_property("pitch", pitch)
+        for index, control in enumerate(self.camera_buttons):
+            control.setChecked(index == self.camera_preset.currentIndex())
 
     def _scope_selected_ui(self):
         self.load_scope()
@@ -3664,12 +5446,15 @@ class NativeThreeDPage(QWidget):
             self.status.setText("三维场景无法初始化")
             return
         self.rows = rows
+        self._set_scene_property("plateUnit", int((self.scope.currentData() or {}).get("unit") or 0))
         self.record_details = details
         root.setProperty("tubes", tubes)
         root.setProperty("defects", defects)
-        self.status.setText(f"缺陷 {len(defects)} 处已定位，{len(unresolved)} 处位置待确认。"
-                            "红：缺陷 | 黄：待复核 | 绿：NDD | 灰：无记录。原工程参考管长与布置；"
-                            "P 位包含推导/推定基面，非电厂实测标定。")
+        scope = self.scope.currentData() or {}
+        self.status.setText(f"{scope.get('outage', '')} · {scope.get('unit', '')}号机组 · "
+                            f"缺陷 {len(defects)} 处已定位 · {len(unresolved)} 处位置待确认")
+        self.status.setToolTip("原工程参考管长与布置；P 位包含推导/推定基面，非电厂实测标定。")
+        self.data_details_button.setText(f"检测数据 · {sum(len(items) for items in details.values())} 条记录")
         self._update_three_d_filters()
         self.show_tube(self.tube_selector.value())
 
@@ -3699,6 +5484,9 @@ class NativeThreeDPage(QWidget):
         self.tube_selector.blockSignals(True)
         self.tube_selector.setValue(number)
         self.tube_selector.blockSignals(False)
+        self.tube_slider.blockSignals(True)
+        self.tube_slider.setValue(number)
+        self.tube_slider.blockSignals(False)
         self._set_scene_property("selectedTube", number)
         scope = self.scope.currentData()
         if scope and not self._syncing_scope:
@@ -3742,6 +5530,7 @@ class NativeThreeDPage(QWidget):
         if self._view_shutdown:
             return
         self._view_shutdown = True
+        self._rotation_timer.stop()
         view = self.view
         try:
             if not self._headless_view:
@@ -3801,15 +5590,18 @@ class NativeMainWindow(QMainWindow):
             self.setWindowIcon(QIcon(str(APP_ICON)))
 
         root = QWidget(self)
+        root.setObjectName("appRoot")
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         top = QWidget()
         top.setObjectName("topNavigation")
+        top.setFixedHeight(62)
         top_layout = QHBoxLayout(top)
-        top_layout.setContentsMargins(14, 8, 14, 8)
+        top_layout.setContentsMargins(8, 6, 14, 6)
         self.nav = QTabBar()
+        self.nav.setObjectName("mainNavigation")
         self.nav.setExpanding(False)
         for label, name in (("数据工作台", "database"), ("三维缺陷模型", "box"),
                             ("数据可视化", "chart-no-axes-combined"), ("报告中心", "files"),
@@ -3817,14 +5609,29 @@ class NativeMainWindow(QMainWindow):
             self.nav.addTab(icon(name), label)
         top_layout.addWidget(self.nav)
         top_layout.addStretch()
-        self.account_button = button(str(user.get("display_name") or user.get("username") or "账户"),
+        self.account_button = button(str(user.get("display_name") or user.get("username") or "账户") + "\n已登录",
                                       None, lambda: self.open_settings(4))
+        self.account_button.setProperty("account", True)
+        self.account_button.setMinimumWidth(118)
+        self.account_button.setToolTip("账户与权限 · 已登录")
+        self.connection_status = QLabel("● 本机服务已连接")
+        self.connection_status.setObjectName("muted")
+        self.connection_status.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.notifications_button = button("", "bell", self.show_notifications)
         self.notifications_button.setToolTip("通知中心")
         self.settings_button = button("", "settings", lambda: self.open_settings(0))
         self.settings_button.setToolTip("软件设置")
+        utilities = QWidget()
+        utilities_layout = QVBoxLayout(utilities)
+        utilities_layout.setContentsMargins(0, 0, 0, 0)
+        utilities_layout.setSpacing(0)
+        utilities_row = QHBoxLayout()
+        utilities_row.setSpacing(6)
         for control in (self.account_button, self.notifications_button, self.settings_button):
-            top_layout.addWidget(control)
+            utilities_row.addWidget(control)
+        utilities_layout.addLayout(utilities_row)
+        utilities_layout.addWidget(self.connection_status)
+        top_layout.addWidget(utilities)
         layout.addWidget(top)
         self.stack = QStackedWidget()
         self.workbench = DataWorkbench(client, user)
@@ -3841,6 +5648,7 @@ class NativeMainWindow(QMainWindow):
         self.settings_dialog = SettingsDialog(client, self.context.preferences, settings,
                                               self.maintenance, self.stack.widget(3).manage_analysis_rules, self)
         self.settings_dialog.preferencesChanged.connect(self.apply_preferences)
+        self.workbench.recycleRequested.connect(self._open_recycle)
         for page in self.maintenance.findChildren(JsonTablePage):
             page.contextRequested.connect(self._open_record_context)
         layout.addWidget(self.stack, 1)
@@ -3877,7 +5685,7 @@ class NativeMainWindow(QMainWindow):
         start = prefs["last_page"] if prefs["remember_page"] else prefs["start_page"]
         self.nav.setCurrentIndex(max(0, min(4, int(start))))
         self._navigate(self.nav.currentIndex())
-        self.statusBar().showMessage("本机服务已连接 · SQLite")
+        self.statusBar().hide()
 
     def _navigate(self, index):
         if not 0 <= index < 5:
@@ -3903,6 +5711,11 @@ class NativeMainWindow(QMainWindow):
         self.settings_dialog.show()
         self.settings_dialog.raise_()
         self.settings_dialog.activateWindow()
+
+    def _open_recycle(self):
+        self.maintenance.tabs.setCurrentWidget(self.maintenance.recycle)
+        self.maintenance.recycle.load()
+        self.open_settings(6)
 
     def _open_record_context(self, scope):
         self.settings_dialog.hide()
@@ -3931,7 +5744,10 @@ class NativeMainWindow(QMainWindow):
         self.client.get("/api/overview", overview_loaded)
         if self._refresh_workbench:
             self.workbench.load_findings()
+        self.workbench.refresh_selection()
         self.stack.widget(1).load()
+        self.client.get("/api/settings/state-direction", self.stack.widget(1)._direction_loaded)
+        self.client.get("/api/settings/state-direction", self.settings_dialog._direction_loaded)
         analytics = self.stack.widget(3)
         analytics.load()
         analytics.load_complex_analysis()
@@ -3939,8 +5755,7 @@ class NativeMainWindow(QMainWindow):
                      self.maintenance.validation, self.maintenance.recycle):
             page.load()
         reports = self.stack.widget(4)
-        reports._invalidate_report()
-        reports.status.setText("业务数据已更新，请重新生成报告预览")
+        reports.source_data_changed()
 
     def apply_preferences(self):
         prefs = self.context.preferences.values
@@ -3960,19 +5775,32 @@ class NativeMainWindow(QMainWindow):
             plate.update()
         visualization = self.stack.widget(3).visualization
         visualization.set_theme(theme, prefs["animations"])
-        self.workbench.table.verticalHeader().setDefaultSectionSize(27 if prefs["density"] == "compact" else 34)
+        visualization.set_severity(prefs["depth_levels"], prefs["depth_colors"])
+        self.workbench.table.verticalHeader().setDefaultSectionSize(28 if prefs["density"] == "compact" else 37)
+        if self.workbench.auto_ndd != prefs["auto_ndd"]:
+            self.workbench.auto_ndd = prefs["auto_ndd"]
+            self.workbench.apply_filters()
 
     def _notify_error(self, path, error):
         self.statusBar().showMessage(error)
 
     def _request_finished(self, path, data, error):
-        if (data or {}).get("dry_run") or (data or {}).get("check_only"):
+        if (error or not data or data.get("ok") is False or data.get("success") is False
+                or any(data.get(key) for key in ("dry_run", "check_only", "requires_indication_decision", "unchanged"))):
             return
-        if not error and path in {"/api/state", "/api/states/batch", "/api/states/delete-batch",
-                                  "/api/states/import", "/api/recycle-bin/restore", "/api/import",
-                                  "/api/import-excel", "/api/deduplicate", "/api/import-batches/action",
-                                  "/api/cross-group-reviews", "/api/state-delete"}:
-            self.context.dataChanged.emit()
+        read_only = {"/api/data-ledger/export", "/api/settings/data-source/validate", "/api/reports/preview",
+                     "/api/reports/export", "/api/report-options", "/api/discover-server", "/api/import-excel-inspect",
+                     "/api/data-quality/export", "/api/export-indication-warnings", "/api/backup-validate",
+                     "/api/export-comparison", "/api/export-evolution", "/api/export-report", "/api/report-preview",
+                     "/api/data/delete-preview", "/api/export-folder-excel", "/api/states/batch-preview",
+                     "/api/states/import-preview", "/api/states/export", "/api/states/recognize-note",
+                     "/api/import-directory-preview", "/api/security/image-export", "/api/audits/export",
+                     "/api/backup", "/api/backup-policy", "/api/settings/data-source"}
+        if path.startswith("/api/auth/") or path in read_only:
+            return
+        if self._data_refresh.isActive() and not self._refresh_workbench:
+            return
+        self.context.dataChanged.emit()
 
     def show_notifications(self):
         self.task_center.show()

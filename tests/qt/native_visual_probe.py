@@ -34,7 +34,7 @@ def main():
     os.environ.setdefault("QSG_RENDER_LOOP", "basic")
     sys.path.insert(0, str(project))
     from PySide6.QtCore import QTimer
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QTableWidget, QScrollArea
     from qt_shell.backend_service import BackendService
     from qt_shell.log_utils import ServiceLog
     from qt_shell.native_client import NativeClient
@@ -86,15 +86,22 @@ def main():
         window.nav.setCurrentIndex(2)
         until(app, lambda: bool(analytics.visualization.data.get("snapshots")), "chart dataset")
         vis = analytics.visualization
-        for main_tab, sub_tabs in ((0, None), (1, vis.trends), (2, None), (3, vis.risk)):
+        for main_tab, sub_tabs in ((0, None), (1, vis.trends), (2, None), (3, None), (4, vis.risk)):
             vis.setCurrentIndex(main_tab)
             for sub_tab in range(sub_tabs.count() if sub_tabs else 1):
                 if sub_tabs:
                     sub_tabs.setCurrentIndex(sub_tab)
-                wait(app, 150)
+                wait(app, 300)
                 name = f"chart-{main_tab}-{sub_tab}.png"
                 window.grab().save(str(work / name))
                 result["screens"].append(name)
+                if main_tab == 0:
+                    analytics.scroll.ensureWidgetVisible(vis.unit_overview)
+                    wait(app, 100)
+                    unit_name = "overview-unit-history.png"
+                    window.grab().save(str(work / unit_name))
+                    result["screens"].append(unit_name)
+                    analytics.scroll.verticalScrollBar().setValue(0)
         result["analytics"] = {"snapshots": len(vis.data["snapshots"]),
                                "change_rows": len(vis.change_result.get("rows") or []),
                                "longitudinal_points": vis.longitudinal_table.rowCount(),
@@ -128,6 +135,37 @@ def main():
                     assert colors > 30, (scene_name, colors)
                 result["layouts"].append({"requested": [width, height], "actual": [window.width(), window.height()],
                                           "page": page, "screen": name})
+            window.nav.setCurrentIndex(3)
+            reports.edit_header()
+            wait(app, 100)
+            name = f"header-{width}-{theme}.png"
+            window.grab().save(str(work / name))
+            result["screens"].append(name)
+            reports.edit_header()
+            window.nav.setCurrentIndex(4)
+            states = window.stack.widget(1)
+            states._show_state_summary("maintained")
+            until(app, lambda: states.summary_dialog.findChild(QTableWidget).rowCount() > 0,
+                "maintenance summary")
+            name = f"state-summary-{width}-{theme}.png"
+            states.summary_dialog.grab().save(str(work / name))
+            result["screens"].append(name)
+            states.summary_dialog.close()
+            states.batch_mode.setChecked(True)
+            states._select_batch(True)
+            states.batch_state.setCurrentIndex(states.batch_state.findData("shifted"))
+            states.findChild(QScrollArea).ensureWidgetVisible(states.batch_editor)
+            wait(app, 100)
+            name = f"state-batch-{width}-{theme}.png"
+            window.grab().save(str(work / name))
+            result["screens"].append(name)
+            states.batch_mode.setChecked(False)
+            QTest.mouseClick(window.notifications_button, Qt.MouseButton.LeftButton)
+            wait(app, 100)
+            name = f"notifications-{width}-{theme}.png"
+            window.grab().save(str(work / name))
+            result["screens"].append(name)
+            QTest.mouseClick(window.notifications_button, Qt.MouseButton.LeftButton)
         window.settings_dialog.resize(1024, 768)
         result["settings_layouts"] = []
         for category in range(window.settings_dialog.nav.count()):

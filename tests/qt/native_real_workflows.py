@@ -60,6 +60,29 @@ def run(app, window, client, work, scope, request, wait, until):
     result["excel"] = {"check_parsed": checked["preflight_parsed"], "check_wrote": 0,
                        "first_inserted": first["inserted"], "repeat_inserted": second["inserted"],
                        "repeat_skipped": second["skipped"]}
+    queue = ImportWizard(client, DataWorkbench.MAPPING_FIELDS, {}, window)
+    queue.show()
+    queue.set_sources([project / "指套管检测数据_按原工作表整理.xlsx",
+                       project / "指套管检测数据_按原工作表整理_已核对.xlsx"])
+    click(queue.button(QWizard.WizardButton.NextButton))
+    until(app, lambda: queue.currentId() == 1, "two real workbook recognition", 60)
+    click(queue.button(QWizard.WizardButton.NextButton))
+    until(app, lambda: queue.currentId() == 2, "two real workbook preflight", 90)
+    assert len(queue.result["files"]) == 2
+    assert all(payload.get("expected_sha256") for payload in queue._batch_payloads)
+    expected_parsed = queue.result["parsed"]
+    click(queue.button(QWizard.WizardButton.NextButton))
+    until(app, lambda: queue.currentId() == 4, "two real workbook commit", 90)
+    assert not queue.retry.isVisible(), queue.result_summary.text()
+    assert len(queue.result["files"]) == 2
+    assert all(row.get("batch_id") for row in queue.result["files"])
+    assert queue.result["parsed"] == expected_parsed
+    result["excel_queue"] = {"files": 2, "parsed": expected_parsed,
+                             "inserted": queue.result["inserted"], "skipped": queue.result["skipped"],
+                             "per_file_hash_checked": True,
+                             "batch_ids": [row["batch_id"] for row in queue.result["files"]]}
+    click(queue.button(QWizard.WizardButton.FinishButton))
+    queue.deleteLater()
     rpt_dir = (project / "02_项目原始资料" / "03_原始检测数据" / "测试数据" /
                "指套管数据1" / "H209" / "数据" / "2.3 指套管")
     directory_runs = []
@@ -72,6 +95,33 @@ def run(app, window, client, work, scope, request, wait, until):
         click(wizard.button(QWizard.WizardButton.NextButton))
         until(app, lambda: wizard.currentId() == 1, "real RPT candidates", 60)
         assert len(wizard.group_controls) >= 1, wizard.mapping_note.text()
+        if attempt == 0:
+            count_before = request(client, "GET", "/api/findings?size=1")["total"]
+            output = work / "rpt-standard-only.xlsx"
+            with patch.object(QFileDialog, "getSaveFileName", return_value=(str(output), "Excel (*.xlsx)")):
+                click(wizard.directory_export)
+                until(app, lambda: output.is_file(), "RPT standard Excel only", 60)
+            with zipfile.ZipFile(output) as archive:
+                namespace = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+                workbook = ET.fromstring(archive.read("xl/workbook.xml"))
+                sheets = [sheet.get("name") for sheet in workbook.findall("s:sheets/s:sheet", namespace)]
+                data_rows = sum(max(0, len(ET.fromstring(archive.read(name)).findall(
+                    "s:sheetData/s:row", namespace)) - 1) for name in archive.namelist()
+                    if name.startswith("xl/worksheets/sheet") and name.endswith(".xml"))
+                assert data_rows >= 123, (sheets, data_rows)
+                import base64
+                import zlib
+                properties = ET.fromstring(archive.read("docProps/custom.xml"))
+                encoded = next("".join(prop.itertext()) for prop in properties
+                               if prop.get("name") == "ThimbleRPTMetadataV2")
+                metadata = json.loads(zlib.decompress(base64.b64decode(encoded)))
+                assert metadata["version"] == 2
+                assert any(row.get("RPT SHA-256") and row.get("SUM SHA-256")
+                           for row in metadata["confirmation"])
+            assert request(client, "GET", "/api/findings?size=1")["total"] == count_before
+            result["rpt_standard_only"] = {"saved": True, "sheets": sheets,
+                                           "data_rows": data_rows, "metadata_hashes_retained": True,
+                                           "findings_unchanged": True}
         click(wizard.button(QWizard.WizardButton.NextButton))
         until(app, lambda: wizard.currentId() == 2, "real RPT preflight", 60)
         assert wizard.preview_table.rowCount() > 0
@@ -93,14 +143,9 @@ def run(app, window, client, work, scope, request, wait, until):
     wait(app, 200)
     header_path = project / "宁德核电厂_报告表头设置.json"
     expected_header = json.loads(header_path.read_text(encoding="utf-8-sig"))["fields"]
-    def import_header():
-        dialog = app.activeModalWidget()
-        assert dialog is not None
-        importer = next(b for b in dialog.findChildren(QPushButton) if b.text() == "导入表头设置")
-        with patch.object(QFileDialog, "getOpenFileName", return_value=(str(header_path), "JSON (*.json)")):
-            click(importer)
-        click(dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Ok))
-    QTimer.singleShot(50, import_header)
+    reports.edit_header()
+    with patch.object(QFileDialog, "getOpenFileName", return_value=(str(header_path), "JSON (*.json)")):
+        click(reports.import_header_button)
     reports.edit_header()
     assert reports.header_values == expected_header
     assert reports._load_saved_header() == expected_header

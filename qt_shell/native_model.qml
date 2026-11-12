@@ -28,6 +28,8 @@ Rectangle {
     property bool showMissing: true
     property string tubeType: ""
     property bool showAxes: false
+    property bool showPlateOverlay: false
+    property int plateUnit: 0
     property real explode: 0
     property bool clipEnabled: false
     property string clipAxis: "x"
@@ -41,7 +43,7 @@ Rectangle {
     component SectionMaterial: CustomMaterial {
         property color tint: "#a9bac6"
         property real alphaValue: root.modelOpacity
-        property bool clipActive: root.clipEnabled
+        property bool clipActive: root.clipEnabled || root.displayMode === "socket"
         property real clipDistance: root.clipOffset
         property vector3d clipNormal: Qt.vector3d(root.clipAxis === "x" ? 1 : 0,
                                                   root.clipAxis === "y" ? 1 : 0,
@@ -69,7 +71,8 @@ Rectangle {
         for (const hit of hits) {
             if (!hit.objectHit || !hit.objectHit.tubeNumber) continue
             const p = hit.scenePosition
-            if (clipEnabled && (clipAxis === "x" ? p.x : clipAxis === "y" ? p.y : p.z) > clipOffset) continue
+            if ((clipEnabled || displayMode === "socket") &&
+                (clipAxis === "x" ? p.x : clipAxis === "y" ? p.y : p.z) > clipOffset) continue
             return hit
         }
         return null
@@ -103,6 +106,7 @@ Rectangle {
             backgroundMode: SceneEnvironment.Color
             clearColor: "#edf2f4"
             antialiasingMode: SceneEnvironment.MSAA
+            tonemapMode: SceneEnvironment.TonemapModeAces
         }
         Node {
             eulerRotation.y: root.yaw
@@ -124,6 +128,22 @@ Rectangle {
             ambientColor: "#505050"
         }
         DirectionalLight { eulerRotation: Qt.vector3d(20,160,0); brightness: 0.35 }
+        Model {
+            visible: root.showPlateOverlay && root.tubes.length > 0
+            geometry: ReferenceGeometry { partId: "plateOverlay" }
+            pickable: false
+            materials: DefaultMaterial {
+                lighting: DefaultMaterial.NoLighting
+                cullMode: Material.NoCulling
+                diffuseMap: Texture {
+                    textureData: PlateTextureData {
+                        active: root.showPlateOverlay
+                        unitNumber: root.plateUnit
+                        selectedTube: root.selectedTube
+                    }
+                }
+            }
+        }
         Model {
             visible: root.showDome && root.displayMode === "assembly" && root.tubes.length > 0
             geometry: ReferenceGeometry { partId: "dome" }
@@ -168,16 +188,16 @@ Rectangle {
                     (modelData.category === "defect" ? root.showDefect :
                      modelData.category === "incomplete" ? root.showReview :
                      modelData.category === "ndd" ? root.showNdd : root.showMissing)
-                position: single ? Qt.vector3d(0,root.displayMode === "socket" ? -760 : -modelData.length/2,0) :
+                position: single ? Qt.vector3d(0,root.displayMode === "socket" || root.displayMode === "joint" ? -760 : -modelData.length/2,0) :
                                    Qt.vector3d(modelData.x,modelData.yBase,modelData.z)
-                scale: root.displayMode === "socket" ? Qt.vector3d(12,12,12) : Qt.vector3d(1,1,1)
+                scale: root.displayMode === "socket" || root.displayMode === "joint" ? Qt.vector3d(12,12,12) : Qt.vector3d(1,1,1)
                 Model {
                     property int tubeNumber: tubeNode.modelData.tube
                     geometry: tubeGeometry
                     pickable: true
                     visible: root.displayMode !== "socket" && root.displayMode !== "plate"
                     scale: Qt.vector3d(root.enlargeTubes ? 3 : 1,
-                                       root.displayMode === "plate" ? .015 : tubeNode.modelData.length/3000,
+                                       root.displayMode === "joint" ? .08 : tubeNode.modelData.length/3000,
                                        root.enlargeTubes ? 3 : 1)
                     materials: SectionMaterial {
                         tint: tubeNode.selected ? "#f4bd3c" : tubeNode.modelData.color
@@ -210,7 +230,7 @@ Rectangle {
                     materials: SectionMaterial { tint:"#b6aa83"; alphaValue: 1 }
                 }
                 Model {
-                    visible: root.showSockets && tubeNode.single && root.displayMode === "full"
+                    visible: root.showSockets && tubeNode.single && (root.displayMode === "full" || root.displayMode === "joint")
                     geometry: penetrationGeometry
                     materials: SectionMaterial { tint:"#7c9aa4"; alphaValue:.45 }
                 }
@@ -234,7 +254,7 @@ Rectangle {
                 property int tubeNumber: modelData.tube
                 source: "#Sphere"
                 pickable: true
-                visible: root.showDefect && root.displayMode !== "plate" && root.displayMode !== "socket" &&
+                visible: root.showDefect && root.displayMode !== "plate" && root.displayMode !== "socket" && root.displayMode !== "joint" &&
                          (root.displayMode === "assembly" || modelData.tube === root.selectedTube)
                 position: root.displayMode === "assembly" ? Qt.vector3d(modelData.x,modelData.y,modelData.z) :
                           Qt.vector3d(0,modelData.y-modelData.yBase-modelData.length/2,0)

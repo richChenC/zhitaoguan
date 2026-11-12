@@ -87,7 +87,7 @@ def main():
     }
     mode_colors = {}
     root.setProperty("selectedTube", 1)
-    for mode in ("plate", "full", "socket"):
+    for mode in ("plate", "full", "socket", "joint"):
         root.setProperty("displayMode", mode)
         root.resetView()
         wait(250)
@@ -187,6 +187,15 @@ def real_data_probe(database):
     work = test_root / ("native-3d-widget-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     work.mkdir()
     image.save(str(work / "assembly.png"))
+    page.plate_view.setChecked(True)
+    wait(400)
+    overlay = page.view.grabWindow()
+    output["overlay_changed_pixels"] = sum(a != b for a, b in zip(pixels(image), pixels(overlay)))
+    assert output["overlay_changed_pixels"] > 100, "Reference plate overlay was not rendered"
+    assert page.display_mode.currentData() == "assembly"
+    overlay.save(str(work / "plate-overlay.png"))
+    page.plate_view.setChecked(False)
+    wait(150)
     points = []
     for y in range(0, image.height(), 12):
         for x in range(0, image.width(), 12):
@@ -227,7 +236,7 @@ def real_data_probe(database):
     assert root.property("measurementCount") == 2 and "mm" in page.measurement_value.text()
     output["measurement"] = page.measurement_value.text()
     output["mode_colors"] = {}
-    for mode in ("plate", "full", "socket"):
+    for mode in ("plate", "full", "socket", "joint"):
         page.display_mode.setCurrentIndex(page.display_mode.findData(mode))
         wait(200)
         frame = page.view.grabWindow()

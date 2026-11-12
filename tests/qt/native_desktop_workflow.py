@@ -96,7 +96,7 @@ def main() -> int:
     from PySide6.QtCore import QPoint, QTimer, Qt
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import (QApplication, QCheckBox, QDialogButtonBox, QLineEdit,
-                                  QMessageBox, QPlainTextEdit, QPushButton, QSpinBox, QWizard)
+                                  QMessageBox, QPlainTextEdit, QPushButton, QScrollArea, QSpinBox, QWizard)
     from unittest.mock import patch
     from qt_shell.backend_service import BackendService
     from qt_shell.log_utils import ServiceLog
@@ -160,6 +160,9 @@ def main() -> int:
         # Open the actual native maintenance editor and save a compound event.
         states = window.stack.widget(1)
         window.nav.setCurrentIndex(window._navigation_indices.index(1))
+        until(app, lambda: bool(states.all_rows), "maintenance records")
+        states.record_scope.set_scope(scope)
+        states.record_scope._emit()
         wait(app, 100)
         existing = next((i for i, row in enumerate(states.model.rows)
                          if row["thimble_id"] == 1), None)
@@ -195,6 +198,110 @@ def main() -> int:
         assert maintained["offset_mm"] == 12.5, maintained
         report["state_ui"] = {"events": maintained["events"], "offset_mm": maintained["offset_mm"],
                               "rows": states.model.rowCount()}
+        original_note = maintained["note"]
+        inline_note = "INLINE STATE NOTE " + stamp
+
+        def inline_state_note(value):
+            row = next(i for i, record in enumerate(states.model.rows) if record["thimble_id"] == 1)
+            index = states.model.index(row, states.model.fields.index("note"))
+            states.table.scrollTo(index)
+            states.findChild(QScrollArea).ensureWidgetVisible(states.table)
+            wait(app, 100)
+            QTest.mouseClick(states.table.viewport(), Qt.MouseButton.LeftButton,
+                             pos=states.table.visualRect(index).center())
+            QTest.mouseDClick(states.table.viewport(), Qt.MouseButton.LeftButton,
+                             pos=states.table.visualRect(index).center())
+            app.processEvents()
+            editor = QApplication.focusWidget()
+            if not isinstance(editor, QLineEdit):
+                window.grab().save(str(work / "screens" / "inline-editor-failure.png"))
+                raise AssertionError(f"Inline editor missing: focus={type(editor).__name__}, "
+                                     f"current={states.table.currentIndex().column()}, "
+                                     f"editable={states.model.editable}, rect={states.table.visualRect(index)}")
+            editor.setText(value)
+            QTest.keyClick(editor, Qt.Key.Key_Return)
+            app.processEvents()
+            action_index = states.model.index(row, states.model.fields.index("_actions"))
+            states.table.scrollTo(action_index)
+            host = states.table.indexWidget(action_index)
+            save_row = next(control for control in host.findChildren(QPushButton) if control.text() == "保存")
+            click(save_row)
+            until(app, lambda: any(record.get("note") == value for record in states.model.rows),
+                  "inline maintenance note persisted")
+
+        inline_state_note(inline_note)
+        saved = request(client, "GET", "/api/states")["items"]
+        saved = next(record for record in saved if record["outage"] == scope["outage"]
+                     and record["unit_id"] == int(scope["unit"]) and record["thimble_id"] == 1)
+        assert set(saved["events"]) == {"shifted", "plugged"}
+        assert saved["offset_mm"] == 12.5 and saved["source"] == maintained["source"]
+        inline_state_note(original_note)
+        report["state_inline_ui"] = {"saved_and_reverted": True, "compound_events_preserved": True,
+                                      "offset_preserved": True, "source_preserved": True}
+
+        # Use independent batch controls over heterogeneous maintenance facts.
+        batch_scope = {"site": "N", "unit": "1", "outage": "N199"}
+        originals = [
+            {"outage": "N199", "unit_id": 1, "thimble_id": 1, "state": "shifted",
+             "events": ["shifted"], "offset_mm": -12, "note": "BATCH ORIGINAL ONE", "source": "REGISTER ONE"},
+            {"outage": "N199", "unit_id": 1, "thimble_id": 2, "state": "shifted",
+             "events": ["shifted"], "offset_mm": None, "unsigned_offset_mm": 42,
+             "direction": "pending", "note": "BATCH ORIGINAL TWO", "source": "REGISTER TWO"},
+        ]
+        for original in originals:
+            request(client, "POST", "/api/state", original)
+        states.load()
+        until(app, lambda: any(row["outage"] == "N199" and row["thimble_id"] == 2
+                              for row in states.all_rows), "batch fixture")
+        states.set_workspace_scope(batch_scope)
+        states.findChild(QScrollArea).ensureWidgetVisible(states.batch_mode)
+        wait(app, 100)
+        click(states.batch_mode)
+        assert states.single_editor.isHidden() and states.batch_editor.isVisible()
+        for tube in (1, 2):
+            point = states.plate.hit_regions[tube].center().toPoint()
+            QTest.mouseClick(states.plate, Qt.MouseButton.LeftButton, pos=point)
+        assert states.plate.selected == {1, 2}, states.plate.selected
+        states.batch_state.setCurrentIndex(states.batch_state.findData("shifted"))
+        assert states.batch_offset.text() == ""
+        states.batch_state.setCurrentIndex(states.batch_state.findData("plugged"))
+        states.batch_note.setPlainText("BATCH UI APPEND")
+        states.findChild(QScrollArea).ensureWidgetVisible(states.batch_apply)
+        preview_details = {}
+        def confirm_batch():
+            dialog = app.activeModalWidget()
+            if dialog is None or dialog.windowTitle() != "批量维护影响预览":
+                return
+            confirm_timer.stop()
+            from PySide6.QtWidgets import QTableWidget
+            table = dialog.findChild(QTableWidget)
+            assert table.rowCount() == 2
+            preview_details["rows"] = table.rowCount()
+            dialog.grab().save(str(work / "screens" / "state-batch-preview.png"))
+            click(dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Ok))
+        with patch.object(QMessageBox, "information", return_value=QMessageBox.StandardButton.Ok):
+            confirm_timer = QTimer(window)
+            confirm_timer.timeout.connect(confirm_batch)
+            confirm_timer.start(100)
+            click(states.batch_apply)
+            until(app, lambda: not states._batch_busy and any(
+                row["outage"] == "N199" and "BATCH UI APPEND" in row["note"]
+                for row in states.all_rows), "batch UI append saved")
+            confirm_timer.stop()
+        saved = request(client, "GET", "/api/states")["items"]
+        saved = sorted([row for row in saved if row["outage"] == "N199" and row["thimble_id"] in (1, 2)],
+                       key=lambda row: row["thimble_id"])
+        for row, original in zip(saved, originals):
+            assert set(row["events"]) == {"shifted", "plugged"}, row
+            assert row["note"] == original["note"] + "\nBATCH UI APPEND", row
+            assert row["source"] == original["source"], row
+            assert row["offset_mm"] == original["offset_mm"], row
+        assert saved[1]["unsigned_offset_mm"] == 42
+        report["state_batch_ui"] = {"preview_rows": preview_details["rows"], "append_preserved_each_note": True,
+                                     "sources_preserved": True, "signed_and_unknown_distances_preserved": True}
+        click(states.batch_mode)
+        states.set_workspace_scope(scope)
+        window.context.set_scope(scope)
 
         # Maintain the old stack identities while testing the top navigation.
         pages = [

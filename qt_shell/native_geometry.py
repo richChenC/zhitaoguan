@@ -23,6 +23,15 @@ def model_parts():
 
 @lru_cache(maxsize=160)
 def geometry_data(part_id):
+    if part_id == "plateOverlay":
+        from .native_plate_texture import plate_corners
+        points = plate_corners()
+        vertices = array("f")
+        for point, uv in zip(points, ((0, 0), (1, 0), (0, 1), (1, 1))):
+            vertices.extend((*point, 0, 1, 0, *uv))
+        bounds = ([min(point[j] for point in points) for j in range(3)],
+                  [max(point[j] for point in points) for j in range(3)])
+        return vertices.tobytes(), array("I", (0, 1, 2, 2, 1, 3)).tobytes(), bounds
     if part_id == "dome":
         part = json.loads((MODEL_DATA / "dome.json").read_text(encoding="utf-8"))
     else:
@@ -68,11 +77,13 @@ class ReferenceGeometry(QQuick3DGeometry):
         vertices, indices, bounds = geometry_data(value)
         self.setVertexData(QByteArray(vertices))
         self.setIndexData(QByteArray(indices))
-        self.setStride(24)
+        self.setStride(32 if value == "plateOverlay" else 24)
         self.setPrimitiveType(QQuick3DGeometry.PrimitiveType.Triangles)
         attribute = QQuick3DGeometry.Attribute
         self.addAttribute(attribute.Semantic.PositionSemantic, 0, attribute.ComponentType.F32Type)
         self.addAttribute(attribute.Semantic.NormalSemantic, 12, attribute.ComponentType.F32Type)
+        if value == "plateOverlay":
+            self.addAttribute(attribute.Semantic.TexCoord0Semantic, 24, attribute.ComponentType.F32Type)
         self.addAttribute(attribute.Semantic.IndexSemantic, 0, attribute.ComponentType.U32Type)
         self.setBounds(QVector3D(*bounds[0]), QVector3D(*bounds[1]))
         self.update()
@@ -87,5 +98,7 @@ _registered = False
 def register_geometry():
     global _registered
     if not _registered:
+        from .native_plate_texture import PlateTextureData
         qmlRegisterType(ReferenceGeometry, "Thimble.Native", 1, 0, "ReferenceGeometry")
+        qmlRegisterType(PlateTextureData, "Thimble.Native", 1, 0, "PlateTextureData")
         _registered = True

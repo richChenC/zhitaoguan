@@ -22,6 +22,38 @@ class StateTransferTests(unittest.TestCase):
     def row(self, tube=1, state="normal", offset=0):
         return dict(outage="D117", unit_id=1, thimble_id=tube, state=state, offset_mm=offset, note="test")
 
+    def test_append_batch_keeps_each_tubes_evidence_and_unknown_direction(self):
+        originals = [
+            {**self.row(1, "shifted", -12), "events": ["shifted"], "note": "管1原始备注", "source": "台账1"},
+            {**self.row(2, "shifted", None), "events": ["shifted"], "unsigned_offset_mm": 42,
+             "direction": "pending", "note": "管2原始备注", "source": "台账2"},
+        ]
+        for row in originals:
+            server.save_tube_state(row)
+        payload = {"mode": "append", "bulk_edit": True, "only_unmaintained": False,
+                   "rows": [{**self.row(tube, "plugged"), "events": ["plugged"],
+                             "note": "本批维护依据", "source": "", "direction": "pending"} for tube in (1, 2)]}
+        preview = state_transfer.preview_batch(server, payload)
+        self.assertEqual(preview["affected"], 2)
+        for row, original in zip(preview["rows"], originals):
+            self.assertEqual(set(row["events"]), {"shifted", "plugged"})
+            self.assertEqual(row["note"], original["note"] + "\n本批维护依据")
+            self.assertEqual(row["source"], original["source"])
+            self.assertEqual(row["offset_mm"], original["offset_mm"])
+        result = state_transfer.apply_batch(server, {**payload, "confirmed": True, "revision": preview["revision"]})
+        self.assertEqual(result["changed"], 2)
+        with server.connect() as db:
+            rows = [dict(row) for row in db.execute("SELECT * FROM tube_states ORDER BY thimble_id")]
+            self.assertEqual(rows[0]["offset_mm"], -12)
+            self.assertEqual(rows[1]["offset_confirmed"], 0)
+            self.assertEqual(rows[1]["unsigned_offset_mm"], 42)
+            self.assertEqual([row["source"] for row in rows], ["台账1", "台账2"])
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM tube_state_history").fetchone()[0], 4)
+        with self.assertRaisesRegex(ValueError, "预览后维护记录已变化"):
+            state_transfer.apply_batch(server, {**payload, "confirmed": True, "revision": preview["revision"]})
+        with server.connect() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM tube_state_history").fetchone()[0], 4)
+
     def test_fill_normal_keeps_maintained_states_and_audit(self):
         server.save_tube_state(self.row(state="shifted", offset=-42))
         rows = [self.row(tube=i) for i in range(1, 51)]

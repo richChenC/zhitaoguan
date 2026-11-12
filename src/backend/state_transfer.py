@@ -114,6 +114,7 @@ def validate_rows(server, rows, *, default_direction=True):
                            state=tube_lifecycle.projection(events), events=events, replacement_stage=stage,
                            offset_mm=offset, note=note,
                            unsigned_offset_mm=row.get("unsigned_offset_mm") if "shifted" in events and offset is None else None,
+                           **({"direction": "pending"} if direction == "pending" else {}),
                            **({"expected_updated_at": row["expected_updated_at"]} if "expected_updated_at" in row else {}),
                            **({"source": str(row["source"] or "")} if "source" in row else {})))
     return result
@@ -146,6 +147,8 @@ def prepare_batch(server, db, data, *, history=None):
             if existing and "shifted" not in row["events"] and "shifted" in old_events:
                 row["offset_mm"] = existing["offset_mm"] if existing.get("offset_confirmed", 1) else None
                 row["unsigned_offset_mm"] = existing.get("unsigned_offset_mm")
+                if row["offset_mm"] is None:
+                    row["direction"] = "pending"
             if existing:
                 note = row["note"]
                 row["note"] = existing["note"] + ("\n" + note if note and note != existing["note"] else "")
@@ -167,6 +170,8 @@ def prepare_batch(server, db, data, *, history=None):
             if "shifted" in old_events and "shifted" not in row["events"]:
                 row["offset_mm"] = existing["offset_mm"] if existing.get("offset_confirmed", 1) else None
                 row["unsigned_offset_mm"] = existing.get("unsigned_offset_mm")
+                if row["offset_mm"] is None:
+                    row["direction"] = "pending"
             row["events"] = list(dict.fromkeys(old_events + row["events"]))
             row["state"] = tube_lifecycle.projection(row["events"])
             row["replacement_stage"] = existing.get("replacement_stage", "unknown")

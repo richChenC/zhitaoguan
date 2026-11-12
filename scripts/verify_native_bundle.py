@@ -33,13 +33,15 @@ def verify(executable, root):
             errors.append(f"stale code: {name}")
         modules.append(name)
     required = {"qt_shell.native_notifications", "qt_shell.native_charts", "qt_shell.native_geometry",
-                "qt_shell.native_import", "qt_shell.native_report_view", "qt_shell.native_windows"}
+                "qt_shell.native_import", "qt_shell.native_report_view", "qt_shell.native_windows",
+                "qt_shell.native_plate_texture"}
     errors.extend(f"missing module: {name}" for name in sorted(required - set(modules)))
     internal = executable.parent / "_internal"
     pairs = [(root / "qt_shell/native_model.qml", internal / "qt_shell/native_model.qml"),
              (root / "qt_shell/model_assets/structure.json", internal / "qt_shell/model_assets/structure.json")]
     for folder, destination in (
         (root / "qt_shell/shaders", internal / "qt_shell/shaders"),
+        (root / "qt_shell/assets", internal / "qt_shell/assets"),
         (root / "src/desktop-ui/assets/icons", internal / "native_resources/assets/icons"),
         (root / "src/desktop-ui/visualizations/reference-thimble/data",
          internal / "native_resources/visualizations/reference-thimble/data"),

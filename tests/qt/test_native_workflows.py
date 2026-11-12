@@ -241,7 +241,7 @@ class NativeWorkflowTests(unittest.TestCase):
                                         "animations": "false", "report_policy": "all"})
         self.assertEqual(values["theme"], "light")
         self.assertEqual(values["last_page"], 0)
-        self.assertEqual(values["depth_levels"], [20, 40, 60])
+        self.assertEqual(values["depth_levels"], [30, 50])
         self.assertIs(values["animations"], True)
         self.assertEqual(values["report_policy"], "manual")
 
@@ -306,6 +306,9 @@ class NativeWorkflowTests(unittest.TestCase):
                 self.retried = key
         client = RetryClient()
         parent = QWidget()
+        from qt_shell.native_components import WorkspaceContext
+        parent.context = WorkspaceContext(parent)
+        parent.show()
         indicator = QPushButton(parent)
         center = NativeTaskCenter(client, indicator, parent)
         center.started("1", "GET", "/api/findings")
@@ -313,12 +316,19 @@ class NativeWorkflowTests(unittest.TestCase):
         self.assertEqual(center.unread, 1)
         center.show()
         self.assertEqual(center.unread, 0)
-        center.table.selectRow(0)
+        center.history.setCurrentRow(0)
         self.click(center.retry)
         self.assertEqual(client.retried, "1")
         center.started("2", "POST", "/api/state")
         center.finished("2", "POST", "/api/state", "timeout")
         self.assertFalse(center.items["2"]["retryable"])
+        center.filters.setCurrentIndex(3)
+        self.assertEqual(center.history.count(), 0)
+        center.filters.setCurrentIndex(1)
+        self.assertEqual(center.history.count(), 2)
+        self.assertTrue(center.dialog.parent() is parent)
+        QTest.keyClick(center.filters, Qt.Key.Key_Escape)
+        self.assertFalse(center.dialog.isVisible())
 
     def test_audit_json_can_locate_scope_and_invalid_tube_does_not_crash_context(self):
         from qt_shell.native_windows import JsonTablePage

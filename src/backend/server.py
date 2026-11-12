@@ -8,6 +8,7 @@ import html
 import getpass
 import io
 import json
+import math
 import logging
 import mimetypes
 import os
@@ -1748,11 +1749,11 @@ def _normalize_mapping_override(mapping: dict, book) -> tuple[str, int, dict[str
 
 @import_audit.tracked("excel")
 def import_excel_file(filename: str, blank_indication_policy: str = "", operator: str = "",
-                      _audit=None, mapping: dict | None = None) -> dict:
+                      _audit=None, mapping: dict | None = None, expected_sha256: str = "") -> dict:
     if not blank_indication_policy:
         try:
             with task_progress.phase(0, 35):
-                check = import_excel_file(filename, "check", operator, mapping=mapping)
+                check = import_excel_file(filename, "check", operator, mapping=mapping, expected_sha256=expected_sha256)
         except Exception as check_error:
             # 预检是只读阶段。打开、解析或校验失败时必须保留第一现场，
             # 不能为了“继续导入”再次进入 review 写入路径。
@@ -1763,13 +1764,16 @@ def import_excel_file(filename: str, blank_indication_policy: str = "", operator
             check["requires_indication_decision"] = True
             return check
         with task_progress.phase(35, 99):
-            return import_excel_file(filename, "review", operator, mapping=mapping)
+            return import_excel_file(filename, "review", operator, mapping=mapping, expected_sha256=expected_sha256)
     if blank_indication_policy not in {"check", "review", "fill_war"}:
         raise ValueError("三字符处理方式无效，请重新确认")
     dry_run = blank_indication_policy == "check"
     source = Path(filename).expanduser().resolve()
     if not source.is_file() or source.suffix.lower() not in EXCEL_SUFFIXES:
         raise ValueError("请选择 .xls、.xlsx 或 .xlsm 文件")
+    source_sha256 = _cached_sha256(source)
+    if expected_sha256 and expected_sha256 != source_sha256:
+        raise ValueError("预检后来源文件已变化，请重新预检；本次未导入任何记录")
     book = open_excel_workbook(source)
     rpt_metadata = rpt_workbook_metadata(book)
     rpt_source_workbook = (bool(rpt_metadata) or ("RPT导入说明" in book.sheetnames
@@ -1869,6 +1873,9 @@ def import_excel_file(filename: str, blank_indication_policy: str = "", operator
             ledger_token = str(book["_ledger_metadata"].cell(2, 2).value or "")
     finally:
         book.close()
+
+    if _cached_sha256(source) != source_sha256:
+        raise ValueError("读取过程中来源文件已变化，请重新预检；本次未导入任何记录")
 
     def cell(values, key, column_map):
         index = column_map.get(key)
@@ -2144,7 +2151,7 @@ def import_excel_file(filename: str, blank_indication_policy: str = "", operator
             "source_total": row_total, "parsed_total": parsed,
             "ndd_auto": resolution["ndd_auto"], "war_candidate": resolution["war_candidate"],
             "review": resolution["review"], "error_total": invalid_count,
-            "check_only": dry_run,
+            "check_only": dry_run, "source_sha256": source_sha256,
             "preview_rows": [asdict(finding) for finding in pending[:200]] if dry_run else []}
 
 
@@ -2431,12 +2438,12 @@ def save_tube_state_scope(data: dict) -> dict:
             "scope": {"outage": outage, "unit_id": unit, "site": re.match(r"^[A-Z]+", outage)[0]}}
 
 
-def consolidate_ndd_rows(rows) -> list[dict]:
+def consolidate_ndd_rows(rows, *, auto_ndd=True) -> list[dict]:
     """Show one no-defect conclusion per tube while preserving every raw acquisition in SQLite."""
     items, ndd_by_tube = [], {}
     for source in rows:
         row = dict(source)
-        if display_indication(row) != "NDD":
+        if not analysis_reporting.no_defect_basis(row, auto_ndd=auto_ndd):
             row["source_count"] = 1
             items.append(row)
             continue
@@ -2461,12 +2468,98 @@ FINDING_COLUMN_FILTERS = {
     "analysis", "maintenance_text",
 }
 
+FINDING_SORT_FIELDS = FINDING_COLUMN_FILTERS | {"maintenance_status", "note"}
+NUMERIC_SORT_FIELDS = {"unit_id", "thimble_id", "percent", "volts", "degrees"}
+MAINTENANCE_SORT_ORDER = {"normal": 0, "plugged": 1, "replaced": 2, "shifted": 3, "unrecorded": 4}
+MISSING_SORT_VALUES = {"", "/", "-", "—", "–", "N/A", "NA", "NULL", "NONE", "NO DATA", "NO DEFECT"}
+
+
+def sort_display_rows(rows, params):
+    field = params.get("sort", [""])[0].strip()
+    if field not in FINDING_SORT_FIELDS:
+        return rows
+
+    def key(row):
+        value = row.get(field)
+        if value is None or str(value).strip().upper() in MISSING_SORT_VALUES:
+            return None
+        if field in NUMERIC_SORT_FIELDS:
+            try:
+                return float(value) if math.isfinite(float(value)) else None
+            except (TypeError, ValueError):
+                return None
+        text = str(value).strip().casefold()
+        if field in {"outage", "position"}:
+            return tuple((0, int(part)) if part.isdigit() else (1, part)
+                         for part in re.findall(r"\d+|\D+", text))
+        if field == "maintenance_status":
+            return MAINTENANCE_SORT_ORDER.get(text, len(MAINTENANCE_SORT_ORDER))
+        return text
+
+    present, missing = [], []
+    for row in rows:
+        value = key(row)
+        if value is None:
+            missing.append(row)
+        else:
+            present.append((value, row))
+    present.sort(key=lambda item: item[0], reverse=params.get("order", [""])[0].lower() == "desc")
+    return [row for _, row in present] + missing
+
+
+def row_detection_status(row, *, auto_ndd=True):
+    if analysis_reporting.no_defect_basis(row, auto_ndd=auto_ndd):
+        return "ndd"
+    code = str(row.get("indication") or "").strip()
+    return code.casefold() if code and code != "/" else "blank"
+
+
+def workspace_maintenance(row, history, raw_facts):
+    key = (row["outage"], row["unit_id"], row["thimble_id"])
+    try:
+        current = history.get(*key)
+        effective = history.effective(*key)
+    except (ValueError, TypeError):
+        current, effective = None, {}
+    names = list(effective.get("current_events") or [])
+    for name in ("plugged", "shifted"):
+        if effective.get(name) and name not in names:
+            names.append(name)
+    if current:
+        source = "维护记录" + ("（含历史沿用）" if effective.get("inherited_plug") else "")
+        statuses = names or ["normal"]
+    else:
+        candidates = raw_facts.get(key, set())
+        if len(candidates) == 1:
+            inferred = list(next(iter(candidates)))
+            statuses = names + [name for name in inferred if name not in names and name != "normal"]
+            statuses = statuses or inferred
+            source = ("历史维护记录沿用；" if names else "") + "原始堵管移位信息识别，尚未作为维护记录确认"
+        elif names:
+            statuses = names
+            source = "历史维护记录沿用" + ("；原始维护信息存在歧义，需核查" if candidates else "")
+        else:
+            statuses = ["unrecorded"]
+            source = "原始维护信息存在歧义，需核查" if len(candidates) > 1 else "未找到维护记录"
+    if effective.get("needs_review"):
+        source += "；维护信息待核对"
+    return statuses, source
+
 
 def query_findings(params: dict[str, list[str]], *, all_rows=False) -> dict:
     page = max(1, number(params.get("page", ["1"])[0], int) or 1)
     size = min(500, max(1, number(params.get("size", ["100"])[0], int) or 100))
     where, args = [], []
     where.append("f.is_deleted = 0")
+    if "ids" in params:
+        selected_ids = sorted({int(value) for value in params["ids"][0].split(",") if value.isdigit()})
+        if len(selected_ids) > 500:
+            raise ValueError("单次最多查询 500 条所选记录")
+        if selected_ids:
+            where.append("f.id IN (" + ",".join("?" for _ in selected_ids) + ")")
+            args.extend(selected_ids)
+        else:
+            where.append("0")
     for query_key, column in (("site", "f.site_code"), ("outage", "f.outage"), ("unit", "f.unit_id"), ("analyst", "f.analyst"), ("channel", "f.channel"), ("thimble", "f.thimble_id"), ("calgroup", "f.calgroup")):
         val = params.get(query_key, [""])[0].strip()
         if val:
@@ -2494,6 +2587,21 @@ def query_findings(params: dict[str, list[str]], *, all_rows=False) -> dict:
         if params.get("sources", [""])[0] == "1":
             sql = sql.replace("FROM statistical_findings f", "FROM findings f")
         rows = db.execute(sql + clause + " ORDER BY f.outage DESC,f.thimble_id,f.entry_no,f.id", args).fetchall()
+        history = tube_lifecycle.StateHistory(tube_lifecycle.rows(db))
+        raw_facts = {}
+        keys = {(row["outage"], row["unit_id"], row["thimble_id"]) for row in rows}
+        outages = sorted({key[0] for key in keys})
+        for start in range(0, len(outages), 400):
+            chunk = outages[start:start + 400]
+            placeholders = ",".join("?" for _ in chunk)
+            for raw in db.execute(f"""SELECT DISTINCT outage,unit_id,thimble_id,maintenance_text
+                                     FROM findings WHERE is_deleted=0 AND outage IN ({placeholders})
+                                     AND TRIM(COALESCE(maintenance_text,'')) NOT IN ('','/','-')""", chunk):
+                key = (raw["outage"], raw["unit_id"], raw["thimble_id"])
+                if key in keys:
+                    facts, _ = state_recognition.parse_description(raw["maintenance_text"], default_direction="pending")
+                    if facts:
+                        raw_facts.setdefault(key, set()).add(tuple(facts.get("events") or [facts["state"]]))
         severity_clause = clause + (" AND " if clause else " WHERE ") + """
             UPPER(TRIM(COALESCE(f.indication,''))) NOT IN ('NDD', 'NONE', 'NO DEFECT')
             AND (TRIM(COALESCE(f.indication,''))<>'' OR TRIM(COALESCE(f.location,''))<>''
@@ -2504,13 +2612,54 @@ def query_findings(params: dict[str, list[str]], *, all_rows=False) -> dict:
             FROM statistical_findings f""" + severity_clause + """
             GROUP BY f.site_code, f.outage, f.unit_id, f.thimble_id, f.position
             ORDER BY f.outage, f.unit_id, f.thimble_id""", args).fetchall()
-    display_rows = [dict(row) for row in rows] if params.get("raw", [""])[0] == "1" else consolidate_ndd_rows(rows)
+    enriched = [dict(row) for row in rows]
+    resolved_maintenance = {}
+
+    def attach_maintenance(item):
+        key = (item["outage"], item["unit_id"], item["thimble_id"])
+        if key not in resolved_maintenance:
+            resolved_maintenance[key] = workspace_maintenance(item, history, raw_facts)
+        statuses, source = resolved_maintenance[key]
+        item.update(maintenance_statuses=statuses, maintenance_status=statuses[0],
+                    maintenance_status_source=source)
+
+    auto_ndd = params.get("auto_ndd", ["1"])[0].strip().lower() not in {"0", "false"}
+    detection_filter = params.get("detection_status", [""])[0].strip().lower()
+    maintenance_filter = params.get("maintenance_status", [""])[0].strip().lower()
+    if detection_filter:
+        enriched = [row for row in enriched if row_detection_status(row, auto_ndd=auto_ndd) == detection_filter]
+    if maintenance_filter:
+        for row in enriched:
+            attach_maintenance(row)
+        enriched = [row for row in enriched if maintenance_filter in row["maintenance_statuses"]]
+    display_rows = enriched if params.get("raw", [""])[0] == "1" else consolidate_ndd_rows(enriched, auto_ndd=auto_ndd)
+    if params.get("sort", [""])[0] == "maintenance_status":
+        for row in display_rows:
+            attach_maintenance(row)
+    display_rows = sort_display_rows(display_rows, params)
+    if (detection_filter or maintenance_filter) and params.get("core", [""])[0] != "0":
+        core_by_tube = {}
+        for row in enriched:
+            percent = row.get("percent")
+            if (str(row.get("indication") or "").strip().upper() in {"NDD", "NONE", "NO DEFECT"}
+                    or not analysis_reporting.numeric(percent) or percent <= 0
+                    or not (str(row.get("indication") or "").strip() or str(row.get("location") or "").strip()
+                            or str(row.get("measurement_type") or "").strip().upper() not in {"", "NONE"})):
+                continue
+            key = tuple(row.get(field) for field in ("site_code", "outage", "unit_id", "thimble_id", "position"))
+            if key not in core_by_tube or percent > core_by_tube[key]["percent"]:
+                core_by_tube[key] = {field: row.get(field) for field in
+                                     ("site_code", "outage", "unit_id", "thimble_id", "position", "percent")}
+        core_rows = list(core_by_tube.values())
     total = len(display_rows)
     page_rows = display_rows if all_rows else display_rows[(page - 1) * size:page * size]
     items = []
     for item in page_rows:
-        item["classification_basis"] = analysis_reporting.no_defect_basis(item)
-        item["display_conclusion"] = "NDD" if item["classification_basis"] else item.get("indication") or ""
+        attach_maintenance(item)
+        item["classification_basis"] = analysis_reporting.no_defect_basis(item, auto_ndd=auto_ndd)
+        item["detection_status"] = row_detection_status(item, auto_ndd=auto_ndd)
+        item["display_conclusion"] = "NDD" if item["classification_basis"] else (
+            "" if item["detection_status"] == "blank" else item.get("indication") or "")
         # Legacy rows may have a SQL NULL location. Preserve that as an
         # explicit empty raw value so formatting and regex checks stay safe.
         item["location_raw"] = item.get("location") or ""
@@ -2551,6 +2700,8 @@ def display_state(state: str, offset, unsigned_offset=None, confirmed=True) -> s
 def export_data_ledger(data: dict) -> dict:
     params = {key: [str(data.get(key) or "")] for key in ("site", "unit", "outage", "analyst", "channel", "thimble", "calgroup")}
     params.update({f"column_{field}": [str(data.get(f"column_{field}") or "")] for field in FINDING_COLUMN_FILTERS})
+    params.update({key: [str(data[key])] for key in
+                   ("detection_status", "maintenance_status", "sort", "order", "auto_ndd") if key in data})
     rows = query_all_findings(params)
     book = Workbook()
     sheet = book.active
@@ -4048,7 +4199,8 @@ def save_tube_state(data, revoke=False, connection=None):
     with nullcontext(connection) if connection is not None else connect() as db:
         if connection is None:
             db.execute("BEGIN IMMEDIATE")
-        if "shifted" in names and offset is None and data.get("unsigned_offset_mm") not in (None, ""):
+        if ("shifted" in names and offset is None and data.get("unsigned_offset_mm") not in (None, "")
+                and data.get("direction") != "pending"):
             offset, _ = state_preferences.resolve(number(data["unsigned_offset_mm"], float),
                                                   state_preferences.direction(sys.modules[__name__], db))
         row = db.execute("SELECT * FROM tube_states WHERE outage=? AND unit_id=? AND thimble_id=?", scope).fetchone()
@@ -5074,7 +5226,7 @@ class Handler(SimpleHTTPRequestHandler):
             if path == "/api/import":
                 return self.json_response(import_directory(data.get("path", ""), data.get("reports"), data.get("blank_indication_policy", ""), local_security.actor(), report_confirmation=data.get("report_confirmation") or {}))
             if path == "/api/import-excel":
-                return self.json_response(import_excel_file(data.get("path", ""), data.get("blank_indication_policy", ""), local_security.actor(), mapping=data.get("mapping") or None))
+                return self.json_response(import_excel_file(data.get("path", ""), data.get("blank_indication_policy", ""), local_security.actor(), mapping=data.get("mapping") or None, expected_sha256=data.get("expected_sha256") or ""))
             if path == "/api/import-excel-inspect":
                 return self.json_response(inspect_excel_file(data.get("path", "")))
             if path == "/api/import-directory-preview":

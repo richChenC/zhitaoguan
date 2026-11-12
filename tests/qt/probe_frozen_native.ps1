@@ -111,6 +111,21 @@ function Find-Control($window, $type, [string]$name='') {
     }
     return $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $condition)
 }
+function Activate-Control($control) {
+    $pattern = $null
+    if ($control.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
+        $pattern.Invoke()
+    } elseif ($control.TryGetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern, [ref]$pattern)) {
+        $pattern.Toggle()
+    } else {
+        throw "Control cannot be activated: $($control.Current.Name)"
+    }
+}
+function Find-NamedControl($window, [string]$name) {
+    $condition = [System.Windows.Automation.PropertyCondition]::new(
+        [System.Windows.Automation.AutomationElement]::NameProperty, $name)
+    return $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $condition)
+}
 function Capture([string]$name) {
     $path = Join-Path $work ($name + '.png')
     # Capture only this process's window even when another app covers it.
@@ -142,17 +157,26 @@ try {
     Capture 'frozen-login'
     $edits = Find-Control $window ([System.Windows.Automation.ControlType]::Edit)
     if ($edits.Count -ne 4) { throw "Expected four initialization fields; got $($edits.Count)" }
-    $values = @('frozenprobe','Frozen Probe','FrozenProbe@2026','FrozenProbe@2026')
-    for ($index=0; $index -lt 4; $index++) {
-        $edits[$index].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($values[$index])
+    $result.initialization_fields = @($edits | ForEach-Object { $_.Current.Name })
+    $masked = @($edits | Where-Object { $_.Current.IsPassword })
+    if ($masked.Count -ne 2) { throw 'Expected two masked password fields' }
+    foreach ($edit in $edits) {
+        $value = if ($edit.Current.IsPassword) { 'FrozenProbe@2026' } else {
+            switch -Regex ($edit.Current.Name) {
+                '^用户名$' { 'frozenprobe'; break }
+                '^(姓名|显示名称)$' { 'Frozen Probe'; break }
+                default { throw "Unrecognized initialization field: $($edit.Current.Name)" }
+            }
+        }
+        $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($value)
     }
     # Reapply masked fields immediately before submit; no global keyboard input.
-    foreach ($index in @(2,3)) {
-        $edits[$index].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($values[$index])
+    foreach ($edit in $masked) {
+        $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('FrozenProbe@2026')
     }
     $submit = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '创建管理员并进入'
     if ($submit.Count -ne 1) { throw 'Initialization button missing' }
-    $submit[0].GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Activate-Control $submit[0]
     for ($attempt=0; $attempt -lt 100; $attempt++) {
         Start-Sleep -Milliseconds 200
         $window = Wait-Window
@@ -171,6 +195,11 @@ try {
         Start-Sleep -Milliseconds 650
         $result.steps += $label
         if ($label -eq '三维缺陷模型') {
+            Capture 'frozen-three-d-before-scope'
+            $filterButton = Find-NamedControl $window '检测筛选'
+            if ($filterButton.Count -ne 1) { throw 'Native 3D filter control missing' }
+            Activate-Control $filterButton[0]
+            Start-Sleep -Milliseconds 200
             $combos = @(Find-Control $window ([System.Windows.Automation.ControlType]::ComboBox) |
                 Where-Object { -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
             if ($combos.Count -eq 0) { throw '3D scope selector missing' }
@@ -194,6 +223,12 @@ try {
                 ForEach-Object { $_.Current.Name })
             Capture 'frozen-three-d-real-data'
             if ($result.three_d_status.Count -eq 0) { throw '3D real data did not finish loading' }
+            $plateButton = Find-NamedControl $window '管板图：关'
+            if ($plateButton.Count -ne 1) { throw 'Native 3D plate overlay control missing' }
+            Activate-Control $plateButton[0]
+            Start-Sleep -Milliseconds 450
+            Capture 'frozen-three-d-plate-overlay'
+            $result.steps += 'native-plate-overlay-controls'
             $result.steps += 'real-data-3D-scope-controls'
         }
     }

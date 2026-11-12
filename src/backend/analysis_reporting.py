@@ -132,18 +132,18 @@ def sequence(outage):
     return match.group(1), int(match.group(2)), int(match.group(3))
 
 
-def no_defect_basis(row):
+def no_defect_basis(row, *, auto_ndd=True):
     code = str(_row_value(row, "indication") or "").strip().upper()
     if code in {"NDD", "NONE", "NO DEFECT"}:
         return "原始结论为 NDD 类代码"
-    if code in {"", "/"} and not has_wear_information(row):
+    if auto_ndd and code in {"", "/"} and not has_wear_information(row):
         return "空白或 / 结论；幅值、相位、磨损深度、测量通道、磨损位置均为空或 /，按 NDD 统计"
     return ""
 
 
-def category(row):
+def category(row, *, auto_ndd=True):
     code = str(row.get("indication") or "").strip().upper()
-    if no_defect_basis(row):
+    if no_defect_basis(row, auto_ndd=auto_ndd):
         return "NDD"
     if code:
         return "defect"
