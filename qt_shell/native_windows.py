@@ -3202,6 +3202,8 @@ class NativeAnalyticsPage(QWidget):
     def __init__(self, client: NativeClient, user: dict[str, Any] | None = None, parent=None):
         super().__init__(parent)
         self.client = client
+        self.user = user
+        self._chart_windows = []
         self.permissions = None if user is None else set(user.get("permissions", []))
         self._analysis_request = 0
         self._coverage_request = 0
@@ -3232,6 +3234,7 @@ class NativeAnalyticsPage(QWidget):
             self.site_coverage_buttons[site] = control
             self.site_coverage.addWidget(control, index // 8, index % 8)
         band = QWidget()
+        self.filter_band = band
         band.setObjectName("filterBand")
         band.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         band_layout = QVBoxLayout(band)
@@ -3316,6 +3319,7 @@ class NativeAnalyticsPage(QWidget):
         self.plate_table.hide()
         from .native_charts import VisualizationWorkspace
         self.visualization = VisualizationWorkspace(client=client, permissions=self.permissions)
+        self.visualization.panelRequested.connect(self.open_chart_window)
         layout.addWidget(self.visualization, 1)
         self.detail = QLabel("正在加载统计摘要...")
         self.detail.setWordWrap(True)
@@ -3352,6 +3356,15 @@ class NativeAnalyticsPage(QWidget):
         refresh.hide()
         self.scope_bar.refresh.clicked.connect(self.load_complex_analysis)
         self.load()
+
+    def open_chart_window(self, key):
+        owner = getattr(self.window(), "analytics_owner", self)
+        dialog = NativeChartWindow(self, owner, key)
+        owner._chart_windows.append(dialog)
+        dialog.finished.connect(lambda *_: owner._chart_windows.remove(dialog)
+                                if dialog in owner._chart_windows else None)
+        dialog.show()
+        return dialog
 
     def _select_site(self, site):
         selected = set(self.scope_bar.selected_sites)
@@ -3679,6 +3692,76 @@ class NativeAnalyticsPage(QWidget):
             self, PRODUCT_NAME,
             f"分析规则 v{data.get('version', '?')} 已启用；后续对比和复杂分析将使用新规则。",
         )
+
+
+class NativeChartWindow(QDialog):
+    def __init__(self, source, owner, key):
+        from copy import deepcopy
+        super().__init__(owner.window())
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        self.analytics_owner = owner
+        self.client = source.client.fork(self)
+        self.page = NativeAnalyticsPage(self.client, source.user, self)
+        self.page.hide()
+        self.panel = self.page.visualization.chart_panels[key]
+        self.setWindowTitle(source.visualization.chart_panels[key].view.chart().title() or "独立图表")
+        self.resize(1200, 800)
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.page.filter_band)
+        layout.addWidget(self.page.analysis_status)
+        layout.addWidget(self.panel, 1)
+        self.page.filter_band.show()
+        self.panel.show()
+        self.panel.setMaximumHeight(16777215)
+        self.page.scope_bar.selected_sites = set(source.scope_bar.selected_sites)
+        self.page.scope_bar._loaded({"combinations": deepcopy(source.scope_bar.combinations)}, None)
+        scope = source.scope_bar.values()
+        self.page.scope_bar.set_scope(scope, keep_sites=True)
+        self.page.analysis_site.setText(scope.get("site") or "")
+        self.page.analysis_unit.setValue(int(scope.get("unit") or 1))
+        self.page.analysis_outage.setText(scope.get("outage") or "")
+        self.page.visualization.ndd_zero = source.visualization.ndd_zero
+        self.page.visualization.set_data(deepcopy(source.visualization.data))
+        self.page.visualization.restore_view_state(source.visualization.view_state())
+        self.page.analysis_status.setText(source.analysis_status.text())
+        self._closed = False
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.setInterval(80)
+        self._refresh_timer.timeout.connect(self._reload)
+        context = getattr(owner.window(), "context", None)
+        if context:
+            context.dataChanged.connect(self.refresh)
+        self.apply_preferences()
+
+    def apply_preferences(self):
+        source = self.analytics_owner.visualization
+        theme, animations = source.total.theme, source.total.animations
+        self.page.visualization.set_theme(theme, animations)
+        self.page.visualization.set_severity(source.severity_levels, source.severity_colors)
+        changed = self.page.visualization.set_analysis_options(source.ndd_zero, source.total.point_labels)
+        for control in self.findChildren(QPushButton):
+            if control.property("iconName"):
+                control.setIcon(icon(control.property("iconName"), theme))
+        if changed:
+            self.refresh()
+
+    def refresh(self):
+        if not self._closed:
+            self._refresh_timer.start()
+
+    def _reload(self):
+        if self._closed:
+            return
+        self.page.scope_bar.reload()
+        self.page.load()
+        self.page.load_complex_analysis()
+
+    def done(self, result):
+        self._closed = True
+        self._refresh_timer.stop()
+        self.client.abort_all()
+        super().done(result)
 
 
 class NativeReportsPage(QWidget):
@@ -6139,6 +6222,8 @@ class NativeMainWindow(QMainWindow):
         if visualization.set_analysis_options(prefs["ndd_zero"], prefs["point_labels"]):
             self.stack.widget(3).load()
             self.stack.widget(3).load_complex_analysis()
+        for dialog in self.stack.widget(3)._chart_windows:
+            dialog.apply_preferences()
         self.workbench.table.verticalHeader().setDefaultSectionSize(28 if prefs["density"] == "compact" else 37)
         if self.workbench.auto_ndd != prefs["auto_ndd"]:
             self.workbench.auto_ndd = prefs["auto_ndd"]
@@ -6181,6 +6266,8 @@ class NativeMainWindow(QMainWindow):
             self._navigation_save.stop()
             self._save_navigation()
         self.settings_dialog.close()
+        for dialog in list(self.stack.widget(3)._chart_windows):
+            dialog.close()
         three_d = self.stack.widget(2)
         if isinstance(three_d, NativeThreeDPage):
             three_d.shutdown()

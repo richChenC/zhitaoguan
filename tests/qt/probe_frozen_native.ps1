@@ -213,6 +213,36 @@ try {
         $currentTabs[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
         Start-Sleep -Milliseconds 650
         $result.steps += $label
+        if ($label -eq '数据可视化') {
+            foreach ($tabName in @('磨损趋势', '群厂趋势')) {
+                $chartTabs = @(Find-Control $window ([System.Windows.Automation.ControlType]::TabItem) $tabName |
+                    Where-Object { -not $_.Current.IsOffscreen })
+                if ($chartTabs.Count -ne 1) { throw "Native chart tab missing: $tabName" }
+                $chartTabs[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+                Start-Sleep -Milliseconds 250
+            }
+            $popout = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) '在独立窗口中对比' |
+                Where-Object { -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
+            if ($popout.Count -ne 1) { throw "Expected one visible native chart comparison action: $($popout.Count)" }
+            Activate-Control $popout[0]
+            $chartHandle = [IntPtr]::Zero
+            for ($attempt=0; $attempt -lt 100 -and $chartHandle -eq [IntPtr]::Zero; $attempt++) {
+                Start-Sleep -Milliseconds 100
+                $chartHandle = [NativeProbeWindow]::FindNamed($process.Id, '群厂 WAR 报告深度趋势')
+            }
+            if ($chartHandle -eq [IntPtr]::Zero) { throw 'Independent native chart did not appear' }
+            $mainWindow = $window
+            $window = [System.Windows.Automation.AutomationElement]::FromHandle($chartHandle)
+            Start-Sleep -Milliseconds 1200
+            if ((Find-Control $window ([System.Windows.Automation.ControlType]::Button) '放大查看').Count -ne 1) {
+                throw 'Independent native chart controls missing'
+            }
+            Capture 'frozen-independent-chart'
+            [NativeProbeWindow]::PostMessage($chartHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+            Start-Sleep -Milliseconds 250
+            $window = $mainWindow
+            $result.steps += 'native-independent-chart-open-close'
+        }
         if ($label -eq '三维缺陷模型') {
             Capture 'frozen-three-d-before-scope'
             $filterButton = Find-NamedControl $window '检测筛选'

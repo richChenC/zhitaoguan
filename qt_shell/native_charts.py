@@ -10,14 +10,14 @@ from PySide6.QtCharts import (
     QScatterSeries, QValueAxis, QHorizontalStackedBarSeries, QAbstractBarSeries,
 )
 from PySide6.QtCore import QPointF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QIcon, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
     QGraphicsSimpleTextItem, QGridLayout, QHBoxLayout, QLabel, QPlainTextEdit, QSpinBox, QSplitter,
-    QSizePolicy, QTabWidget, QTableWidget, QTableWidgetItem, QToolTip, QVBoxLayout, QWidget,
+    QSizePolicy, QStyle, QTabWidget, QTableWidget, QTableWidgetItem, QToolTip, QVBoxLayout, QWidget,
 )
 
-from .native_components import PlateMap, PositionHeatmap, SITE_NAMES, button, export_widget_image
+from .native_components import PlateMap, PositionHeatmap, SITE_NAMES, button, export_widget_image, icon
 from .native_analysis_data import channel_frequency, depth_distribution, status_change, valid_depth
 from .native_unit_overview import UnitOverview
 
@@ -27,6 +27,7 @@ PALETTE = ["#1874b9", "#b28a22", "#b45e73", "#648743", "#bb7540"]
 class ChartPanel(QWidget):
     pointSelected = Signal(int)
     observationSelected = Signal(str, int)
+    popoutRequested = Signal()
     def __init__(self, parent=None, *, client=None, permissions=None):
         super().__init__(parent)
         self.client = client
@@ -42,7 +43,17 @@ class ChartPanel(QWidget):
         export = button("导出 PNG", "download", self.export)
         export.setEnabled(client is not None and (permissions is None or "export.create" in permissions))
         toolbar.addWidget(export)
-        toolbar.addWidget(button("独立窗口", "box", self.fullscreen))
+        self.expand_button = button("", callback=self.fullscreen)
+        self.expand_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton))
+        self.expand_button.setToolTip("放大查看")
+        self.expand_button.setAccessibleName("放大查看")
+        self.expand_button.setFixedSize(32, 32)
+        toolbar.addWidget(self.expand_button)
+        self.popout_button = button("", "external-link", self.popoutRequested.emit)
+        self.popout_button.setToolTip("在独立窗口中对比")
+        self.popout_button.setAccessibleName("在独立窗口中对比")
+        self.popout_button.setFixedSize(32, 32)
+        toolbar.addWidget(self.popout_button)
         layout.addLayout(toolbar)
         self.view = QChartView()
         self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -54,16 +65,34 @@ class ChartPanel(QWidget):
         export_widget_image(self, self.client, self.view, "导出图表")
 
     def fullscreen(self):
-        dialog = QDialog(self)
+        dialog = QDialog(self.window())
         dialog.setWindowTitle(self.view.chart().title())
+        dialog.setModal(True)
         dialog.resize(1200, 800)
         layout = QVBoxLayout(dialog)
-        layout.addWidget(self.view)
-        dialog.exec()
-        self.layout().addWidget(self.view, 1)
+        host = QWidget()
+        host.setLayout(self.layout())
+        layout.addWidget(host)
+        close = button("退出放大查看", "chevron-left", dialog.accept)
+        close.setIcon(icon("chevron-left", self.theme))
+        layout.addWidget(close, 0, Qt.AlignmentFlag.AlignRight)
+        self.expand_button.setEnabled(False)
+        try:
+            dialog.showMaximized()
+            dialog.exec()
+        finally:
+            self.setLayout(host.layout())
+            self.expand_button.setEnabled(True)
+            dialog.deleteLater()
 
     def set_theme(self, theme, animations):
         self.theme, self.animations = theme, animations
+        maximize = self.style().standardIcon(QStyle.StandardPixmap.SP_TitleBarMaxButton).pixmap(16, 16)
+        painter = QPainter(maximize)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+        painter.fillRect(maximize.rect(), QColor("#e7edef" if theme == "dark" else "#263b43"))
+        painter.end()
+        self.expand_button.setIcon(QIcon(maximize))
         chart = self.view.chart()
         # QChart applies its palette to existing series when the theme changes.
         styles = []
@@ -288,6 +317,7 @@ class ChartPanel(QWidget):
 
 class VisualizationWorkspace(QTabWidget):
     dataChanged = Signal()
+    panelRequested = Signal(str)
     scopeChanged = Signal(dict)
 
     def __init__(self, parent=None, *, client=None, permissions=None):
@@ -525,6 +555,55 @@ class VisualizationWorkspace(QTabWidget):
         self.insertTab(3, self.longitudinal, "单管完整历史")
         self.currentChanged.connect(self._fit_current_page)
         self._fit_current_page()
+        self.chart_panels = {key: getattr(self, key) for key in (
+            "overview", "total", "position", "increment", "states", "depths", "longitudinal",
+            "replacements", "scatter_panel", "frequency")}
+        for key, chart in self.chart_panels.items():
+            chart.popoutRequested.connect(lambda name=key: self.panelRequested.emit(name))
+
+    def view_state(self):
+        state = {}
+        for name in ("comparison_mode", "total_metric", "focus_unit", "trend_unit", "trend_metric",
+                     "distribution_scope", "curve_mode", "mode"):
+            state[name] = getattr(self, name).currentData()
+        for name in ("frequency_threshold", "heat_threshold", "jump", "tube_number"):
+            state[name] = getattr(self, name).value()
+        state["all_tubes"] = self.all_tubes.isChecked()
+        state["comparison_units"] = None if self.comparison_units is None else set(self.comparison_units)
+        state["history_outages"] = None if self._history_outages is None else set(self._history_outages)
+        current = self.current_snapshot()
+        state["snapshot"] = (current["unit"], current["outage"]) if current else None
+        return state
+
+    def restore_view_state(self, state):
+        from PySide6.QtCore import QSignalBlocker
+        self.comparison_units = state["comparison_units"]
+        self._history_outages = state["history_outages"]
+        for name in ("comparison_mode", "total_metric", "focus_unit", "trend_unit", "trend_metric",
+                     "distribution_scope", "curve_mode", "mode"):
+            combo = getattr(self, name)
+            with QSignalBlocker(combo):
+                index = combo.findData(state[name])
+                if index >= 0:
+                    combo.setCurrentIndex(index)
+        for name in ("frequency_threshold", "heat_threshold", "jump", "tube_number"):
+            control = getattr(self, name)
+            with QSignalBlocker(control):
+                control.setValue(state[name])
+        with QSignalBlocker(self.all_tubes):
+            self.all_tubes.setChecked(state["all_tubes"])
+        snapshot = state["snapshot"]
+        if snapshot:
+            index = next((index for index, row in enumerate(self.data.get("snapshots") or [])
+                          if (row["unit"], row["outage"]) == snapshot), -1)
+            with QSignalBlocker(self.snapshot):
+                self.snapshot.setCurrentIndex(index)
+        self._selected_tube = self.tube_number.value()
+        self.refresh_total()
+        self.refresh_trends()
+        self.refresh_distribution()
+        self.refresh_frequency()
+        self.refresh_snapshot()
 
     def set_metric_columns(self, columns):
         if columns == getattr(self, "_metric_columns", None):
@@ -577,6 +656,8 @@ class VisualizationWorkspace(QTabWidget):
         self._publish_scope()
 
     def set_data(self, data):
+        current = self.current_snapshot()
+        previous_snapshot = (current["unit"], current["outage"]) if current else None
         self.data = data
         self._longitudinal_cache.clear()
         self._longitudinal_pending.clear()
@@ -611,11 +692,12 @@ class VisualizationWorkspace(QTabWidget):
             if item.get("total") is not None],
             "仅使用后端确认的一对一匹配；缺失前轮、换管新基准和不确定配对不按零计算", "深度变化（百分点）")
         self.snapshot.blockSignals(True)
-        previous = self.snapshot.currentData()
         self.snapshot.clear()
         for i, snapshot in enumerate(data.get("snapshots", [])):
             self.snapshot.addItem(f"{snapshot['unit']} · {snapshot['outage']}", i)
-        self.snapshot.setCurrentIndex(max(0, self.snapshot.findData(previous)))
+        selected = next((index for index, snapshot in enumerate(data.get("snapshots") or [])
+                         if (snapshot["unit"], snapshot["outage"]) == previous_snapshot), 0)
+        self.snapshot.setCurrentIndex(selected)
         self.snapshot.blockSignals(False)
         self.refresh_snapshot()
         latest = self.latest_snapshots()
@@ -1068,13 +1150,13 @@ class VisualizationWorkspace(QTabWidget):
         return latest
 
     def set_theme(self, theme, animations):
-        for panel in self.findChildren(ChartPanel):
+        for panel in self.chart_panels.values():
             panel.set_theme(theme, animations)
 
     def set_analysis_options(self, ndd_zero, point_labels):
         changed = self.ndd_zero != ndd_zero
         self.ndd_zero = bool(ndd_zero)
-        for panel in self.findChildren(ChartPanel):
+        for panel in self.chart_panels.values():
             panel.set_point_labels(point_labels)
         if changed:
             self._longitudinal_request += 1

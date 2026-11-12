@@ -79,6 +79,13 @@ class NativeClient(QObject):
             task_token: str | None = None) -> QNetworkReply:
         return self.request("GET", path, callback=callback, task_token=task_token)
 
+    def fork(self, parent: QObject) -> NativeClient:
+        """Share the current server session while owning separate pending reads."""
+        client = NativeClient(self.base_url, parent)
+        url = QUrl(self.base_url)
+        client.jar.setCookiesFromUrl(self.jar.cookiesForUrl(url), url)
+        return client
+
     def post(self, path: str, payload: dict[str, Any], callback: Callback | None = None,
              task_token: str | None = None) -> QNetworkReply:
         return self.request("POST", path, payload, callback=callback, task_token=task_token)
