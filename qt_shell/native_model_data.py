@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import colorsys
 import json
 import math
 import re
@@ -21,6 +22,63 @@ def reference_layout():
 def reference_stations():
     return {row["id"]: row for row in json.loads(
         (MODEL_DATA / "p1p6_stations.json").read_text(encoding="utf-8"))["stations"]}
+
+
+@lru_cache(maxsize=1)
+def reference_specs():
+    return json.loads((MODEL_DATA / "tube_specs.json").read_text(encoding="utf-8"))
+
+
+def effective_depths(records):
+    """Use the reference viewer's quantified-finding contract, preserving raw locations."""
+    depths = {}
+    for record in records:
+        indication = str(record.get("indication") or "").strip().upper()
+        location = record.get("location_raw")
+        if location is None:
+            location = record.get("location")
+        if indication in ("NDD", "NONE", "NO DEFECT") or (
+                not indication and not str(location if location is not None else "").strip()):
+            continue
+        try:
+            number = float(record.get("thimble_id"))
+            value = float(record.get("percent"))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if not math.isfinite(number) or not number.is_integer() or not math.isfinite(value) or value <= 0:
+            continue
+        number = int(number)
+        depths[number] = max(depths.get(number, 0), value)
+    return depths
+
+
+def color_tubes(tubes, records, *, mode="base", type_filter="", levels=(30, 50),
+                colors=("#79b98c", "#e5a83b", "#df4b45")):
+    """Return presentation colors without altering classifications, geometry or source data."""
+    type_colors = {row["type"]: row["color"] for row in reference_specs()["models"]}
+    lengths = [tube["length"] for tube in tubes]
+    low, high = (min(lengths), max(lengths)) if lengths else (0, 0)
+    depths = effective_depths(records) if mode == "depth" else {}
+    result = []
+    for tube in tubes:
+        color = "#667c8c"
+        if type_filter and tube["type"] != type_filter:
+            color = "#6b7480"
+        elif mode == "depth":
+            depth = depths.get(tube["tube"])
+            if depth is not None:
+                color = colors[sum(depth >= level for level in levels)]
+        elif mode == "type":
+            color = type_colors.get(tube["type"], "#8d8d8d")
+        elif mode == "length":
+            fraction = (tube["length"] - low) / (high - low or 1)
+            rgb = colorsys.hls_to_rgb(.58 - .58 * fraction, .55, .62)
+            # Three's setHSL uses linear RGB; QML color uniforms accept sRGB.
+            srgb = [12.92 * channel if channel <= .0031308 else 1.055 * channel ** (1 / 2.4) - .055
+                    for channel in rgb]
+            color = "#" + "".join(f"{math.floor(channel * 255 + .5):02x}" for channel in srgb)
+        result.append({**tube, "color": color})
+    return result
 
 
 def defect_placement(record, channel, *, maintenance_preview=False):

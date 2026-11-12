@@ -2,7 +2,7 @@
 import unittest
 import native_test_env  # noqa: F401
 
-from qt_shell.native_model_data import defect_placement, reference_layout, scene_data
+from qt_shell.native_model_data import color_tubes, defect_placement, effective_depths, reference_layout, scene_data
 
 
 class ModelDataTests(unittest.TestCase):
@@ -44,6 +44,42 @@ class ModelDataTests(unittest.TestCase):
         plate[1]["position"] = plate[0]["position"]
         with self.assertRaises(ValueError):
             scene_data({"plate": plate})
+
+    def test_depth_color_excludes_unquantified_and_nonfindings(self):
+        records = [{"thimble_id": 1, "indication": "FRE", "percent": 30},
+                   {"thimble_id": 1, "indication": "FRE", "percent": 50},
+                   {"thimble_id": 1, "indication": "NDD", "percent": 90},
+                   {"thimble_id": 2, "indication": "no defect", "percent": 70},
+                   {"thimble_id": 3, "indication": "", "location_raw": "", "location": "P1", "percent": 90},
+                   {"thimble_id": 4, "location_raw": None, "location": "P2", "percent": "20"},
+                   {"thimble_id": 5, "indication": "FRE", "percent": float("inf")},
+                   {"thimble_id": 6.5, "indication": "FRE", "percent": 70},
+                   {"thimble_id": 7, "indication": "FRE", "percent": 0},
+                   {"thimble_id": 8, "indication": "FRE", "percent": -1},
+                   {"thimble_id": 9, "indication": "FRE", "percent": None}]
+        self.assertEqual(effective_depths(records), {1: 50, 4: 20})
+
+    def test_presentation_colors_preserve_geometry_and_follow_reference_priority(self):
+        tubes = [{"tube": 1, "type": "I", "length": 100, "category": "ndd"},
+                 {"tube": 2, "type": "空心柱", "length": 200, "category": "defect"},
+                 {"tube": 3, "type": "II", "length": 150, "category": "missing"}]
+        original = [dict(tube) for tube in tubes]
+        records = [{"thimble_id": 1, "indication": "FRE", "percent": 30},
+                   {"thimble_id": 2, "indication": "FRE", "percent": 50}]
+        self.assertEqual([t["color"] for t in color_tubes(tubes, [], mode="type")],
+                         ["#2f6fb5", "#8d8d8d", "#37a08a"])
+        self.assertEqual([t["color"] for t in color_tubes(tubes, records, mode="depth")],
+                         ["#e5a83b", "#df4b45", "#667c8c"])
+        self.assertEqual([t["color"] for t in color_tubes(tubes, records, mode="depth", type_filter="II")],
+                         ["#6b7480", "#6b7480", "#667c8c"])
+        custom = color_tubes(tubes, records, mode="depth", levels=[10, 30, 50],
+                            colors=["#111111", "#222222", "#333333", "#444444"])
+        self.assertEqual([t["color"] for t in custom], ["#333333", "#444444", "#667c8c"])
+        lengths = color_tubes(tubes, [], mode="length")
+        self.assertEqual(lengths[0]["color"], "#8ec5eb")
+        self.assertEqual(lengths[1]["color"], "#eb8e8e")
+        self.assertEqual(tubes, original)
+        self.assertEqual([{k: v for k, v in t.items() if k != "color"} for t in custom], original)
 
 
 if __name__ == "__main__":

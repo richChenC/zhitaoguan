@@ -6,6 +6,7 @@ Rectangle {
     id: root
     color: "#edf2f4"
     property var tubes: []
+    property var tubeColors: ({})
     property var columns: []
     property var defects: []
     property int selectedTube: 0
@@ -42,6 +43,7 @@ Rectangle {
     property vector3d assemblyMinimum: Qt.vector3d(-2192.96, -2192.96, -2192.96)
     property vector3d assemblyMaximum: Qt.vector3d(2192.96, 1637.4, 2192.96)
     property real coveredRight: 0
+    property real coveredLeft: 0
     property real coveredBottom: 0
     property var geometryBounds: ({})
     property var framing: ({center: Qt.vector3d(0, 0, 0), distance: 6934, magnification: .1,
@@ -83,13 +85,6 @@ Rectangle {
         vertexShader: "shaders/section.vert"
         fragmentShader: "shaders/section.frag"
     }
-    ReferenceGeometry { id: tubeGeometry; partId: "P01" }
-    ReferenceGeometry { id: socketGeometry; partId: "P02" }
-    ReferenceGeometry { id: boltGeometry; partId: "P03" }
-    ReferenceGeometry { id: nutGeometry; partId: "P04" }
-    ReferenceGeometry { id: penetrationGeometry; partId: "P05" }
-    ReferenceGeometry { id: supportGeometry; partId: "P06" }
-
     function pickTube(x, y) {
         const hit = pickVisible(x, y)
         return hit ? hit.objectHit.tubeNumber : 0
@@ -149,8 +144,7 @@ Rectangle {
         }
         if (showSupports) for (const column of columns) include(column.bounds)
         for (const tube of tubes) {
-            if ((tubeType && tube.type !== tubeType) ||
-                !(tube.category === "defect" ? showDefect : tube.category === "incomplete" ? showReview :
+            if (!(tube.category === "defect" ? showDefect : tube.category === "incomplete" ? showReview :
                   tube.category === "ndd" ? showNdd : showMissing)) continue
             const position = [tube.x, tube.yBase, tube.z]
             include(geometryBounds.P01, position, [enlargeTubes ? 3 : 1, tube.length/3000, enlargeTubes ? 3 : 1])
@@ -169,7 +163,7 @@ Rectangle {
         const right = [Math.cos(ry), 0, -Math.sin(ry)]
         const up = [Math.sin(ry)*Math.sin(rx), Math.cos(rx), Math.cos(ry)*Math.sin(rx)]
         const toward = [Math.sin(ry)*Math.cos(rx), -Math.sin(rx), Math.cos(ry)*Math.cos(rx)]
-        const availableW = Math.max(120, width - coveredRight)
+        const availableW = Math.max(120, width - coveredLeft - coveredRight)
         const availableH = Math.max(120, height - coveredBottom)
         const tanV = cameraTangent
         let maxU = 1, maxV = 1, distance = 1
@@ -179,7 +173,7 @@ Rectangle {
             const u = dot(right), v = dot(up), depth = dot(toward)
             maxU = Math.max(maxU, Math.abs(u)); maxV = Math.max(maxV, Math.abs(v))
             // Account for parallax from shifting the camera around the overlay panels.
-            const fitU = Math.abs(u - coveredRight * tanV * depth / height)
+            const fitU = Math.abs(u - (coveredRight-coveredLeft) * tanV * depth / height)
             const fitV = Math.abs(v + coveredBottom * tanV * depth / height)
             distance = Math.max(distance, Math.max(fitU * height / (tanV * availableW),
                                                    fitV * height / (tanV * availableH)) + depth)
@@ -196,6 +190,7 @@ Rectangle {
     onAssemblyMinimumChanged: fitView()
     onAssemblyMaximumChanged: fitView()
     onCoveredRightChanged: fitView()
+    onCoveredLeftChanged: fitView()
     onCoveredBottomChanged: fitView()
     onClipEnabledChanged: fitView()
     onClipAxisChanged: fitView()
@@ -222,6 +217,15 @@ Rectangle {
         id: scene
         anchors.fill: parent
         camera: root.orthographicActive ? orthographicCamera : perspectiveCamera
+        // Keep shared geometry in the scene when Repeater3D replaces its delegates.
+        Node {
+            ReferenceGeometry { id: tubeGeometry; partId: "P01" }
+            ReferenceGeometry { id: socketGeometry; partId: "P02" }
+            ReferenceGeometry { id: boltGeometry; partId: "P03" }
+            ReferenceGeometry { id: nutGeometry; partId: "P04" }
+            ReferenceGeometry { id: penetrationGeometry; partId: "P05" }
+            ReferenceGeometry { id: supportGeometry; partId: "P06" }
+        }
         environment: SceneEnvironment {
             backgroundMode: SceneEnvironment.Color
             clearColor: "#edf2f4"
@@ -237,7 +241,8 @@ Rectangle {
                     (root.orthographicActive ? 1 : root.zoomFactor)
                 readonly property real unitsPerPixel: root.orthographicActive ?
                     1 / (root.framing.magnification * root.zoomFactor) : 2 * root.cameraTangent * distance / Math.max(1, scene.height)
-                readonly property real shiftX: root.displayMode === "assembly" ? root.coveredRight * unitsPerPixel / 2 : 0
+                readonly property real shiftX: root.displayMode === "assembly" ?
+                    (root.coveredRight-root.coveredLeft) * unitsPerPixel / 2 : 0
                 readonly property real shiftY: root.displayMode === "assembly" ? -root.coveredBottom * unitsPerPixel / 2 : 0
                 PerspectiveCamera {
                     id: perspectiveCamera
@@ -324,9 +329,11 @@ Rectangle {
             delegate: Node {
                 id: tubeNode
                 required property var modelData
+                objectName: "tubeNode-" + modelData.tube
                 property bool single: root.displayMode !== "assembly" && root.displayMode !== "plate"
                 property bool selected: modelData.tube === root.selectedTube
-                visible: (!single || selected) && (!root.tubeType || modelData.type === root.tubeType) &&
+                readonly property color tubeColor: root.tubeColors[modelData.tube] || modelData.color || "#667c8c"
+                visible: (!single || selected) &&
                     (modelData.category === "defect" ? root.showDefect :
                      modelData.category === "incomplete" ? root.showReview :
                      modelData.category === "ndd" ? root.showNdd : root.showMissing)
@@ -342,7 +349,7 @@ Rectangle {
                                        root.displayMode === "joint" ? .08 : tubeNode.modelData.length/3000,
                                        root.enlargeTubes ? 3 : 1)
                     materials: SectionMaterial {
-                        tint: tubeNode.selected ? "#f4bd3c" : tubeNode.modelData.color
+                        tint: tubeNode.selected ? "#f4bd3c" : tubeNode.tubeColor
                         alphaValue: tubeNode.selected ? 1 : root.modelOpacity
                     }
                 }
@@ -353,7 +360,7 @@ Rectangle {
                     pickable: true
                     scale: Qt.vector3d(.55,.05,.55)
                     materials: SectionMaterial {
-                        tint: tubeNode.selected ? "#f4bd3c" : tubeNode.modelData.color
+                        tint: tubeNode.selected ? "#f4bd3c" : tubeNode.tubeColor
                         alphaValue: 1
                     }
                 }

@@ -97,6 +97,12 @@ $work = [IO.Path]::GetFullPath($Output)
 if (-not $work.StartsWith($artifactRoot, [StringComparison]::OrdinalIgnoreCase)) {
     throw "Test output must remain inside $artifactRoot"
 }
+if ($RptDirectory) {
+    $RptDirectory = (Resolve-Path -LiteralPath $RptDirectory -ErrorAction Stop).Path
+    if (-not (Test-Path -LiteralPath $RptDirectory -PathType Container)) {
+        throw 'RPT reference path must be an existing directory'
+    }
+}
 New-Item -ItemType Directory -Path (Join-Path $work 'data') -Force | Out-Null
 $python = Join-Path $appRoot '.venv-qt/Scripts/python.exe'
 & $python -c "import sqlite3,sys; from pathlib import Path; s=sqlite3.connect(Path(sys.argv[1]).resolve().as_uri()+'?mode=ro',uri=True); c=sqlite3.connect(sys.argv[2]); s.backup(c); s.close(); c.executescript('DELETE FROM login_sessions; DELETE FROM user_roles; DELETE FROM users;'); c.commit(); c.close()" $Database (Join-Path $work 'data/thimble.db')
@@ -338,6 +344,40 @@ try {
             $result.steps += 'native-seven-camera-view-controls'
             $result.steps += 'native-plate-overlay-controls'
             $result.steps += 'real-data-3D-scope-controls'
+            $topOverlayOff = Find-NamedControl $window '管板图：开'
+            Activate-Control $topOverlayOff[0]
+            $isoCamera = @(Find-NamedControl $window '等轴视角' |
+                Where-Object { -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
+            Activate-Control $isoCamera[0]
+            $modelSettings = Find-NamedControl $window '三维显示设置'
+            if ($modelSettings.Count -ne 1) { throw 'Native floating model settings action missing' }
+            Activate-Control $modelSettings[0]
+            Start-Sleep -Milliseconds 300
+            $modelPanel = Find-NamedControl $window '三维模型设置'
+            if ($modelPanel.Count -ne 1 -or $modelPanel[0].Current.IsOffscreen) {
+                throw 'Native floating model settings panel did not open'
+            }
+            $result.three_d_color_controls = @()
+            foreach ($colorName in @('按管长着色', '按型号着色', '按检测数据着色（最大磨损）')) {
+                $colorControl = Find-NamedControl $window $colorName
+                if ($colorControl.Count -ne 1) { throw "Native model color action missing: $colorName" }
+                Activate-Control $colorControl[0]
+                Start-Sleep -Milliseconds 200
+                $toggle = $colorControl[0].GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+                if ($toggle.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) {
+                    throw "Native model color action did not toggle: $colorName"
+                }
+                $result.three_d_color_controls += $colorName
+            }
+            Capture 'frozen-three-d-floating-settings-depth'
+            $typeLegend = Find-NamedControl $window '筛选Ⅱ型'
+            if ($typeLegend.Count -ne 1) { throw 'Native model type legend action missing' }
+            Activate-Control $typeLegend[0]
+            Start-Sleep -Milliseconds 200
+            Capture 'frozen-three-d-floating-settings-filter'
+            Activate-Control $typeLegend[0]
+            Activate-Control $modelSettings[0]
+            $result.steps += 'native-floating-model-settings-colors-and-type-filter'
         }
     }
     $importButton = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) '导入数据' |

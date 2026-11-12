@@ -1053,6 +1053,12 @@ def workspace_styles(theme="light", density="comfortable"):
         QProgressBar#unitMeter {{ border:0; border-radius:0; background:{control}; min-height:4px; max-height:4px; }}
         QProgressBar#unitMeter::chunk {{ background:{accent}; border:0; border-radius:0; }}
         QWidget#filterBand, QWidget#workspacePanel {{ background:{surface}; border:1px solid {line}; border-radius:6px; }}
+        QWidget#modelSettingsBody {{ background:{surface}; }}
+        QToolButton#modelSectionHeader {{ text-align:left; border:0; border-bottom:1px solid {line};
+            border-radius:0; background:transparent; color:{muted}; padding:2px 0; min-height:24px; font-weight:600; }}
+        QToolButton#modelSectionHeader:hover {{ color:{accent}; background:{hover}; }}
+        QToolButton#modelTypeLegend {{ border:0; border-radius:3px; padding:3px; background:transparent; color:{muted}; }}
+        QToolButton#modelTypeLegend:hover, QToolButton#modelTypeLegend:checked {{ color:{accent}; background:{hover}; }}
         QWidget#reportScopeBand {{ background:{surface}; border:1px solid {line};
             border-top:3px solid {accent}; border-radius:4px; }}
         QWidget#reportDraftPanel {{ background:{surface}; border-left:1px solid {line}; }}

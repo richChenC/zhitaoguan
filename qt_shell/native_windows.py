@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QEvent, QIODevice, QModelIndex, QObject, QSaveFile, QUrl, QTimer, Qt, Signal
-from PySide6.QtGui import QCloseEvent, QColor, QImage, QPainter, QVector3D
+from PySide6.QtGui import QCloseEvent, QColor, QIcon, QImage, QPainter, QPixmap, QVector3D
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
     QTableView,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QTabWidget,
     QTabBar,
     QTextBrowser,
@@ -5492,13 +5493,17 @@ class NativeThreeDPage(QWidget):
         self.rows: dict[int, dict[str, Any]] = {}
         self.record_details = {}
         self._scope_data = None
+        self._scene_tubes = []
+        self.severity_levels = [30, 50]
+        self.severity_colors = ["#79b98c", "#e5a83b", "#df4b45"]
         self._pending_scope = {}
         self._syncing_scope = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 16, 18, 16)
-        toolbar = QHBoxLayout()
+        toolbar = ToolFlowLayout()
         self.scene_settings_button = button("", "settings")
         self.scene_settings_button.setToolTip("三维显示设置")
+        self.scene_settings_button.setAccessibleName("三维显示设置")
         self.scene_settings_button.setCheckable(True)
         toolbar.addWidget(self.scene_settings_button)
         self.mode_tabs = QTabBar()
@@ -5514,9 +5519,8 @@ class NativeThreeDPage(QWidget):
         self.plate_view.toggled.connect(self._plate_view_changed)
         toolbar.addWidget(self.plate_view)
         toolbar.addWidget(button("默认视角", "rotate-ccw", self._reset_three_d_view))
-        toolbar.addStretch()
         layout.addLayout(toolbar)
-        controls = QHBoxLayout()
+        controls = ToolFlowLayout()
         controls.addWidget(QLabel("检测范围"))
         self.scope = QComboBox()
         self.scope.setMinimumWidth(280)
@@ -5537,26 +5541,59 @@ class NativeThreeDPage(QWidget):
         reset_view = QPushButton("重置视角")
         reset_view.clicked.connect(self._reset_three_d_view)
         controls.addWidget(reset_view)
-        controls.addStretch(1)
         scope_host = QWidget()
         scope_host.setLayout(controls)
         scope_host.hide()
         self.detection_filter_button.toggled.connect(scope_host.setVisible)
         layout.addWidget(scope_host)
-        views = QHBoxLayout()
-        self.display_mode = QComboBox()
+        self.display_mode = QComboBox(self)
         for label, mode in (("整体布置", "assembly"), ("管板俯视", "plate"),
                             ("单管全长", "full"), ("管座剖视", "socket"), ("接口详图", "joint")):
             self.display_mode.addItem(label, mode)
         self.display_mode.currentIndexChanged.connect(self._display_changed)
-        views.addWidget(self.display_mode)
         self.display_mode.hide()
         self.mode_tabs.currentChanged.connect(self._mode_tab_changed)
         self.tube_selector = QSpinBox()
         self.tube_selector.setRange(1, 50)
         self.tube_selector.setPrefix("管号 ")
         self.tube_selector.valueChanged.connect(self.show_tube)
-        views.addWidget(self.tube_selector)
+        self.scene_settings_host = QScrollArea()
+        self.scene_settings_host.setObjectName("workspacePanel")
+        self.scene_settings_host.setAccessibleName("三维模型设置")
+        self.scene_settings_host.setFixedWidth(330)
+        self.scene_settings_host.setWidgetResizable(True)
+        self.scene_settings_host.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        settings_body = QWidget()
+        settings_body.setObjectName("modelSettingsBody")
+        settings_layout = QVBoxLayout(settings_body)
+        settings_layout.setContentsMargins(12, 6, 12, 10)
+        settings_layout.setSpacing(6)
+        self.scene_settings_host.setWidget(settings_body)
+        self.scene_sections = {}
+
+        def section(title):
+            heading = QToolButton()
+            heading.setObjectName("modelSectionHeader")
+            heading.setText(title)
+            heading.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            heading.setArrowType(Qt.ArrowType.DownArrow)
+            heading.setCheckable(True)
+            heading.setChecked(True)
+            heading.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            body = QWidget()
+            body_layout = QVBoxLayout(body)
+            body_layout.setContentsMargins(2, 0, 2, 8)
+            body_layout.setSpacing(7)
+            heading.toggled.connect(body.setVisible)
+            heading.toggled.connect(lambda expanded, control=heading: control.setArrowType(
+                Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow))
+            heading.toggled.connect(lambda _expanded: self._camera_layout_timer.start())
+            settings_layout.addWidget(heading)
+            settings_layout.addWidget(body)
+            self.scene_sections[title] = (heading, body)
+            return body_layout
+
+        assembly_settings = section("整体布置")
         self.visibility_checks = {}
         for label, prop, checked in (("容器包络", "showVessel", True), ("下封头", "showDome", True),
                                      ("支承板", "showPlates", True), ("支承柱", "showSupports", True),
@@ -5565,20 +5602,13 @@ class NativeThreeDPage(QWidget):
             check.setChecked(checked)
             check.toggled.connect(lambda value, name=prop: self._set_scene_property(name, value))
             self.visibility_checks[prop] = check
-            views.addWidget(check)
+            assembly_settings.addWidget(check)
         self.maintenance_preview = QCheckBox("维护后位置预览")
         self.maintenance_preview.toggled.connect(self._rebuild_scene)
-        views.addWidget(self.maintenance_preview)
-        views.addStretch()
-        self.scene_settings_host = QWidget()
-        scene_settings_layout = QVBoxLayout(self.scene_settings_host)
-        scene_settings_layout.setContentsMargins(0, 0, 0, 0)
-        scene_settings_layout.addLayout(views)
+        assembly_settings.addWidget(self.maintenance_preview)
         self.scene_settings_host.hide()
         self.scene_settings_button.toggled.connect(self.scene_settings_host.setVisible)
-        layout.addWidget(self.scene_settings_host)
-        tools = QGridLayout()
-        self.camera_preset = QComboBox()
+        self.camera_preset = QComboBox(settings_body)
         # Keep the seven standard engineering views available as explicit
         # camera presets.  The old four-entry selector made it impossible to
         # reproduce the rear/left/bottom inspection orientations without
@@ -5594,58 +5624,99 @@ class NativeThreeDPage(QWidget):
         ):
             self.camera_preset.addItem(label, angles)
         self.camera_preset.currentIndexChanged.connect(self._camera_changed)
-        tools.addWidget(self.camera_preset, 0, 0)
+        self.camera_preset.hide()
         self.type_filter = QComboBox()
         self.type_filter.addItem("全部管型", "")
-        from .native_model_data import reference_layout
+        from .native_model_data import reference_layout, reference_specs
         for kind in sorted({str(c["type"]) for c in reference_layout()["channels"]}):
             self.type_filter.addItem(kind, kind)
-        self.type_filter.currentIndexChanged.connect(
-            lambda: self._set_scene_property("tubeType", self.type_filter.currentData()))
-        tools.addWidget(self.type_filter, 0, 1)
+        self.type_filter.setAccessibleName("三维型号筛选")
+        self.type_filter.currentIndexChanged.connect(self._tube_type_changed)
+        assembly_settings.addWidget(self.type_filter)
+        model_legend = ToolFlowLayout()
+        model_legend.setContentsMargins(0, 0, 0, 0)
+        model_legend.setSpacing(3)
+        specs = reference_specs()
+        models = [*specs["models"], {"type": "空心柱", "cn": "空心柱", "count": 2, "color": "#8d8d8d"}]
+        self.type_buttons = {}
+        for model in models:
+            control = QToolButton()
+            control.setObjectName("modelTypeLegend")
+            control.setText(f"{model['cn']} {model['count']}")
+            control.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            control.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            control.setCheckable(True)
+            control.setAccessibleName(f"筛选{model['cn']}")
+            control.setToolTip(f"{model['cn']} · {model['count']} 根；再次点击恢复全部")
+            swatch = QPixmap(10, 10)
+            swatch.fill(QColor(model["color"]))
+            control.setIcon(QIcon(swatch))
+            control.clicked.connect(lambda _checked, kind=model["type"]: self.type_filter.setCurrentIndex(
+                0 if self.type_filter.currentData() == kind else self.type_filter.findData(kind)))
+            self.type_buttons[model["type"]] = control
+            model_legend.addWidget(control)
+        assembly_settings.addLayout(model_legend)
+        self.color_checks = {}
+        color_row = ToolFlowLayout()
+        for label, mode in (("按管长着色", "length"), ("按型号着色", "type")):
+            control = QCheckBox(label)
+            control.toggled.connect(lambda checked, name=mode: self._tube_color_changed(name, checked))
+            self.color_checks[mode] = control
+            color_row.addWidget(control)
+        assembly_settings.addLayout(color_row)
+        self.color_checks["depth"] = QCheckBox("按检测数据着色（最大磨损）")
+        self.color_checks["depth"].toggled.connect(lambda checked: self._tube_color_changed("depth", checked))
+        assembly_settings.addWidget(self.color_checks["depth"])
+        self.color_legend = QWidget()
+        self.color_legend.setAccessibleName("三维着色图例")
+        self.color_legend_layout = ToolFlowLayout(self.color_legend)
+        assembly_settings.addWidget(self.color_legend)
+        self._sync_color_legend()
+        display_settings = section("显示")
         self.axes = QCheckBox("坐标轴")
         self.axes.setToolTip("X红 / Y绿 / Z蓝")
         self.axes.toggled.connect(lambda v: self._set_scene_property("showAxes", v))
-        tools.addWidget(self.axes, 0, 2)
+        display_settings.addWidget(self.axes)
         self.opacity = QSlider(Qt.Orientation.Horizontal)
         self.opacity.setRange(10, 100)
         self.opacity.setValue(65)
-        self.opacity.setMaximumWidth(110)
         self.opacity.valueChanged.connect(lambda v: self._set_scene_property("modelOpacity", v / 100))
-        tools.addWidget(QLabel("透明度"), 0, 3)
-        tools.addWidget(self.opacity, 0, 4)
+        display_settings.addWidget(QLabel("透明度"))
+        display_settings.addWidget(self.opacity)
+        cut_settings = section("剖切与测距")
         self.explode = QSlider(Qt.Orientation.Horizontal)
         self.explode.setRange(0, 100)
-        self.explode.setMaximumWidth(110)
         self.explode.valueChanged.connect(lambda v: self._set_scene_property("explode", v / 100))
-        tools.addWidget(QLabel("装配展开"), 0, 5)
-        tools.addWidget(self.explode, 0, 6)
         self.section = QCheckBox("剖切")
         self.section.toggled.connect(lambda v: self._set_scene_property("clipEnabled", v))
-        tools.addWidget(self.section, 1, 0)
+        cut_settings.addWidget(self.section)
+        cut_form = QFormLayout()
+        cut_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.section_axis = QComboBox()
         for axis in ("x", "y", "z"):
             self.section_axis.addItem(axis.upper(), axis)
         self.section_axis.currentIndexChanged.connect(
             lambda: self._set_scene_property("clipAxis", self.section_axis.currentData()))
-        tools.addWidget(self.section_axis, 1, 1)
+        cut_form.addRow("剖切轴", self.section_axis)
         self.section_offset = QSpinBox()
         self.section_offset.setRange(-10000, 10000)
         self.section_offset.setSingleStep(100)
         self.section_offset.setSuffix(" mm")
         self.section_offset.valueChanged.connect(lambda v: self._set_scene_property("clipOffset", v))
-        tools.addWidget(self.section_offset, 1, 2)
+        cut_form.addRow("位置", self.section_offset)
+        cut_settings.addLayout(cut_form)
         self.measurement = QCheckBox("两点测距")
         self.measurement.toggled.connect(lambda v: self._set_scene_property("measurementEnabled", v))
-        tools.addWidget(self.measurement, 1, 3)
+        cut_settings.addWidget(self.measurement)
         self.measurement_value = QLabel()
         self.measurement_value.setWordWrap(True)
-        tools.addWidget(self.measurement_value, 1, 4, 1, 3)
+        cut_settings.addWidget(self.measurement_value)
+        explode_settings = section("装配展开")
+        explode_settings.addWidget(self.explode)
         self.image_export = button("导出 PNG", "download",
                                    lambda: export_widget_image(self, self.client, self.view, "导出三维视图"))
-        tools.addWidget(self.image_export, 0, 7)
-        tools.setColumnStretch(8, 1)
-        scene_settings_layout.addLayout(tools)
+        settings_layout.addWidget(self.image_export)
+        settings_layout.addStretch(1)
         self.status = QLabel("正在读取检测范围...")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -5702,6 +5773,7 @@ class NativeThreeDPage(QWidget):
         scene_layout = QGridLayout(self.scene_host)
         scene_layout.setContentsMargins(0, 0, 0, 0)
         scene_layout.addWidget(self.view_container, 0, 0)
+        scene_layout.addWidget(self.scene_settings_host, 0, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         detail_host = QWidget()
         self.scene_detail_host = detail_host
         detail_host.setObjectName("workspacePanel")
@@ -5775,12 +5847,14 @@ class NativeThreeDPage(QWidget):
         self._camera_layout_timer.timeout.connect(self._sync_camera_space)
         detail_host.installEventFilter(self)
         footer.installEventFilter(self)
+        self.scene_settings_host.installEventFilter(self)
+        self.scene_host.installEventFilter(self)
         self._camera_layout_timer.start()
         self.load_overview()
 
     def eventFilter(self, watched, event):
         if (not self._view_shutdown and hasattr(self, "_camera_layout_timer")
-                and watched in (self.scene_detail_host, self.scene_footer)
+                and watched in (self.scene_detail_host, self.scene_footer, self.scene_settings_host, self.scene_host)
                 and event.type() in (QEvent.Type.Resize, QEvent.Type.Show, QEvent.Type.Hide)):
             self._camera_layout_timer.start()
         return super().eventFilter(watched, event)
@@ -5788,6 +5862,14 @@ class NativeThreeDPage(QWidget):
     def _sync_camera_space(self):
         if self._view_shutdown:
             return
+        settings = self.scene_settings_host
+        content = settings.widget()
+        content_height = (content.heightForWidth(settings.viewport().width()) if content.hasHeightForWidth()
+                          else content.sizeHint().height())
+        available_height = max(150, self.scene_host.height() - self.scene_footer.height() - 16)
+        settings.setFixedHeight(min(available_height, max(1, content_height) + 2 * settings.frameWidth()))
+        self._set_scene_property("coveredLeft", self.scene_settings_host.width() + 16
+                                 if self.scene_settings_host.isVisible() else 0)
         self._set_scene_property("coveredRight", self.scene_detail_host.width() + 16
                                  if self.scene_detail_host.isVisible() else 0)
         self._set_scene_property("coveredBottom", self.scene_footer.height() + 16
@@ -5834,6 +5916,75 @@ class NativeThreeDPage(QWidget):
         root = self.view.rootObject()
         if root is not None:
             root.setProperty(name, value)
+
+    def set_severity(self, levels, colors):
+        self.severity_levels = list(levels)
+        self.severity_colors = list(colors)
+        self._update_tube_colors()
+
+    def _tube_color_changed(self, mode, checked):
+        # The reference clears length/type when depth is enabled; depth keeps
+        # priority if a geometric color option is subsequently selected.
+        if checked:
+            others = ("length", "type") if mode == "depth" else ("type" if mode == "length" else "length",)
+            for name in others:
+                self.color_checks[name].blockSignals(True)
+                self.color_checks[name].setChecked(False)
+                self.color_checks[name].blockSignals(False)
+        self._update_tube_colors()
+
+    def _tube_type_changed(self):
+        kind = self.type_filter.currentData() or ""
+        self._set_scene_property("tubeType", kind)
+        for name, control in self.type_buttons.items():
+            control.setChecked(name == kind)
+        self._update_tube_colors()
+
+    def _tube_color_mode(self):
+        return next((name for name in ("depth", "type", "length") if self.color_checks[name].isChecked()), "base")
+
+    def _update_tube_colors(self):
+        from .native_model_data import color_tubes
+        tubes = color_tubes(
+            self._scene_tubes, (self._scope_data or {}).get("records") or [],
+            mode=self._tube_color_mode(), type_filter=self.type_filter.currentData() or "",
+            levels=self.severity_levels, colors=self.severity_colors)
+        self._set_scene_property("tubeColors", {str(tube["tube"]): tube["color"] for tube in tubes})
+        self._sync_color_legend()
+
+    def _sync_color_legend(self):
+        while self.color_legend_layout.count():
+            item = self.color_legend_layout.takeAt(0)
+            item.widget().deleteLater()
+        mode = self._tube_color_mode()
+        entries = []
+        if mode == "depth":
+            levels = self.severity_levels
+            entries = [(f"< {levels[0]}%", self.severity_colors[0])]
+            entries.extend((f"{low} – {high}%", self.severity_colors[index + 1])
+                           for index, (low, high) in enumerate(zip(levels, levels[1:])))
+            entries.extend([(f"≥ {levels[-1]}%", self.severity_colors[-1]),
+                            ("无有效缺陷记录", "#667c8c")])
+        elif mode == "length" and self._scene_tubes:
+            from .native_model_data import color_tubes
+            ends = sorted(color_tubes(self._scene_tubes, [], mode="length"), key=lambda tube: tube["length"])
+            entries = [(f"{tube['length']:g} mm", tube["color"]) for tube in (ends[0], ends[-1])]
+        for text, color in entries:
+            entry = QWidget()
+            row = QHBoxLayout(entry)
+            row.setContentsMargins(0, 0, 4, 0)
+            row.setSpacing(5)
+            swatch = QLabel()
+            swatch.setFixedSize(10, 10)
+            swatch.setStyleSheet(f"background:{color};border:1px solid #70808a;")
+            label = QLabel(text)
+            label.setTextFormat(Qt.TextFormat.PlainText)
+            row.addWidget(swatch)
+            row.addWidget(label)
+            self.color_legend_layout.addWidget(entry)
+        self.color_legend.setVisible(bool(entries))
+        if hasattr(self, "_camera_layout_timer"):
+            self._camera_layout_timer.start()
 
     def _display_changed(self):
         self.camera_preset.setItemData(0, _three_d_iso_angles(self.display_mode.currentData()))
@@ -5944,12 +6095,15 @@ class NativeThreeDPage(QWidget):
         request_number = self.request_number
         self.rows = {}
         self._scope_data = None
+        self._scene_tubes = []
         self.record_details = {}
         self.records.clear()
         self.record_detail.clear()
+        self._sync_color_legend()
         root = self.view.rootObject()
         if root is not None:
             root.setProperty("tubes", [])
+            root.setProperty("tubeColors", {})
             root.setProperty("defects", [])
         self.detail.setText("选择管子查看检测记录与维护状态")
         scope = self.scope.currentData()
@@ -5982,7 +6136,9 @@ class NativeThreeDPage(QWidget):
                 self._scope_data, maintenance_preview=self.maintenance_preview.isChecked())
         except (ValueError, TypeError) as exc:
             self.rows = {}
+            self._scene_tubes = []
             self._set_scene_property("tubes", [])
+            self._set_scene_property("tubeColors", {})
             self._set_scene_property("defects", [])
             self.status.setText(str(exc))
             return
@@ -5991,9 +6147,11 @@ class NativeThreeDPage(QWidget):
             self.status.setText("三维场景无法初始化")
             return
         self.rows = rows
+        self._scene_tubes = tubes
         self._set_scene_property("plateUnit", int((self.scope.currentData() or {}).get("unit") or 0))
         self.record_details = details
         root.setProperty("tubes", tubes)
+        self._update_tube_colors()
         root.setProperty("defects", defects)
         scope = self.scope.currentData() or {}
         self.status.setText(f"{scope.get('outage', '')} · {scope.get('unit', '')}号机组 · "
@@ -6342,6 +6500,7 @@ class NativeMainWindow(QMainWindow):
         visualization = self.stack.widget(3).visualization
         visualization.set_theme(theme, prefs["animations"])
         visualization.set_severity(prefs["depth_levels"], prefs["depth_colors"])
+        self.stack.widget(2).set_severity(prefs["depth_levels"], prefs["depth_colors"])
         if visualization.set_analysis_options(prefs["ndd_zero"], prefs["point_labels"]):
             self.stack.widget(3).load()
             self.stack.widget(3).load_complex_analysis()

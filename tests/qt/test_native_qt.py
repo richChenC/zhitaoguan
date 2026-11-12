@@ -598,6 +598,85 @@ class NativeQtTests(unittest.TestCase):
         self.assertFalse(page._camera_layout_timer.isActive())
         self.assertFalse(page._rotation_timer.isActive())
 
+    def test_three_d_model_settings_float_scroll_and_preserve_controls(self):
+        class Client:
+            def get(self, _path, _callback):
+                return None
+
+        page = NativeThreeDPage(Client())
+        page.resize(800, 650)
+        page.show()
+        self.app.processEvents()
+        original_scene_height = page.scene_host.height()
+        page.scene_settings_button.click()
+        self.app.processEvents()
+        self.assertEqual(page.width(), 800)
+        self.assertEqual(page.scene_host.height(), original_scene_height)
+        self.assertTrue(page.scene_settings_host.isVisible())
+        self.assertGreater(page.view.rootObject().property("coveredLeft"), 0)
+        self.assertEqual(page.scene_settings_host.horizontalScrollBar().maximum(), 0)
+        self.assertLessEqual(page.scene_settings_host.height(),
+                             page.scene_host.height() - page.scene_footer.height() - 16)
+        self.assertEqual(page.scene_settings_host.height(),
+                         page.scene_host.height() - page.scene_footer.height() - 16)
+        heading, body = page.scene_sections["剖切与测距"]
+        page.section_offset.setValue(-1250)
+        heading.click()
+        self.assertTrue(body.isHidden())
+        heading.click()
+        self.assertFalse(body.isHidden())
+        self.assertEqual(page.section_offset.value(), -1250)
+        page.scene_settings_host.ensureWidgetVisible(page.image_export)
+        self.app.processEvents()
+        position = page.image_export.mapTo(page.scene_settings_host.viewport(), page.image_export.rect().center())
+        self.assertTrue(page.scene_settings_host.viewport().rect().contains(position))
+        expanded_height = page.scene_settings_host.height()
+        for disclosure, _body in page.scene_sections.values():
+            disclosure.click()
+        self.app.processEvents()
+        self.assertLess(page.scene_settings_host.height(), expanded_height)
+        page.scene_settings_button.click()
+        self.app.processEvents()
+        self.assertEqual(page.view.rootObject().property("coveredLeft"), 0)
+        page.close()
+
+    def test_three_d_coloring_modes_filters_and_live_severity(self):
+        class Client:
+            def get(self, _path, _callback):
+                return None
+
+        page = NativeThreeDPage(Client())
+        page._scene_tubes = [{"tube": 1, "type": "I", "length": 100, "category": "defect"},
+                            {"tube": 2, "type": "II", "length": 200, "category": "ndd"}]
+        page._scope_data = {"records": [{"thimble_id": 1, "indication": "FRE", "percent": 35}]}
+        page.color_checks["length"].click()
+        self.assertEqual(page._tube_color_mode(), "length")
+        page.color_checks["type"].click()
+        self.assertFalse(page.color_checks["length"].isChecked())
+        self.assertEqual(page._tube_color_mode(), "type")
+        page.color_checks["depth"].click()
+        self.assertFalse(page.color_checks["type"].isChecked())
+        self.assertEqual(page._tube_color_mode(), "depth")
+        root = page.view.rootObject()
+        self.assertEqual(root.property("tubeColors"), {"1": "#e5a83b", "2": "#667c8c"})
+        page.color_checks["length"].click()
+        self.assertEqual(page._tube_color_mode(), "depth")
+        page.type_buttons["II"].click()
+        self.assertEqual(page.type_filter.currentData(), "II")
+        self.assertEqual(root.property("tubeColors"), {"1": "#6b7480", "2": "#667c8c"})
+        page.type_buttons["II"].click()
+        self.assertEqual(page.type_filter.currentData(), "")
+        page.set_severity([10, 20, 40], ["#111111", "#222222", "#333333", "#444444"])
+        self.assertEqual(root.property("tubeColors"), {"1": "#333333", "2": "#667c8c"})
+        legend = [item.text() for item in page.color_legend.findChildren(native_windows.QLabel)
+                  if item.text()]
+        self.assertIn("20 – 40%", legend)
+        page.load_scope()
+        self.assertEqual(root.property("tubes"), [])
+        self.assertEqual(root.property("tubeColors"), {})
+        self.assertEqual(page._scene_tubes, [])
+        page.close()
+
     def test_report_draft_is_part_of_snapshot_payload(self):
         class Client:
             def get(self, path, callback):

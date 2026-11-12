@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -12,7 +13,7 @@ from PySide6.QtCore import QEventLoop, QPoint, QPointF, QTimer, Qt, QtMsgType, Q
 from PySide6.QtGui import QGuiApplication, QVector3D, QWheelEvent
 from PySide6.QtQuick import QQuickView
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 
 
 def wait(milliseconds):
@@ -30,12 +31,39 @@ def verify_camera_views(page, root, work):
     """Check actual projection, bounds, picking and panel insets on the desktop renderer."""
     from qt_shell.native_components import workspace_styles
     results = []
-    for width, height in ((1024, 768), (1480, 920)):
+    for width, height, model_settings in ((800, 650, False), (1024, 768, False),
+                                          (1024, 768, True), (1480, 920, True)):
         theme = "light" if width == 1024 else "dark"
         page.setStyleSheet(workspace_styles(theme))
+        wait(50)
         page.resize(width, height)
+        page.scene_settings_button.setChecked(model_settings)
         page.data_details_button.setChecked(width == 1480)
         wait(200)
+        assert page.width() == width, ("Settings increased window width", width, page.width())
+        assert page.scene_settings_host.horizontalScrollBar().maximum() == 0
+        if model_settings:
+            assert page.scene_settings_host.height() <= page.scene_host.height() - page.scene_footer.height() - 16
+            heading, body = page.scene_sections["整体布置"]
+            page.scene_settings_host.ensureWidgetVisible(heading)
+            wait(50)
+            QTest.mouseClick(heading, Qt.MouseButton.LeftButton)
+            assert body.isHidden(), "Actual disclosure click did not collapse the section"
+            QTest.mouseClick(heading, Qt.MouseButton.LeftButton)
+            assert not body.isHidden(), "Actual disclosure click did not expand the section"
+            page.scene_settings_host.ensureWidgetVisible(page.image_export)
+            wait(50)
+            export_center = page.image_export.mapTo(
+                page.scene_settings_host.viewport(), page.image_export.rect().center())
+            assert page.scene_settings_host.viewport().rect().contains(export_center)
+            page.scene_settings_host.verticalScrollBar().setValue(0)
+        if width == 800:
+            page.detection_filter_button.click()
+            wait(100)
+            assert page.scope.isVisible() and page.width() == width
+            assert page.scope.mapTo(page, page.scope.rect().bottomRight()).x() < page.width()
+            page.detection_filter_button.click()
+            wait(100)
         for index in range(page.camera_preset.count()):
             page.camera_buttons[index].click()
             wait(100)
@@ -56,7 +84,8 @@ def verify_camera_views(page, root, work):
             bounds = [min(p.x() for p in points), min(p.y() for p in points),
                       max(p.x() for p in points), max(p.y() for p in points)]
             assert all(0 < p.z() < 50000 for p in points), (index, "depth", points)
-            assert 0 <= bounds[0] < bounds[2] <= visible_w, (width, index, bounds, visible_w)
+            assert root.property("coveredLeft") <= bounds[0] < bounds[2] <= visible_w, (
+                width, index, bounds, root.property("coveredLeft"), visible_w)
             assert 0 <= bounds[1] < bounds[3] <= visible_h, (width, index, bounds, visible_h)
             if index in (5, 6):
                 a = root.projectPoint(QVector3D(-100, 0, 0))
@@ -65,19 +94,22 @@ def verify_camera_views(page, root, work):
             frame = page.view.grabWindow()
             colors = len(set(pixels(frame)))
             assert colors > 12, (width, index, colors)
-            frame.save(str(work / f"camera-{width}-{index}.png"))
-            page.grab().save(str(work / f"camera-ui-{width}-{index}.png"))
+            suffix = "-settings" if model_settings else ""
+            frame.save(str(work / f"camera-{width}-{index}{suffix}.png"))
+            page.grab().save(str(work / f"camera-ui-{width}-{index}{suffix}.png"))
             results.append({"width": width, "height": height,
                             "theme": theme,
+                            "model_settings": model_settings,
                             "view": page.camera_preset.itemText(index),
                             "orthographic": index > 0, "mirrored": index == 5,
-                            "available": [visible_w, visible_h], "bounds": bounds, "colors": colors})
+                            "available": [root.property("coveredLeft"), visible_w, visible_h],
+                            "bounds": bounds, "colors": colors})
 
     page.camera_buttons[5].click()
     wait(150)
     points = [(x, y, root.pickTube(x, y))
               for y in range(0, int(page.view.height() - root.property("coveredBottom")), 12)
-              for x in range(0, int(page.view.width() - root.property("coveredRight")), 12)]
+              for x in range(int(root.property("coveredLeft")), int(page.view.width() - root.property("coveredRight")), 12)]
     points = [point for point in points if point[2]]
     assert points, "Mirrored orthographic top cannot pick any real tube"
     all_targets = {}
@@ -123,7 +155,7 @@ def verify_camera_views(page, root, work):
             high.x() if mask & 1 else low.x(),
             high.y() if mask & 2 else low.y(),
             high.z() if mask & 4 else low.z())) for mask in range(8)]
-        assert all(0 <= p.x() <= page.view.width() - root.property("coveredRight")
+        assert all(root.property("coveredLeft") <= p.x() <= page.view.width() - root.property("coveredRight")
                    and 0 <= p.y() <= page.view.height() - root.property("coveredBottom") for p in corners), axis
         clipping.append(axis)
     page.section.setChecked(False)
@@ -132,12 +164,19 @@ def verify_camera_views(page, root, work):
     x, y, tube = points[len(points) // 2]
     QTest.mouseClick(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(x, y))
     assert page.tube_selector.value() == tube, (tube, page.tube_selector.value())
+    free_point = QPoint(int(root.property("coveredLeft")) + 50, 150)
+    drag_point = free_point + QPoint(30, 20)
+    free_global = page.view.mapToGlobal(free_point)
+    for overlay_widget in (page.scene_settings_host, page.scene_detail_host, page.scene_footer):
+        if overlay_widget.isVisible():
+            assert not overlay_widget.rect().contains(overlay_widget.mapFromGlobal(free_global)), (
+                "Pointer target is covered by a widget", overlay_widget)
     before_pan = float(root.property("panX"))
-    QTest.mousePress(page.view, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, QPoint(250, 250))
-    QTest.mouseMove(page.view, QPoint(280, 270), 50)
-    QTest.mouseRelease(page.view, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, QPoint(280, 270))
+    QTest.mousePress(page.view, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, free_point)
+    QTest.mouseMove(page.view, drag_point, 50)
+    QTest.mouseRelease(page.view, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, drag_point)
     assert root.property("panX") > before_pan, "Mirrored pan moved in the wrong direction"
-    wheel = QWheelEvent(QPointF(250, 250), QPointF(250, 250), QPoint(), QPoint(0, 120),
+    wheel = QWheelEvent(QPointF(free_point), QPointF(free_global), QPoint(), QPoint(0, 120),
                         Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
                         Qt.ScrollPhase.ScrollUpdate, False)
     QApplication.instance().sendEvent(page.view, wheel)
@@ -146,15 +185,15 @@ def verify_camera_views(page, root, work):
     page._fit_scene()
     assert page.camera_preset.currentIndex() == -1 and root.property("zoomFactor") == 1
     assert root.property("pitch") == -90 and root.property("domeAlpha") == .26
-    QTest.mousePress(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(250, 250))
-    QTest.mouseMove(page.view, QPoint(280, 270), 50)
-    QTest.mouseRelease(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(280, 270))
+    QTest.mousePress(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, free_point)
+    QTest.mouseMove(page.view, drag_point, 50)
+    QTest.mouseRelease(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, drag_point)
     assert page.camera_preset.currentIndex() == -1
     assert not any(control.isChecked() for control in page.camera_buttons)
     assert root.property("domeAlpha") == .26 and root.property("plateAlpha") == .42
     page.camera_buttons[5].click()
-    QTest.mouseDClick(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(200, 200))
-    QTest.mouseRelease(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(200, 200))
+    QTest.mouseDClick(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, free_point)
+    QTest.mouseRelease(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, free_point)
     wait(100)
     assert page.camera_preset.currentIndex() == 0 and page.camera_buttons[0].isChecked()
     assert not root.property("orthographicActive") and not root.property("mirrorTop")
@@ -165,6 +204,7 @@ def verify_camera_views(page, root, work):
     page.auto_rotate.setChecked(False)
     page._reset_three_d_view()
     page.setStyleSheet(workspace_styles("light"))
+    page.scene_settings_button.setChecked(False)
     page.data_details_button.setChecked(False)
     page.resize(1100, 800)
     wait(500)
@@ -174,6 +214,104 @@ def verify_camera_views(page, root, work):
             "clipped_axes_fitted": clipping, "dome_visibility_and_explode": True,
             "clicked_tube": tube, "mirrored_pan_zoom": True, "free_rotation": True,
             "double_click_reset": True, "auto_rotation": True}
+
+
+def verify_tube_colors(page, root, work, data):
+    from PySide6.QtCore import QObject
+    from qt_shell.native_components import icon, workspace_styles
+    from qt_shell.native_model_data import color_tubes, reference_specs
+
+    project = Path(__file__).resolve().parents[2]
+    reference = project.parent / "10_TRAEqt优化版"
+    cases = [{"mode": mode, "type_filter": kind, "tubes": page._scene_tubes,
+              "records": data["records"], "levels": [30, 50],
+              "colors": ["#79b98c", "#e5a83b", "#df4b45"]}
+             for mode in ("base", "length", "type", "depth")
+             for kind in ("", *page.type_buttons)]
+    completed = subprocess.run(
+        ["node", "--no-warnings", str(Path(__file__).with_name("reference_tube_colors.mjs")), str(reference)],
+        input=json.dumps(cases), text=True, encoding="utf-8", capture_output=True, check=True)
+    expected = json.loads(completed.stdout)
+    for case, colors in zip(cases, expected["outputs"], strict=True):
+        actual = color_tubes(case["tubes"], case["records"], mode=case["mode"],
+                             type_filter=case["type_filter"])
+        assert [tube["color"] for tube in actual] == colors, (case["mode"], case["type_filter"])
+
+    page.resize(1480, 920)
+    page.scene_settings_button.setChecked(True)
+    page.data_details_button.setChecked(False)
+    page.camera_buttons[0].click()
+    wait(150)
+    modes = {}
+    original_node = root.findChild(QObject, "tubeNode-1")
+    for theme in ("light", "dark"):
+        page.setStyleSheet(workspace_styles(theme))
+        for control in page.findChildren(QPushButton):
+            if control.property("iconName"):
+                control.setIcon(icon(control.property("iconName"), theme))
+        wait(100)
+        for mode in ("length", "type", "depth"):
+            for control in page.color_checks.values():
+                control.setChecked(False)
+            control = page.color_checks[mode]
+            page.scene_settings_host.ensureWidgetVisible(control)
+            wait(75)
+            QTest.mouseClick(control, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                             QPoint(8, control.height() // 2))
+            wait(100)
+            assert control.isChecked() and page._tube_color_mode() == mode
+            tubes = root.property("tubes")
+            matching = next(colors for case, colors in zip(cases, expected["outputs"], strict=True)
+                            if case["mode"] == mode and not case["type_filter"])
+            actual_colors = root.property("tubeColors")
+            assert [actual_colors[str(tube["tube"])] for tube in tubes] == matching
+            assert root.findChild(QObject, "tubeNode-1") == original_node, "Color change rebuilt tube geometry"
+            viewport = page.scene_settings_host.viewport()
+            background_point = viewport.mapTo(page, QPoint(4, 4))
+            panel_background = page.grab().toImage().pixelColor(background_point).name()
+            assert panel_background == ("#1c2527" if theme == "dark" else "#ffffff"), (
+                theme, "Settings body background", panel_background)
+            modes[mode] = {"unique_colors": sorted(set(matching)), "tubes": len(tubes)}
+            page.grab().save(str(work / f"color-{mode}-{theme}.png"))
+        target = page.type_buttons["II"]
+        page.scene_settings_host.ensureWidgetVisible(target)
+        wait(50)
+        QTest.mouseClick(target, Qt.MouseButton.LeftButton)
+        wait(100)
+        assert page.type_filter.currentData() == "II"
+        assert len(root.property("tubes")) == 50
+        for tube in root.property("tubes"):
+            node = root.findChild(QObject, "tubeNode-" + str(tube["tube"]))
+            assert node and node.property("visible"), ("Type filter hid a tube", tube["tube"])
+            if tube["type"] != "II":
+                assert root.property("tubeColors")[str(tube["tube"])] == "#6b7480"
+        page.grab().save(str(work / f"color-filter-depth-{theme}.png"))
+        QTest.mouseClick(target, Qt.MouseButton.LeftButton)
+        assert page.type_filter.currentData() == ""
+    page.set_severity([20, 40], ["#112233", "#557799", "#bb5533"])
+    wait(100)
+    custom = color_tubes(page._scene_tubes, data["records"], mode="depth",
+                         levels=[20, 40], colors=["#112233", "#557799", "#bb5533"])
+    assert root.property("tubeColors") == {str(tube["tube"]): tube["color"] for tube in custom}
+    page.set_severity([30, 50], ["#79b98c", "#e5a83b", "#df4b45"])
+    for control in page.color_checks.values():
+        control.setChecked(False)
+    for _ in range(5):
+        page._rebuild_scene()
+        wait(75)
+    page._set_scene_property("tubes", [])
+    wait(75)
+    page._rebuild_scene()
+    wait(75)
+    page.scene_settings_button.setChecked(False)
+    page._reset_three_d_view()
+    page.resize(1100, 800)
+    wait(200)
+    return {"reference_cases": len(cases), "reference_tube_colors": sum(len(c["tubes"]) for c in cases),
+            "three_revision": expected["revision"], "modes": modes,
+            "model_counts": {m["type"]: m["count"] for m in reference_specs()["models"]},
+            "filter_fades_preserves_50_visible_tubes": True, "live_severity": True,
+            "color_changes_reuse_geometry": True, "scene_rebuilds": 5, "empty_scene_reload": True}
 
 
 def main():
@@ -346,6 +484,7 @@ def real_data_probe(database):
     work.mkdir()
     image.save(str(work / "assembly.png"))
     output["cameras"] = verify_camera_views(page, root, work)
+    output["coloring"] = verify_tube_colors(page, root, work, data)
     image = page.view.grabWindow()
     page.plate_view.setChecked(True)
     wait(400)
@@ -414,7 +553,12 @@ def real_data_probe(database):
         frame = page.view.grabWindow()
         output["mode_colors"][mode] = len(set(pixels(frame)))
         frame.save(str(work / (mode + ".png")))
-        assert output["mode_colors"][mode] > 12, (mode, output["mode_colors"], tube)
+        node = root.findChild(QObject, "tubeNode-" + str(tube))
+        assert output["mode_colors"][mode] > 12, (
+            mode, output["mode_colors"], tube, len(root.property("tubes")),
+            root.property("selectedTube"), node.property("visible") if node else None,
+            [(child.metaObject().className(), child.property("visible"),
+              str(child.property("geometry"))) for child in node.children()] if node else None)
     page.plate_view.click()
     wait(200)
     assert page.display_mode.currentData() == "assembly" and page.mode_tabs.currentIndex() == 0
