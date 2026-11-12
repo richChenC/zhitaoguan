@@ -17,11 +17,37 @@ Rectangle {
     property bool showPlates: true
     property bool enlargeTubes: true
     property real modelOpacity: 0.65
-    property real yaw: 0
-    property real pitch: -34
+    readonly property vector3d isoDirection: displayMode === "joint" ? Qt.vector3d(.55, .38, .74) :
+        displayMode === "full" ? Qt.vector3d(.45, .12, .45) :
+        displayMode === "socket" ? Qt.vector3d(.6, .35, .7) : Qt.vector3d(.52, .40, .76)
+    readonly property real defaultYaw: Math.atan2(isoDirection.x, isoDirection.z) * 180 / Math.PI
+    readonly property real defaultPitch: -Math.atan2(isoDirection.y,
+        Math.sqrt(isoDirection.x*isoDirection.x + isoDirection.z*isoDirection.z)) * 180 / Math.PI
+    readonly property real cameraTangent: Math.tan(19 * Math.PI / 180)
+    readonly property real detailDistance: displayMode === "socket" ? 3960 :
+        displayMode === "joint" ? 12 * 430 * Math.sqrt(.55*.55 + .38*.38 + .74*.74) :
+        displayMode === "full" ? 2 * ((tubes.find(t => t.tube === selectedTube) || {}).length || 3000) : 6934
+    property real yaw: defaultYaw
+    property real pitch: defaultPitch
     property real zoomFactor: 1
     property real panX: 0
     property real panY: 0
+    property bool orthographicView: false
+    readonly property bool orthographicActive: orthographicView && displayMode === "assembly"
+    property bool mirrorTop: false
+    readonly property bool mirroredActive: orthographicActive && mirrorTop
+    property bool standardAligned: true
+    readonly property real domeAlpha: orthographicActive && standardAligned ? .07 : .26
+    readonly property real plateAlpha: orthographicActive && standardAligned ? .13 : .42
+    property vector3d assemblyMinimum: Qt.vector3d(-2192.96, -2192.96, -2192.96)
+    property vector3d assemblyMaximum: Qt.vector3d(2192.96, 1637.4, 2192.96)
+    property real coveredRight: 0
+    property real coveredBottom: 0
+    property var geometryBounds: ({})
+    property var framing: ({center: Qt.vector3d(0, 0, 0), distance: 6934, magnification: .1,
+                            minimum: assemblyMinimum, maximum: assemblyMaximum})
+    readonly property vector3d fittedMinimum: framing.minimum
+    readonly property vector3d fittedMaximum: framing.maximum
     property bool showDefect: true
     property bool showReview: true
     property bool showNdd: true
@@ -40,6 +66,8 @@ Rectangle {
     property vector3d measureB: Qt.vector3d(0,0,0)
     signal tubeSelected(int tube)
     signal measurementChanged(string value)
+    signal viewManipulated()
+    signal viewReset()
     component SectionMaterial: CustomMaterial {
         property color tint: "#a9bac6"
         property real alphaValue: root.modelOpacity
@@ -96,12 +124,104 @@ Rectangle {
         }
     }
     function resetView() {
-        yaw = 0; pitch = -34; zoomFactor = 1; panX = 0; panY = 0
+        orthographicView = false; mirrorTop = false; standardAligned = true
+        yaw = defaultYaw; pitch = defaultPitch; zoomFactor = 1; panX = 0; panY = 0
+        fitView()
+        viewReset()
     }
+    function fitView() {
+        if (width <= 0 || height <= 0) return
+        let low = [Infinity, Infinity, Infinity], high = [-Infinity, -Infinity, -Infinity]
+        const include = (bounds, position = [0,0,0], scale = [1,1,1]) => {
+            if (!bounds) return
+            for (let i = 0; i < 3; ++i) {
+                low[i] = Math.min(low[i], bounds[0][i]*scale[i] + position[i])
+                high[i] = Math.max(high[i], bounds[1][i]*scale[i] + position[i])
+            }
+        }
+        if (showVessel) include(geometryBounds.vessel ||
+            [[assemblyMinimum.x, assemblyMinimum.y, assemblyMinimum.z],
+             [assemblyMaximum.x, assemblyMaximum.y, assemblyMaximum.z]])
+        if (orthographicActive && showDome) include(geometryBounds.dome, [0,-explode*800,0])
+        if (showPlates) {
+            include(geometryBounds.ucsPlate, [0,explode*800,0])
+            include(geometryBounds.secondaryGrid, [0,explode*400,0])
+        }
+        if (showSupports) for (const column of columns) include(column.bounds)
+        for (const tube of tubes) {
+            if ((tubeType && tube.type !== tubeType) ||
+                !(tube.category === "defect" ? showDefect : tube.category === "incomplete" ? showReview :
+                  tube.category === "ndd" ? showNdd : showMissing)) continue
+            const position = [tube.x, tube.yBase, tube.z]
+            include(geometryBounds.P01, position, [enlargeTubes ? 3 : 1, tube.length/3000, enlargeTubes ? 3 : 1])
+            if (showSockets) include(geometryBounds.P02, [tube.x, tube.yBase+explode*150, tube.z])
+        }
+        if (!isFinite(low[0])) {
+            low = [assemblyMinimum.x, assemblyMinimum.y, assemblyMinimum.z]
+            high = [assemblyMaximum.x, assemblyMaximum.y, assemblyMaximum.z]
+        }
+        if (clipEnabled) {
+            const axis = clipAxis === "x" ? 0 : clipAxis === "y" ? 1 : 2
+            high[axis] = Math.max(low[axis], Math.min(high[axis], clipOffset))
+        }
+        const center = low.map((v, i) => (v + high[i]) / 2)
+        const ry = yaw * Math.PI / 180, rx = pitch * Math.PI / 180
+        const right = [Math.cos(ry), 0, -Math.sin(ry)]
+        const up = [Math.sin(ry)*Math.sin(rx), Math.cos(rx), Math.cos(ry)*Math.sin(rx)]
+        const toward = [Math.sin(ry)*Math.cos(rx), -Math.sin(rx), Math.cos(ry)*Math.cos(rx)]
+        const availableW = Math.max(120, width - coveredRight)
+        const availableH = Math.max(120, height - coveredBottom)
+        const tanV = cameraTangent
+        let maxU = 1, maxV = 1, distance = 1
+        for (let mask = 0; mask < 8; ++mask) {
+            const p = low.map((v, i) => ((mask & (1 << i)) ? high[i] : v) - center[i])
+            const dot = vector => p.reduce((sum, value, i) => sum + value * vector[i], 0)
+            const u = dot(right), v = dot(up), depth = dot(toward)
+            maxU = Math.max(maxU, Math.abs(u)); maxV = Math.max(maxV, Math.abs(v))
+            // Account for parallax from shifting the camera around the overlay panels.
+            const fitU = Math.abs(u - coveredRight * tanV * depth / height)
+            const fitV = Math.abs(v + coveredBottom * tanV * depth / height)
+            distance = Math.max(distance, Math.max(fitU * height / (tanV * availableW),
+                                                   fitV * height / (tanV * availableH)) + depth)
+        }
+        framing = {center: Qt.vector3d(center[0], center[1], center[2]),
+                   distance: Math.max(100, distance * 1.06),
+                   magnification: Math.min(availableW / (2 * maxU * 1.06),
+                                           availableH / (2 * maxV * 1.06)),
+                   minimum: Qt.vector3d(low[0], low[1], low[2]),
+                   maximum: Qt.vector3d(high[0], high[1], high[2])}
+    }
+    onWidthChanged: fitView()
+    onHeightChanged: fitView()
+    onAssemblyMinimumChanged: fitView()
+    onAssemblyMaximumChanged: fitView()
+    onCoveredRightChanged: fitView()
+    onCoveredBottomChanged: fitView()
+    onClipEnabledChanged: fitView()
+    onClipAxisChanged: fitView()
+    onClipOffsetChanged: fitView()
+    onGeometryBoundsChanged: fitView()
+    onOrthographicActiveChanged: fitView()
+    onColumnsChanged: fitView()
+    onTubesChanged: fitView()
+    onShowVesselChanged: fitView()
+    onShowDomeChanged: fitView()
+    onShowPlatesChanged: fitView()
+    onShowSupportsChanged: fitView()
+    onShowSocketsChanged: fitView()
+    onEnlargeTubesChanged: fitView()
+    onExplodeChanged: fitView()
+    onTubeTypeChanged: fitView()
+    onShowDefectChanged: fitView()
+    onShowReviewChanged: fitView()
+    onShowNddChanged: fitView()
+    onShowMissingChanged: fitView()
+    Component.onCompleted: fitView()
+    function projectPoint(point) { return scene.mapFrom3DScene(point) }
     View3D {
         id: scene
         anchors.fill: parent
-        camera: camera
+        camera: root.orthographicActive ? orthographicCamera : perspectiveCamera
         environment: SceneEnvironment {
             backgroundMode: SceneEnvironment.Color
             clearColor: "#edf2f4"
@@ -109,13 +229,33 @@ Rectangle {
             tonemapMode: SceneEnvironment.TonemapModeAces
         }
         Node {
+            position: root.displayMode === "assembly" ? root.framing.center : Qt.vector3d(0,0,0)
             eulerRotation.y: root.yaw
             Node {
-                eulerRotation.x: root.pitch + 34
+                eulerRotation.x: root.pitch
+                readonly property real distance: (root.displayMode === "assembly" ? root.framing.distance : root.detailDistance) /
+                    (root.orthographicActive ? 1 : root.zoomFactor)
+                readonly property real unitsPerPixel: root.orthographicActive ?
+                    1 / (root.framing.magnification * root.zoomFactor) : 2 * root.cameraTangent * distance / Math.max(1, scene.height)
+                readonly property real shiftX: root.displayMode === "assembly" ? root.coveredRight * unitsPerPixel / 2 : 0
+                readonly property real shiftY: root.displayMode === "assembly" ? -root.coveredBottom * unitsPerPixel / 2 : 0
                 PerspectiveCamera {
-                    id: camera
-                    position: Qt.vector3d(root.panX, 3800/root.zoomFactor+root.panY, 5800/root.zoomFactor)
-                    eulerRotation.x: -34
+                    id: perspectiveCamera
+                    objectName: "perspectiveCamera"
+                    fieldOfView: 38
+                    position: Qt.vector3d(root.panX + parent.shiftX, root.panY + parent.shiftY, parent.distance)
+                    clipNear: 1
+                    clipFar: 50000
+                }
+                OrthographicCamera {
+                    id: orthographicCamera
+                    objectName: "orthographicCamera"
+                    // Mirror only the top projection, preserving world geometry and native ray picking.
+                    position: Qt.vector3d(root.panX + parent.shiftX * (root.mirroredActive ? -1 : 1),
+                                          root.panY + parent.shiftY, parent.distance)
+                    scale: Qt.vector3d(root.mirroredActive ? -1 : 1, 1, 1)
+                    horizontalMagnification: root.framing.magnification * root.zoomFactor
+                    verticalMagnification: horizontalMagnification
                     clipNear: 1
                     clipFar: 50000
                 }
@@ -129,7 +269,8 @@ Rectangle {
         }
         DirectionalLight { eulerRotation: Qt.vector3d(20,160,0); brightness: 0.35 }
         Model {
-            visible: root.showPlateOverlay && root.tubes.length > 0
+            objectName: "plateOverlayModel"
+            visible: root.showPlateOverlay && root.displayMode === "assembly" && root.tubes.length > 0
             geometry: ReferenceGeometry { partId: "plateOverlay" }
             pickable: false
             materials: DefaultMaterial {
@@ -137,9 +278,10 @@ Rectangle {
                 cullMode: Material.NoCulling
                 diffuseMap: Texture {
                     textureData: PlateTextureData {
-                        active: root.showPlateOverlay
+                        active: root.showPlateOverlay && root.displayMode === "assembly"
                         unitNumber: root.plateUnit
                         selectedTube: root.selectedTube
+                        projectionMirror: root.mirroredActive
                     }
                 }
             }
@@ -148,7 +290,7 @@ Rectangle {
             visible: root.showDome && root.displayMode === "assembly" && root.tubes.length > 0
             geometry: ReferenceGeometry { partId: "dome" }
             y: -root.explode * 800
-            materials: SectionMaterial { tint: "#a9bac6"; alphaValue: 0.12 }
+            materials: SectionMaterial { tint: "#a9bac6"; alphaValue: root.domeAlpha }
         }
         Model {
             visible: root.showVessel && root.displayMode === "assembly" && root.tubes.length > 0
@@ -162,7 +304,7 @@ Rectangle {
                 visible: root.showPlates && root.displayMode === "assembly" && root.tubes.length > 0
                 geometry: ReferenceGeometry { partId: modelData }
                 y: root.explode * (modelData === "ucsPlate" ? 800 : 400)
-                materials: SectionMaterial { tint: "#839cab"; alphaValue: root.modelOpacity * .65 }
+                materials: SectionMaterial { tint: "#839cab"; alphaValue: root.plateAlpha }
             }
         }
         Repeater3D {
@@ -306,12 +448,19 @@ Rectangle {
                 if (!pressed) return
                 const dx=mouse.x-lastX, dy=mouse.y-lastY
                 moved += Math.abs(dx)+Math.abs(dy)
+                if (root.standardAligned && (dx || dy)) {
+                    root.standardAligned = false
+                    root.viewManipulated()
+                }
                 if (pressedButtons & (Qt.MiddleButton | Qt.RightButton)) {
-                    root.panX -= dx*4/root.zoomFactor
-                    root.panY += dy*4/root.zoomFactor
+                    const units = root.orthographicActive ? 1/(root.framing.magnification*root.zoomFactor) :
+                        2*root.cameraTangent*(root.displayMode === "assembly" ? root.framing.distance : root.detailDistance) /
+                        (Math.max(1, scene.height)*root.zoomFactor)
+                    root.panX -= dx*units*(root.mirroredActive ? -1 : 1)
+                    root.panY += dy*units
                 } else {
                     root.yaw += dx*.35
-                    root.pitch=Math.max(-90,Math.min(50,root.pitch-dy*.25))
+                    root.pitch=Math.max(-90,Math.min(90,root.pitch-dy*.25))
                 }
                 lastX=mouse.x; lastY=mouse.y
             }

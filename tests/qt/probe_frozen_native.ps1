@@ -315,6 +315,27 @@ try {
             Activate-Control $plateButton[0]
             Start-Sleep -Milliseconds 450
             Capture 'frozen-three-d-plate-overlay'
+            $activePlateButton = Find-NamedControl $window '管板图：开'
+            Activate-Control $activePlateButton[0]
+            $result.three_d_camera_views = @()
+            foreach ($cameraName in @('正视','后视','左视','右视','俯视','仰视','等轴视角')) {
+                $cameraControl = @(Find-NamedControl $window $cameraName |
+                    Where-Object { -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
+                if ($cameraControl.Count -ne 1) { throw "Native camera control missing: $cameraName" }
+                Activate-Control $cameraControl[0]
+                Start-Sleep -Milliseconds 300
+                Capture ('frozen-three-d-camera-' + $result.three_d_camera_views.Count)
+                $result.three_d_camera_views += $cameraName
+            }
+            $topCameraControl = @(Find-NamedControl $window '俯视' |
+                Where-Object { -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
+            Activate-Control $topCameraControl[0]
+            $inactivePlateButton = Find-NamedControl $window '管板图：关'
+            Activate-Control $inactivePlateButton[0]
+            Start-Sleep -Milliseconds 350
+            Capture 'frozen-three-d-top-readable-overlay'
+            $result.steps += 'native-top-mirrored-plate-overlay'
+            $result.steps += 'native-seven-camera-view-controls'
             $result.steps += 'native-plate-overlay-controls'
             $result.steps += 'real-data-3D-scope-controls'
         }

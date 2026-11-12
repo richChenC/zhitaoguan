@@ -538,8 +538,65 @@ class NativeQtTests(unittest.TestCase):
                   for index in range(page.camera_preset.count())]
         self.assertEqual(angles[2], (180, 0))
         self.assertEqual(angles[3], (-90, 0))
-        self.assertEqual(angles[6], (0, 89))
+        self.assertEqual(angles[5], (0, -90))
+        self.assertEqual(angles[6], (0, 90))
+        root = page.view.rootObject()
+        for index in range(7):
+            page.camera_buttons[index].click()
+            self.assertEqual(root.property("orthographicView"), index > 0)
+            self.assertEqual(root.property("mirrorTop"), index == 5)
+            self.assertEqual(root.property("yaw"), angles[index][0])
+            self.assertEqual(root.property("pitch"), angles[index][1])
+            self.assertEqual([b.isChecked() for b in page.camera_buttons],
+                             [i == index for i in range(7)])
+        root.setProperty("panX", 120)
+        root.setProperty("zoomFactor", 3)
+        page.camera_buttons[6].click()
+        self.assertTrue(page.camera_buttons[6].isChecked())
+        self.assertEqual(root.property("panX"), 0)
+        self.assertEqual(root.property("zoomFactor"), 1)
+        page.camera_preset.setCurrentIndex(-1)
+        self.assertFalse(any(b.isChecked() for b in page.camera_buttons))
+        page._reset_three_d_view()
+        self.assertEqual(page.camera_preset.currentIndex(), 0)
+        self.assertTrue(page.camera_buttons[0].isChecked())
+        self.assertFalse(root.property("orthographicView"))
+        self.assertFalse(root.property("mirrorTop"))
         page.close()
+
+    def test_three_d_rotation_fit_and_shutdown_keep_camera_controls_consistent(self):
+        class Client:
+            def get(self, _path, _callback):
+                return None
+
+        page = NativeThreeDPage(Client())
+        page.resize(1100, 800)
+        page.show()
+        self.app.processEvents()
+        root = page.view.rootObject()
+        self.assertGreater(root.property("coveredRight"), 0)
+        self.assertGreater(root.property("coveredBottom"), 0)
+        page.camera_buttons[5].click()
+        page._fit_scene()
+        self.assertEqual(page.camera_preset.currentIndex(), 5)
+        self.assertTrue(root.property("orthographicView"))
+        self.assertEqual(root.property("pitch"), -90)
+        page.auto_rotate.setChecked(True)
+        page._rotate_scene()
+        self.assertFalse(root.property("orthographicView"))
+        self.assertFalse(root.property("standardAligned"))
+        self.assertEqual(page.camera_preset.currentIndex(), -1)
+        page.camera_buttons[1].click()
+        self.assertFalse(page.auto_rotate.isChecked())
+        self.assertFalse(page._rotation_timer.isActive())
+        page.display_mode.setCurrentIndex(page.display_mode.findData("joint"))
+        self.assertFalse(root.property("orthographicView"))
+        self.assertEqual(page.camera_preset.currentIndex(), 0)
+        with patch.object(page.view, "rootObject", return_value=None):
+            page._rotation_changed(True)
+        page.close()
+        self.assertFalse(page._camera_layout_timer.isActive())
+        self.assertFalse(page._rotation_timer.isActive())
 
     def test_report_draft_is_part_of_snapshot_payload(self):
         class Client:

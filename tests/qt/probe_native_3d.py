@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-from PySide6.QtCore import QEventLoop, QPoint, QPointF, QTimer, Qt, QUrl
-from PySide6.QtGui import QGuiApplication, QWheelEvent
+from PySide6.QtCore import QEventLoop, QPoint, QPointF, QTimer, Qt, QtMsgType, QUrl, qInstallMessageHandler
+from PySide6.QtGui import QGuiApplication, QVector3D, QWheelEvent
 from PySide6.QtQuick import QQuickView
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
@@ -24,6 +24,156 @@ def wait(milliseconds):
 def pixels(image):
     return [image.pixel(x, y) for y in range(0, image.height(), 4)
             for x in range(0, image.width(), 4)]
+
+
+def verify_camera_views(page, root, work):
+    """Check actual projection, bounds, picking and panel insets on the desktop renderer."""
+    from qt_shell.native_components import workspace_styles
+    results = []
+    for width, height in ((1024, 768), (1480, 920)):
+        theme = "light" if width == 1024 else "dark"
+        page.setStyleSheet(workspace_styles(theme))
+        page.resize(width, height)
+        page.data_details_button.setChecked(width == 1480)
+        wait(200)
+        for index in range(page.camera_preset.count()):
+            page.camera_buttons[index].click()
+            wait(100)
+            assert bool(root.property("orthographicActive")) == (index > 0)
+            assert bool(root.property("mirroredActive")) == (index == 5)
+            assert root.property("domeAlpha") == (.07 if index > 0 else .26)
+            assert root.property("plateAlpha") == (.13 if index > 0 else .42)
+            low, high = root.property("fittedMinimum"), root.property("fittedMaximum")
+            if index > 0:
+                from qt_shell.native_geometry import geometry_data
+                assert low.y() <= geometry_data("dome")[2][0][1], ("Dome bounds omitted", low)
+            points = [root.projectPoint(QVector3D(
+                high.x() if mask & 1 else low.x(),
+                high.y() if mask & 2 else low.y(),
+                high.z() if mask & 4 else low.z())) for mask in range(8)]
+            visible_w = page.view.width() - root.property("coveredRight")
+            visible_h = page.view.height() - root.property("coveredBottom")
+            bounds = [min(p.x() for p in points), min(p.y() for p in points),
+                      max(p.x() for p in points), max(p.y() for p in points)]
+            assert all(0 < p.z() < 50000 for p in points), (index, "depth", points)
+            assert 0 <= bounds[0] < bounds[2] <= visible_w, (width, index, bounds, visible_w)
+            assert 0 <= bounds[1] < bounds[3] <= visible_h, (width, index, bounds, visible_h)
+            if index in (5, 6):
+                a = root.projectPoint(QVector3D(-100, 0, 0))
+                b = root.projectPoint(QVector3D(100, 0, 0))
+                assert (b.x() < a.x()) == (index == 5), (index, a, b)
+            frame = page.view.grabWindow()
+            colors = len(set(pixels(frame)))
+            assert colors > 12, (width, index, colors)
+            frame.save(str(work / f"camera-{width}-{index}.png"))
+            page.grab().save(str(work / f"camera-ui-{width}-{index}.png"))
+            results.append({"width": width, "height": height,
+                            "theme": theme,
+                            "view": page.camera_preset.itemText(index),
+                            "orthographic": index > 0, "mirrored": index == 5,
+                            "available": [visible_w, visible_h], "bounds": bounds, "colors": colors})
+
+    page.camera_buttons[5].click()
+    wait(150)
+    points = [(x, y, root.pickTube(x, y))
+              for y in range(0, int(page.view.height() - root.property("coveredBottom")), 12)
+              for x in range(0, int(page.view.width() - root.property("coveredRight")), 12)]
+    points = [point for point in points if point[2]]
+    assert points, "Mirrored orthographic top cannot pick any real tube"
+    all_targets = {}
+    for row in page.rows.values():
+        model = next(item for item in root.property("tubes") if item["tube"] == row["tube"])
+        for dx, dz in ((0, 0), (8, 0), (14, 0), (18, 0), (0, 8), (0, 14), (0, 18)):
+            p = root.projectPoint(QVector3D(model["x"] + dx, model["yBase"], model["z"] + dz))
+            if root.pickTube(p.x(), p.y()) == model["tube"]:
+                all_targets[model["tube"]] = [p.x(), p.y()]
+                break
+    assert len(all_targets) == 50, ("Projected top targets", sorted(all_targets))
+    from qt_shell.native_plate_texture import PlateTextureData
+    page.plate_view.setChecked(True)
+    wait(200)
+    texture = root.findChild(PlateTextureData)
+    assert texture and texture.projectionMirror
+    page.grab().save(str(work / "top-overlay-readable.png"))
+    page.camera_buttons[0].click()
+    wait(200)
+    assert not texture.projectionMirror
+    page.camera_buttons[5].click()
+    wait(200)
+    assert texture.projectionMirror
+    page.plate_view.setChecked(False)
+    dome_bottom = root.property("fittedMinimum").y()
+    page.explode.setValue(75)
+    wait(100)
+    assert root.property("fittedMinimum").y() <= dome_bottom - 600 + .01
+    page.explode.setValue(0)
+    page.visibility_checks["showDome"].setChecked(False)
+    wait(100)
+    assert root.property("fittedMinimum").y() > dome_bottom
+    page.visibility_checks["showDome"].setChecked(True)
+    clipping = []
+    for axis in ("x", "y", "z"):
+        page.section_axis.setCurrentIndex(page.section_axis.findData(axis))
+        page.section.setChecked(True)
+        page._fit_scene()
+        wait(100)
+        low, high = root.property("fittedMinimum"), root.property("fittedMaximum")
+        assert getattr(high, axis)() <= 0
+        corners = [root.projectPoint(QVector3D(
+            high.x() if mask & 1 else low.x(),
+            high.y() if mask & 2 else low.y(),
+            high.z() if mask & 4 else low.z())) for mask in range(8)]
+        assert all(0 <= p.x() <= page.view.width() - root.property("coveredRight")
+                   and 0 <= p.y() <= page.view.height() - root.property("coveredBottom") for p in corners), axis
+        clipping.append(axis)
+    page.section.setChecked(False)
+    page.section_axis.setCurrentIndex(0)
+    wait(150)
+    x, y, tube = points[len(points) // 2]
+    QTest.mouseClick(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(x, y))
+    assert page.tube_selector.value() == tube, (tube, page.tube_selector.value())
+    before_pan = float(root.property("panX"))
+    QTest.mousePress(page.view, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, QPoint(250, 250))
+    QTest.mouseMove(page.view, QPoint(280, 270), 50)
+    QTest.mouseRelease(page.view, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, QPoint(280, 270))
+    assert root.property("panX") > before_pan, "Mirrored pan moved in the wrong direction"
+    wheel = QWheelEvent(QPointF(250, 250), QPointF(250, 250), QPoint(), QPoint(0, 120),
+                        Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
+                        Qt.ScrollPhase.ScrollUpdate, False)
+    QApplication.instance().sendEvent(page.view, wheel)
+    wait(100)
+    assert root.property("zoomFactor") > 1
+    page._fit_scene()
+    assert page.camera_preset.currentIndex() == -1 and root.property("zoomFactor") == 1
+    assert root.property("pitch") == -90 and root.property("domeAlpha") == .26
+    QTest.mousePress(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(250, 250))
+    QTest.mouseMove(page.view, QPoint(280, 270), 50)
+    QTest.mouseRelease(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(280, 270))
+    assert page.camera_preset.currentIndex() == -1
+    assert not any(control.isChecked() for control in page.camera_buttons)
+    assert root.property("domeAlpha") == .26 and root.property("plateAlpha") == .42
+    page.camera_buttons[5].click()
+    QTest.mouseDClick(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(200, 200))
+    QTest.mouseRelease(page.view, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(200, 200))
+    wait(100)
+    assert page.camera_preset.currentIndex() == 0 and page.camera_buttons[0].isChecked()
+    assert not root.property("orthographicActive") and not root.property("mirrorTop")
+    page.camera_buttons[1].click()
+    page.auto_rotate.setChecked(True)
+    wait(150)
+    assert not root.property("orthographicActive") and page.camera_preset.currentIndex() == -1
+    page.auto_rotate.setChecked(False)
+    page._reset_three_d_view()
+    page.setStyleSheet(workspace_styles("light"))
+    page.data_details_button.setChecked(False)
+    page.resize(1100, 800)
+    wait(500)
+    return {"views": results, "top_picked_tubes": sorted({p[2] for p in points}),
+            "all_top_targets_verified": sorted(all_targets),
+            "top_overlay_glyph_compensation": True,
+            "clipped_axes_fitted": clipping, "dome_visibility_and_explode": True,
+            "clicked_tube": tube, "mirrored_pan_zoom": True, "free_rotation": True,
+            "double_click_reset": True, "auto_rotation": True}
 
 
 def main():
@@ -163,9 +313,17 @@ def real_data_probe(database):
         def get(self, path, callback):
             callback(overview if path == "/api/overview" else data, None)
 
+    messages = []
+    def qt_message(kind, context, text):
+        if kind in (QtMsgType.QtWarningMsg, QtMsgType.QtCriticalMsg, QtMsgType.QtFatalMsg):
+            messages.append({"type": str(kind), "text": text})
+        print(text, file=sys.stderr, flush=True)
+
+    previous_handler = qInstallMessageHandler(qt_message)
     app = QApplication(sys.argv[:1])
     app.setQuitOnLastWindowClosed(False)
     page = NativeThreeDPage(Client())
+    page.setObjectName("appRoot")
     page.resize(1100, 800)
     page.show()
     index = next(i for i in range(page.scope.count())
@@ -187,6 +345,8 @@ def real_data_probe(database):
     work = test_root / ("native-3d-widget-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     work.mkdir()
     image.save(str(work / "assembly.png"))
+    output["cameras"] = verify_camera_views(page, root, work)
+    image = page.view.grabWindow()
     page.plate_view.setChecked(True)
     wait(400)
     overlay = page.view.grabWindow()
@@ -206,7 +366,10 @@ def real_data_probe(database):
     x, y, tube = points[len(points) // 2]
     QTest.mouseClick(page.view, Qt.MouseButton.LeftButton,
                     Qt.KeyboardModifier.NoModifier, QPoint(x, y))
-    assert page.tube_selector.value() == tube
+    wait(50)
+    assert page.tube_selector.value() == tube, (
+        "perspective click", tube, page.tube_selector.value(), root.pickTube(x, y),
+        root.property("measurementEnabled"), root.property("yaw"), root.property("pitch"))
     output["picked_tubes"] = sorted({p[2] for p in points})
     output["clicked_tube"] = tube
     QTest.mousePress(page.view, Qt.MouseButton.LeftButton,
@@ -230,20 +393,36 @@ def real_data_probe(database):
     assert output["clip_changed_pixels"] > 100
     clipped.save(str(work / "clipped.png"))
     page.section.setChecked(False)
+    wait(200)
     page.measurement.setChecked(True)
-    root.measureAt(*points[0][:2])
-    root.measureAt(*points[-1][:2])
+    measurement_points = [(x, y) for x, y, _ in points if root.pickTube(x, y)]
+    assert len(measurement_points) > 1, "Restored perspective has no measurement targets"
+    root.measureAt(*measurement_points[0])
+    root.measureAt(*measurement_points[-1])
     assert root.property("measurementCount") == 2 and "mm" in page.measurement_value.text()
     output["measurement"] = page.measurement_value.text()
     output["mode_colors"] = {}
+    page.plate_view.setChecked(True)
     for mode in ("plate", "full", "socket", "joint"):
         page.display_mode.setCurrentIndex(page.display_mode.findData(mode))
         wait(200)
+        assert not root.property("orthographicActive"), (mode, "detail remained orthographic")
+        from PySide6.QtCore import QObject
+        overlay_model = root.findChild(QObject, "plateOverlayModel")
+        assert overlay_model and not overlay_model.property("visible"), mode
+        assert not page.plate_view.isChecked() and page.plate_view.text() == "管板图：关", mode
         frame = page.view.grabWindow()
         output["mode_colors"][mode] = len(set(pixels(frame)))
         frame.save(str(work / (mode + ".png")))
         assert output["mode_colors"][mode] > 12, (mode, output["mode_colors"], tube)
+    page.plate_view.click()
+    wait(200)
+    assert page.display_mode.currentData() == "assembly" and page.mode_tabs.currentIndex() == 0
+    assert overlay_model.property("visible") and page.plate_view.isChecked()
+    output["overlay_mode_sync"] = True
     output["passed"] = len(tubes) == 50 and actual == expected and colors > 12
+    output["qml_messages"] = messages
+    assert not messages, messages
     (work / "result.json").write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(output, ensure_ascii=False), flush=True)
     print("closing page", flush=True)
@@ -253,6 +432,7 @@ def real_data_probe(database):
     wait(100)
     print("deferred deletes processed", flush=True)
     app.quit()
+    qInstallMessageHandler(previous_handler)
     return 0 if output["passed"] else 1
 
 

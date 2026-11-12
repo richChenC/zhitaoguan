@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import uuid
 import base64
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QEvent, QIODevice, QModelIndex, QObject, QSaveFile, QUrl, QTimer, Qt, Signal
-from PySide6.QtGui import QCloseEvent, QColor, QImage, QPainter
+from PySide6.QtGui import QCloseEvent, QColor, QImage, QPainter, QVector3D
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -5390,6 +5391,15 @@ class NativeSettingsPage(QWidget):
         )
         self.logoutRequested.emit()
 
+def _three_d_iso_angles(mode="assembly"):
+    x, y, z = {
+        "assembly": (.52, .40, .76), "joint": (.55, .38, .74),
+        "full": (.45, .12, .45), "socket": (.6, .35, .7),
+        "plate": (0, 1, 0),
+    }.get(mode, (.52, .40, .76))
+    return math.degrees(math.atan2(x, z)), -math.degrees(math.atan2(y, math.hypot(x, z)))
+
+
 class _HeadlessThreeDRoot(QObject):
     """Small property/signal adapter used when no scene graph is available."""
 
@@ -5398,7 +5408,8 @@ class _HeadlessThreeDRoot(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._values = {
-            "tubes": [], "yaw": 0, "pitch": -34, "zoomFactor": 1,
+            "tubes": [], "yaw": _three_d_iso_angles()[0], "pitch": _three_d_iso_angles()[1], "zoomFactor": 1,
+            "orthographicView": False, "mirrorTop": False, "standardAligned": True,
             "showDefect": True, "showReview": True,
             "showNdd": True, "showMissing": True,
         }
@@ -5476,6 +5487,7 @@ class NativeThreeDPage(QWidget):
         super().__init__(parent)
         self.client = client
         self._view_shutdown = False
+        self._plate_overlay_enabled = False
         self.request_number = 0
         self.rows: dict[int, dict[str, Any]] = {}
         self.record_details = {}
@@ -5572,13 +5584,13 @@ class NativeThreeDPage(QWidget):
         # reproduce the rear/left/bottom inspection orientations without
         # manually dragging the model.
         for label, angles in (
-            ("等轴视角", (0, -34)),
+            ("等轴视角", _three_d_iso_angles()),
             ("正视", (0, 0)),
             ("后视", (180, 0)),
             ("左视", (-90, 0)),
             ("右视", (90, 0)),
-            ("俯视", (0, -89)),
-            ("仰视", (0, 89)),
+            ("俯视", (0, -90)),
+            ("仰视", (0, 90)),
         ):
             self.camera_preset.addItem(label, angles)
         self.camera_preset.currentIndexChanged.connect(self._camera_changed)
@@ -5668,10 +5680,22 @@ class NativeThreeDPage(QWidget):
         root = self.view.rootObject()
         if root is not None:
             root.tubeSelected.connect(self.show_tube)
+            if hasattr(root, "viewManipulated"):
+                root.viewManipulated.connect(lambda: self.camera_preset.setCurrentIndex(-1))
+                root.viewReset.connect(self._reset_three_d_view)
             if hasattr(root, "measurementChanged"):
                 root.measurementChanged.connect(self.measurement_value.setText)
             from .native_model_data import reference_layout
-            root.setProperty("columns", [{**row, "meshId": f"column-{index}"}
+            from .native_geometry import geometry_data
+            vessel = reference_layout()["vessel"]
+            radius = vessel["outerRadius"]
+            root.setProperty("assemblyMinimum", QVector3D(-radius, vessel["headBottomY"], -radius))
+            root.setProperty("assemblyMaximum", QVector3D(radius, vessel["cylinderTopY"], radius))
+            root.setProperty("geometryBounds", {
+                part: list(geometry_data(part)[2]) for part in ("vessel", "dome", "ucsPlate", "secondaryGrid", "P01", "P02")
+            })
+            root.setProperty("columns", [{**row, "meshId": f"column-{index}",
+                                          "bounds": list(geometry_data(f"column-{index}")[2])}
                                          for index, row in enumerate(reference_layout()["structure"]["columns"])])
         self.view_container.setMinimumSize(320, 280)
         self.scene_host = QWidget()
@@ -5679,6 +5703,7 @@ class NativeThreeDPage(QWidget):
         scene_layout.setContentsMargins(0, 0, 0, 0)
         scene_layout.addWidget(self.view_container, 0, 0)
         detail_host = QWidget()
+        self.scene_detail_host = detail_host
         detail_host.setObjectName("workspacePanel")
         detail_host.setMinimumWidth(240)
         detail_host.setMaximumWidth(390)
@@ -5704,6 +5729,7 @@ class NativeThreeDPage(QWidget):
         self.data_details_button.toggled.connect(details_body.setVisible)
         scene_layout.addWidget(detail_host, 0, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
         footer = QWidget()
+        self.scene_footer = footer
         footer.setObjectName("workspacePanel")
         footer_layout = QVBoxLayout(footer)
         footer_layout.setContentsMargins(8, 5, 8, 5)
@@ -5714,7 +5740,7 @@ class NativeThreeDPage(QWidget):
             control = QPushButton(self.camera_preset.itemText(index))
             control.setCheckable(True)
             control.setChecked(index == 0)
-            control.clicked.connect(lambda _, value=index: self.camera_preset.setCurrentIndex(value))
+            control.clicked.connect(lambda _, value=index: self._select_camera(value))
             self.camera_buttons.append(control)
             camera_row.addWidget(control)
         camera_row.addWidget(button("适配", None, self._fit_scene))
@@ -5744,14 +5770,47 @@ class NativeThreeDPage(QWidget):
         self._rotation_timer = QTimer(self)
         self._rotation_timer.setInterval(33)
         self._rotation_timer.timeout.connect(self._rotate_scene)
+        self._camera_layout_timer = QTimer(self)
+        self._camera_layout_timer.setSingleShot(True)
+        self._camera_layout_timer.timeout.connect(self._sync_camera_space)
+        detail_host.installEventFilter(self)
+        footer.installEventFilter(self)
+        self._camera_layout_timer.start()
         self.load_overview()
+
+    def eventFilter(self, watched, event):
+        if (not self._view_shutdown and hasattr(self, "_camera_layout_timer")
+                and watched in (self.scene_detail_host, self.scene_footer)
+                and event.type() in (QEvent.Type.Resize, QEvent.Type.Show, QEvent.Type.Hide)):
+            self._camera_layout_timer.start()
+        return super().eventFilter(watched, event)
+
+    def _sync_camera_space(self):
+        if self._view_shutdown:
+            return
+        self._set_scene_property("coveredRight", self.scene_detail_host.width() + 16
+                                 if self.scene_detail_host.isVisible() else 0)
+        self._set_scene_property("coveredBottom", self.scene_footer.height() + 16
+                                 if self.scene_footer.isVisible() else 0)
+
+    def _refit_camera(self):
+        root = self.view.rootObject()
+        if root is not None and hasattr(root, "fitView"):
+            root.fitView()
 
     def _fit_scene(self):
         for name, value in (("zoomFactor", 1), ("panX", 0), ("panY", 0)):
             self._set_scene_property(name, value)
+        self._refit_camera()
 
     def _rotation_changed(self, checked):
         if checked and self.isVisible():
+            root = self.view.rootObject()
+            if root is None or self._view_shutdown:
+                self._rotation_timer.stop()
+                return
+            if root.property("orthographicView"):
+                self._reset_three_d_view()
             self._rotation_timer.start()
         else:
             self._rotation_timer.stop()
@@ -5759,6 +5818,8 @@ class NativeThreeDPage(QWidget):
     def _rotate_scene(self):
         root = self.view.rootObject()
         if root:
+            self._set_scene_property("standardAligned", False)
+            self.camera_preset.setCurrentIndex(-1)
             self._set_scene_property("yaw", (float(root.property("yaw") or 0) + .6) % 360)
 
     def showEvent(self, event):
@@ -5775,25 +5836,53 @@ class NativeThreeDPage(QWidget):
             root.setProperty(name, value)
 
     def _display_changed(self):
+        self.camera_preset.setItemData(0, _three_d_iso_angles(self.display_mode.currentData()))
         self._set_scene_property("displayMode", self.display_mode.currentData())
         self._set_scene_property("selectedTube", self.tube_selector.value())
         self._set_scene_property("measurementCount", 0)
         self.measurement_value.clear()
+        self._sync_plate_overlay_button()
         self._reset_three_d_view()
 
     def _mode_tab_changed(self, index):
         self.display_mode.setCurrentIndex((0, 4, 2, 3)[index])
 
     def _plate_view_changed(self, enabled):
-        self.plate_view.setText("管板图：开" if enabled else "管板图：关")
+        self._plate_overlay_enabled = enabled
+        if enabled and self.display_mode.currentData() != "assembly":
+            self.mode_tabs.setCurrentIndex(0)
+            self.display_mode.setCurrentIndex(self.display_mode.findData("assembly"))
+        self._sync_plate_overlay_button()
+
+    def _sync_plate_overlay_button(self):
+        enabled = self._plate_overlay_enabled
+        active = enabled and self.display_mode.currentData() == "assembly"
+        self.plate_view.blockSignals(True)
+        self.plate_view.setChecked(active)
+        self.plate_view.blockSignals(False)
+        self.plate_view.setText("管板图：开" if active else "管板图：关")
         self._set_scene_property("showPlateOverlay", enabled)
 
     def _camera_changed(self):
-        yaw, pitch = self.camera_preset.currentData()
-        self._set_scene_property("yaw", yaw)
-        self._set_scene_property("pitch", pitch)
+        angles = self.camera_preset.currentData()
         for index, control in enumerate(self.camera_buttons):
             control.setChecked(index == self.camera_preset.currentIndex())
+        if angles is None:
+            return
+        yaw, pitch = angles
+        self._set_scene_property("orthographicView", self.camera_preset.currentIndex() > 0)
+        self._set_scene_property("mirrorTop", self.camera_preset.currentIndex() == 5)
+        self._set_scene_property("standardAligned", True)
+        self._set_scene_property("yaw", yaw)
+        self._set_scene_property("pitch", pitch)
+        self._fit_scene()
+
+    def _select_camera(self, index):
+        self.auto_rotate.setChecked(False)
+        if self.camera_preset.currentIndex() == index:
+            self._camera_changed()
+        else:
+            self.camera_preset.setCurrentIndex(index)
 
     def _scope_selected_ui(self):
         self.load_scope()
@@ -5924,14 +6013,21 @@ class NativeThreeDPage(QWidget):
         root.setProperty("showMissing", self.filter_missing.isChecked())
 
     def _reset_three_d_view(self) -> None:
+        self.camera_preset.setCurrentIndex(0)
+        self._camera_changed()
         root = self.view.rootObject()
         if root is not None:
-            root.setProperty("yaw", 0)
+            root.setProperty("orthographicView", False)
+            root.setProperty("mirrorTop", False)
+            root.setProperty("standardAligned", True)
             mode = self.display_mode.currentData()
-            root.setProperty("pitch", -89 if mode == "plate" else -34)
-            root.setProperty("zoomFactor", 1.8 if mode in {"plate", "full"} else 1)
+            yaw, pitch = _three_d_iso_angles(mode)
+            root.setProperty("yaw", yaw)
+            root.setProperty("pitch", pitch)
+            root.setProperty("zoomFactor", 1.8 if mode == "plate" else 1)
             root.setProperty("panX", 0)
             root.setProperty("panY", 0)
+            self._refit_camera()
 
     def show_tube(self, number: int) -> None:
         row = self.rows.get(number)
@@ -5987,6 +6083,7 @@ class NativeThreeDPage(QWidget):
             return
         self._view_shutdown = True
         self._rotation_timer.stop()
+        self._camera_layout_timer.stop()
         view = self.view
         try:
             if not self._headless_view:

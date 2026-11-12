@@ -932,22 +932,33 @@ class NativeParityTests(unittest.TestCase):
         page._use_default_offset()
         self.assertEqual(page.offset.text(), "")
 
-    def test_three_d_plate_is_overlay_and_preserves_camera_mode(self):
+    def test_three_d_plate_preserves_assembly_camera_and_hides_in_detail_modes(self):
         window = NativeMainWindow(Client(), {"username": "test", "permissions": ["data.read"]})
         window.show()
         window.nav.setCurrentIndex(1)
         page = window.stack.widget(2)
         page.mode_tabs.setCurrentIndex(1)
+        page.mode_tabs.setCurrentIndex(0)
         root = page.view.rootObject()
         root.setProperty("yaw", 27)
         page.plate_view.setChecked(True)
         self.assertTrue(root.property("showPlateOverlay"))
-        self.assertEqual(root.property("displayMode"), "joint")
+        self.assertEqual(root.property("displayMode"), "assembly")
         self.assertEqual(root.property("yaw"), 27)
+        page.mode_tabs.setCurrentIndex(1)
+        self.assertEqual(root.property("displayMode"), "joint")
+        self.assertFalse(page.plate_view.isChecked())
+        self.assertEqual(page.plate_view.text(), "管板图：关")
+        page.plate_view.click()
+        self.assertEqual(root.property("displayMode"), "assembly")
+        self.assertTrue(page.plate_view.isChecked())
         page.mode_tabs.setCurrentIndex(2)
         self.assertTrue(root.property("showPlateOverlay"))
         self.assertEqual(root.property("displayMode"), "full")
-        page.plate_view.setChecked(False)
+        self.assertFalse(page.plate_view.isChecked())
+        page.mode_tabs.setCurrentIndex(0)
+        self.assertTrue(page.plate_view.isChecked())
+        page.plate_view.click()
         self.assertFalse(root.property("showPlateOverlay"))
 
     def test_plate_texture_has_exact_model_alignment_and_native_pixels(self):
@@ -966,6 +977,19 @@ class NativeParityTests(unittest.TestCase):
         self.assertFalse(image.isNull())
         self.assertGreater(len({image.pixel(u, v) for u in range(0, 2120, 20)
                                 for v in range(0, 1920, 20)}), 20)
+        mirrored = ET.fromstring(plate_svg(1, 1, True))
+        circle_tag = "{http://www.w3.org/2000/svg}circle"
+        text_tag = "{http://www.w3.org/2000/svg}text"
+        self.assertEqual([node.attrib for node in drawing.iter(circle_tag)],
+                         [node.attrib for node in mirrored.iter(circle_tag)])
+        normal_texts, mirrored_texts = list(drawing.iter(text_tag)), list(mirrored.iter(text_tag))
+        self.assertEqual([node.text for node in normal_texts], [node.text for node in mirrored_texts])
+        self.assertTrue(all(node.get("transform") for node in normal_texts))
+        self.assertTrue(all(not node.get("transform") for node in mirrored_texts))
+        for unit in (0, 2):
+            drawing = ET.fromstring(plate_svg(unit, 1, True))
+            self.assertEqual(len([node for node in drawing if node.get("class") == "thimble"]), 50)
+            self.assertTrue(all(not node.get("transform") for node in drawing.iter(text_tag)))
 
     def test_mutation_keeps_report_draft_and_refreshes_unknown_write(self):
         window = NativeMainWindow(Client(), {"username": "test", "permissions": ["data.read"]})

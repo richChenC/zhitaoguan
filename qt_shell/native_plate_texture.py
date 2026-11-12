@@ -62,7 +62,7 @@ def plate_corners():
             for u, v in ((0, 96), (1060, 96), (0, 1056), (1060, 1056))]
 
 
-def plate_svg(unit=0, selected=0):
+def plate_svg(unit=0, selected=0, projection_mirror=False):
     original, x, z, _height = plate_mapping()
     drawing = deepcopy(original)
     channels = reference_layout()["channels"]
@@ -128,7 +128,7 @@ def plate_svg(unit=0, selected=0):
             circle.set("fill", "#ffe09b")
             circle.set("stroke", "#b35e00")
             circle.set("stroke-width", "4")
-    if x[0] * z[1] - x[1] * z[0] < 0:
+    if (x[0] * z[1] - x[1] * z[0] < 0) != bool(projection_mirror):
         for text in drawing.iter(tag("text")):
             text.set("transform", f"translate({2 * float(text.get('x', 0))} 0) scale(-1 1)")
     drawing.set("viewBox", "0 96 1060 960")
@@ -137,10 +137,10 @@ def plate_svg(unit=0, selected=0):
     return ET.tostring(drawing, encoding="utf-8")
 
 
-def plate_image(unit, selected):
+def plate_image(unit, selected, projection_mirror=False):
     image = QImage(QSize(2120, 1920), QImage.Format.Format_RGBA8888)
     image.fill(Qt.GlobalColor.transparent)
-    renderer = QSvgRenderer(QByteArray(plate_svg(unit, selected)))
+    renderer = QSvgRenderer(QByteArray(plate_svg(unit, selected, projection_mirror)))
     painter = QPainter(image)
     renderer.render(painter, QRectF(0, 0, 2120, 1920))
     painter.end()
@@ -152,7 +152,7 @@ class PlateTextureData(QQuick3DTextureData):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._unit, self._selected, self._active = 0, 0, False
+        self._unit, self._selected, self._active, self._mirrored = 0, 0, False, False
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setInterval(30)
@@ -168,7 +168,7 @@ class PlateTextureData(QQuick3DTextureData):
     def _render(self):
         if not self._active:
             return
-        image = plate_image(self._unit, self._selected)
+        image = plate_image(self._unit, self._selected, self._mirrored)
         self.setSize(image.size())
         self.setFormat(QQuick3DTextureData.Format.RGBA8)
         self.setHasTransparency(True)
@@ -181,3 +181,5 @@ class PlateTextureData(QQuick3DTextureData):
                             lambda self, value: self._set_option("_selected", value), notify=optionsChanged)
     active = Property(bool, lambda self: self._active,
                       lambda self, value: self._set_option("_active", value), notify=optionsChanged)
+    projectionMirror = Property(bool, lambda self: self._mirrored,
+                               lambda self, value: self._set_option("_mirrored", value), notify=optionsChanged)
