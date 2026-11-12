@@ -214,6 +214,35 @@ try {
         Start-Sleep -Milliseconds 650
         $result.steps += $label
         if ($label -eq '数据可视化') {
+            $historyTabs = Find-Control $window ([System.Windows.Automation.ControlType]::TabItem) '单管完整历史'
+            if ($historyTabs.Count -ne 1) { throw 'Complete tube history tab missing' }
+            $historyTabs[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+            $historyExport = @()
+            for ($attempt=0; $attempt -lt 100; $attempt++) {
+                Start-Sleep -Milliseconds 150
+                $historyExport = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) '导出 CSV' |
+                    Where-Object { -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
+                if ($historyExport.Count -eq 1) { break }
+            }
+            if ($historyExport.Count -ne 1) { throw 'Complete tube history did not finish loading' }
+            $result.history_scope_controls = @('完整历史基地', '完整历史机组' | ForEach-Object {
+                $controls = Find-Control $window ([System.Windows.Automation.ControlType]::ComboBox) $_
+                if ($controls.Count -ne 1 -or $controls[0].Current.IsOffscreen) {
+                    throw "Complete history scope selector missing: $_"
+                }
+                $_
+            })
+            Capture 'frozen-complete-history'
+            $expandHistory = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '全部展开'
+            if ($expandHistory.Count -ne 1) { throw 'History expand action missing' }
+            Activate-Control $expandHistory[0]
+            Start-Sleep -Milliseconds 300
+            $originalJumps = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '在工作台查看原始记录'
+            if ($originalJumps.Count -eq 0) { throw 'Expanded original history records missing' }
+            $result.history_original_rounds = $originalJumps.Count
+            $collapseHistory = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '全部折叠'
+            Activate-Control $collapseHistory[0]
+            $result.steps += 'native-complete-history-load-expand-collapse'
             foreach ($tabName in @('磨损趋势', '群厂趋势')) {
                 $chartTabs = @(Find-Control $window ([System.Windows.Automation.ControlType]::TabItem) $tabName |
                     Where-Object { -not $_.Current.IsOffscreen })

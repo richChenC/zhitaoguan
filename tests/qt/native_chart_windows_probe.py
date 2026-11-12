@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime
+import csv
 import json
 import os
 from pathlib import Path
 import sqlite3
 import sys
 import time
+from unittest.mock import patch
 
 from native_desktop_workflow import request, until, wait
 
@@ -31,9 +33,9 @@ def main():
     }.items():
         os.environ[key] = str(value)
     sys.path.insert(0, str(native))
-    from PySide6.QtCore import QTimer, Qt
+    from PySide6.QtCore import QRect, QTimer, Qt
     from PySide6.QtTest import QTest
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QLabel, QScrollArea, QTableWidget, QWidget
     from qt_shell.backend_service import BackendService
     from qt_shell.log_utils import ServiceLog
     from qt_shell.native_client import NativeClient
@@ -135,6 +137,79 @@ def main():
         QTest.keyClick(detached, Qt.Key.Key_Escape)
         assert not child_client._replies and not page._chart_windows
         wait(app, 50)
+        vis.setCurrentIndex(3)
+        vis.history_site.setCurrentIndex(vis.history_site.findData("N"))
+        vis.history_unit.setCurrentIndex(vis.history_unit.findData("N1"))
+        vis.tube_number.setValue(2)
+        history = vis.tube_history
+        until(app, lambda: history._scope == ("N1", 2) and history.isVisible()
+              and bool(history.rounds), "complete N1/2 history")
+        assert page.scope_bar.values() == {"site": "F", "unit": "1", "outage": ""}
+        expected = request(client, "GET", "/api/analysis/tube-longitudinal?site=N&unit=1")
+        expected_tube = next(row for row in expected["tubes"] if row["tube"] == 2)
+        history.rounds["N101"].header.setChecked(True)
+        original_table = history.rounds["N101"].body.findChild(QTableWidget)
+        findings = next(point for point in expected_tube["series"] if point["outage"] == "N101")["findings"]
+        assert original_table.rowCount() == len(findings)
+        for index, finding in enumerate(findings):
+            assert original_table.item(index, 0).text() == (finding["location"] or "/")
+            assert original_table.item(index, 4).toolTip() == (finding["source"] or "")
+        if history.toggle_layout.count():
+            history.toggle_layout.itemAt(0).widget().setChecked(False)
+        for width, theme in ((1480, "light"), (1024, "dark")):
+            window.context.preferences.save(theme=theme)
+            window.apply_preferences()
+            window.resize(width, 900)
+            page.scroll.ensureWidgetVisible(history.subject)
+            wait(app, 150)
+            capture(window, f"complete-history-{width}-{theme}")
+            page.scroll.ensureWidgetVisible(history.rounds["N101"].body)
+            wait(app, 100)
+            capture(window, f"history-original-{width}-{theme}")
+        saved_csv = work / "complete-history.csv"
+        page.scroll.ensureWidgetVisible(history.export)
+        with patch("qt_shell.native_tube_history.QFileDialog.getSaveFileName",
+                   return_value=(str(saved_csv), "CSV")):
+            QTest.mouseClick(history.export, Qt.MouseButton.LeftButton)
+        until(app, saved_csv.exists, "complete-history CSV", 30)
+        with saved_csv.open(encoding="utf-8-sig", newline="") as stream:
+            csv_rows = list(csv.DictReader(stream))
+        assert len(csv_rows) == sum(max(1, len(point.get("findings") or [])) for point in expected_tube["series"])
+        assert all(row["基地机组"] == "N1" and row["管号"] == "2" for row in csv_rows)
+        result["complete_history"] = {"scope": list(history._scope), "rounds": len(history.rounds),
+                                      "original_rows_checked": len(findings), "csv_rows": len(csv_rows),
+                                      "main_scope_retained": page.scope_bar.values()}
+        clone = page.open_chart_window("longitudinal")
+        until(app, lambda: clone.page.visualization.tube_history._scope == ("N1", 2)
+              and not clone.client._replies, "independent complete history", 30)
+        clone_history = clone.page.visualization.tube_history
+        assert clone_history.rounds["N101"].header.isChecked()
+        if clone_history.toggle_layout.count():
+            assert not clone_history.toggle_layout.itemAt(0).widget().isChecked()
+        clone.resize(900, 700)
+        clone.findChild(QScrollArea).ensureWidgetVisible(clone_history.rounds["N101"].body)
+        wait(app, 150)
+        dark_body = clone.findChild(QWidget, "workspaceBody")
+        background = dark_body.grab(QRect(1, dark_body.height() - 3, 1, 1)).toImage().pixelColor(0, 0)
+        assert max(background.red(), background.green(), background.blue()) < 100, background.name()
+        result["complete_history"]["detached_dark_background"] = background.name()
+        capture(clone, "independent-complete-history")
+        result["complete_history"]["detached_disclosure_and_positions_preserved"] = True
+        states = request(client, "GET", "/api/states")["items"]
+        current = next(row for row in states if row["outage"] == "N101" and row["unit_id"] == 1 and row["thimble_id"] == 2)
+        updated_note = "COMPLETE HISTORY LIVE SOURCE\n<literal note>"
+        request(client, "POST", "/api/state", {
+            "outage": "N101", "unit_id": 1, "thimble_id": 2, "state": "plugged",
+            "events": ["plugged"], "offset_mm": 0, "note": updated_note,
+            "source": "isolated complete history regression", "expected_updated_at": current["updated_at"]})
+        for candidate in (history, clone_history):
+            until(app, lambda item=candidate: item.rounds["N101"].body is not None and any(
+                updated_note in label.text() for label in item.rounds["N101"].body.findChildren(QLabel)),
+                "opened complete history refresh", 30)
+            assert candidate.rounds["N101"].header.isChecked()
+        result["complete_history"]["opened_round_refresh"] = True
+        clone.close()
+        wait(app, 50)
         for key in vis.chart_panels:
             dialog = page.open_chart_window(key)
             until(app, lambda: not dialog.client._replies, key + " initial requests", 30)
@@ -167,6 +242,9 @@ def main():
             client.abort_all()
         wait(app, 50)
         backend.stop()
+        if result["passed"] and "Traceback" in (work / "service.log").read_text(encoding="utf-8", errors="replace"):
+            result["passed"] = False
+            result["errors"].append("Backend produced a traceback during chart-window regression.")
         (work / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
         app.quit()

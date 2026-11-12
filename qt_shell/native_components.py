@@ -1019,6 +1019,21 @@ def workspace_styles(theme="light", density="comfortable"):
         QLabel#unitName {{ font-weight:600; }}
         QLabel#unitDepth {{ font-size:18px; font-weight:700; }}
         QLabel#unitCoverage {{ color:{accent}; font-size:16px; font-weight:600; }}
+        QWidget#historyMetrics {{ border-bottom:1px solid {line}; }}
+        QLabel#historyMetricValue {{ color:{accent}; font-size:24px; font-weight:600; }}
+        QLabel#historyOutage {{ font-weight:600; min-width:55px; }}
+        QLabel#historyDepth {{ color:{accent}; font-size:17px; font-weight:600; }}
+        QLabel[historyBadge] {{ padding:2px 5px; border-radius:4px;
+            color:{"#c9d4dd" if dark else "#5b6b73"}; background:{"#2c3540" if dark else "#e8eef2"}; }}
+        QLabel[historyBadge="war"] {{ color:{"#ffd08a" if dark else "#b35a00"};
+            background:{"#3d2e12" if dark else "#fff3e0"}; }}
+        QLabel[historyBadge="plugged"] {{ color:{"#ffb3ad" if dark else "#b3261e"};
+            background:{"#3d1f1f" if dark else "#fde8e8"}; }}
+        QLabel[historyBadge="shifted"] {{ color:{"#90caf9" if dark else "#0d47a1"};
+            background:{"#1e2f4a" if dark else "#e3f2fd"}; }}
+        QLabel[historyBadge="replaced"], QLabel[historyBadge="normal"] {{
+            color:{"#a5d6a7" if dark else "#1f6b4a"}; background:{"#1c3a2b" if dark else "#e8f5ee"}; }}
+        QWidget#historyRoundBody {{ background:{surface}; border-left:2px solid {line}; }}
         QPushButton#disclosureHeader {{ text-align:left; border:0; border-radius:0; background:transparent;
             padding:0 3px; min-height:25px; font-size:11px; font-weight:400; }}
         QPushButton#disclosureHeader:hover {{ color:{accent}; background:{hover}; }}

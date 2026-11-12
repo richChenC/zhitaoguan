@@ -3320,6 +3320,7 @@ class NativeAnalyticsPage(QWidget):
         from .native_charts import VisualizationWorkspace
         self.visualization = VisualizationWorkspace(client=client, permissions=self.permissions)
         self.visualization.panelRequested.connect(self.open_chart_window)
+        self.scope_bar.loaded.connect(lambda *_: self.visualization.set_history_units(self.scope_bar.combinations))
         layout.addWidget(self.visualization, 1)
         self.detail = QLabel("正在加载统计摘要...")
         self.detail.setWordWrap(True)
@@ -3707,12 +3708,25 @@ class NativeChartWindow(QDialog):
         self.setWindowTitle(source.visualization.chart_panels[key].view.chart().title() or "独立图表")
         self.resize(1200, 800)
         layout = QVBoxLayout(self)
-        layout.addWidget(self.page.filter_band)
-        layout.addWidget(self.page.analysis_status)
-        layout.addWidget(self.panel, 1)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        body = QWidget()
+        body.setObjectName("workspaceBody")
+        content = QVBoxLayout(body)
+        content.setContentsMargins(0, 0, 0, 0)
+        scroll.setWidget(body)
+        layout.addWidget(scroll)
+        content.addWidget(self.page.filter_band)
+        content.addWidget(self.page.analysis_status)
+        content.addWidget(self.panel, 1)
         self.page.filter_band.show()
         self.panel.show()
         self.panel.setMaximumHeight(16777215)
+        self.panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        history_handler = getattr(owner.window(), "_open_history_records", None)
+        if history_handler:
+            self.page.visualization.historyRecordsRequested.connect(history_handler)
         self.page.scope_bar.selected_sites = set(source.scope_bar.selected_sites)
         self.page.scope_bar._loaded({"combinations": deepcopy(source.scope_bar.combinations)}, None)
         scope = source.scope_bar.values()
@@ -6102,6 +6116,7 @@ class NativeMainWindow(QMainWindow):
         self.workbench.scopeChanged.connect(self.context.set_scope)
         self.stack.widget(2).scopeChanged.connect(self.context.set_scope)
         self.stack.widget(3).visualization.scopeChanged.connect(self.context.set_scope)
+        self.stack.widget(3).visualization.historyRecordsRequested.connect(self._open_history_records)
         self.stack.widget(2).image_export.setEnabled("export.create" in user.get("permissions", []))
         self.workbench.selectionChanged.connect(self.context.selection)
         self.workbench.dataChanged.connect(lambda: self._refresh_data(workbench_fresh=True))
@@ -6163,6 +6178,17 @@ class NativeMainWindow(QMainWindow):
     def _open_record_context(self, scope):
         self.settings_dialog.hide()
         self.context.set_scope(scope)
+        self.nav.setCurrentIndex(0)
+
+    def _open_history_records(self, scope):
+        self.settings_dialog.hide()
+        self.workbench.scope_bar.set_scope(scope)
+        self.workbench.analyst.clear()
+        self.workbench.channel.setText(str(scope.get("thimble") or ""))
+        self.workbench.column_filters.clear()
+        self.workbench.detection_status.setCurrentIndex(0)
+        self.workbench.maintenance_status.setCurrentIndex(0)
+        self.workbench.apply_filters()
         self.nav.setCurrentIndex(0)
 
     def _sync_scope(self, scope):
@@ -6241,7 +6267,8 @@ class NativeMainWindow(QMainWindow):
         if (error or not data or data.get("ok") is False or data.get("success") is False
                 or any(data.get(key) for key in ("dry_run", "check_only", "requires_indication_decision", "unchanged"))):
             return
-        read_only = {"/api/data-ledger/export", "/api/settings/data-source/validate", "/api/reports/preview",
+        read_only = {"/api/data-ledger/export", "/api/analysis/tube-history/export",
+                     "/api/settings/data-source/validate", "/api/reports/preview",
                      "/api/reports/export", "/api/report-options", "/api/discover-server", "/api/import-excel-inspect",
                      "/api/data-quality/export", "/api/export-indication-warnings", "/api/backup-validate",
                      "/api/export-comparison", "/api/export-evolution", "/api/export-report", "/api/report-preview",

@@ -14,7 +14,7 @@ from PySide6.QtGui import QColor, QIcon, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
     QGraphicsSimpleTextItem, QGridLayout, QHBoxLayout, QLabel, QPlainTextEdit, QSpinBox, QSplitter,
-    QSizePolicy, QStyle, QTabWidget, QTableWidget, QTableWidgetItem, QToolTip, QVBoxLayout, QWidget,
+    QSizePolicy, QStyle, QScrollArea, QTabWidget, QTableWidget, QTableWidgetItem, QToolTip, QVBoxLayout, QWidget,
 )
 
 from .native_components import PlateMap, PositionHeatmap, SITE_NAMES, button, export_widget_image, icon
@@ -71,8 +71,13 @@ class ChartPanel(QWidget):
         dialog.resize(1200, 800)
         layout = QVBoxLayout(dialog)
         host = QWidget()
+        host.setObjectName("workspaceBody")
         host.setLayout(self.layout())
-        layout.addWidget(host)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setWidget(host)
+        layout.addWidget(scroll)
         close = button("退出放大查看", "chevron-left", dialog.accept)
         close.setIcon(icon("chevron-left", self.theme))
         layout.addWidget(close, 0, Qt.AlignmentFlag.AlignRight)
@@ -106,6 +111,7 @@ class ChartPanel(QWidget):
         legends = [(marker, marker.isVisible()) for marker in chart.legend().markers()]
         chart.setTheme(QChart.ChartTheme.ChartThemeDark if theme == "dark" else QChart.ChartTheme.ChartThemeLight)
         background = QColor("#292f33" if theme == "dark" else "white")
+        self.view.setBackgroundBrush(background)
         chart.setBackgroundBrush(background)
         chart.setAnimationOptions(QChart.AnimationOption.SeriesAnimations if animations
                                   else QChart.AnimationOption.NoAnimation)
@@ -199,6 +205,7 @@ class ChartPanel(QWidget):
                                 or value[0] in (breaks or {}).get(name, set())):
                     if len(segment) > 1:
                         line = QLineSeries()
+                        line.setName(name)
                         for x, y in segment:
                             line.append(x, y)
                         chart.addSeries(line)
@@ -208,15 +215,22 @@ class ChartPanel(QWidget):
                             item.setVisible(False)
                     segment = []
                 segment.append(value)
-        chart.createDefaultAxes()
-        for axis in chart.axes(Qt.Orientation.Horizontal):
-            axis.setTitleText("实际大修轮次")
-            if points:
-                axis.setRange(max(0, min(x for x, _ in points) - .5), max(x for x, _ in points) + .5)
-            if isinstance(axis, QValueAxis):
-                axis.setLabelFormat("%g")
-        for axis in chart.axes(Qt.Orientation.Vertical):
-            axis.setTitleText(y_title)
+        # Scatter markers and line segments must share axes; default axes can
+        # create one set per series type and draw overlapping axis titles.
+        horizontal, vertical = QValueAxis(), QValueAxis()
+        horizontal.setTitleText("实际大修轮次")
+        horizontal.setLabelFormat("%g")
+        vertical.setTitleText(y_title)
+        if points:
+            horizontal.setRange(max(0, min(x for x, _ in points) - .5), max(x for x, _ in points) + .5)
+            low, high = min(y for _, y in points), max(y for _, y in points)
+            padding = max(1, (high - min(0, low)) * .08)
+            vertical.setRange(min(0, low - padding if low < 0 else 0), max(1, high + padding))
+        chart.addAxis(horizontal, Qt.AlignmentFlag.AlignBottom)
+        chart.addAxis(vertical, Qt.AlignmentFlag.AlignLeft)
+        for series in chart.series():
+            series.attachAxis(horizontal)
+            series.attachAxis(vertical)
         self.contract = {"family": "line-with-observed-markers", "points": points, "groups": groups,
                          "breaks": breaks or {}, "partial": partial or {}}
 
@@ -319,10 +333,12 @@ class VisualizationWorkspace(QTabWidget):
     dataChanged = Signal()
     panelRequested = Signal(str)
     scopeChanged = Signal(dict)
+    historyRecordsRequested = Signal(dict)
 
     def __init__(self, parent=None, *, client=None, permissions=None):
         super().__init__(parent)
         self.client = client
+        self.permissions = permissions
         self.data = {}
         self._unit_history_rows = {}
         self.severity_levels = [30, 50]
@@ -333,6 +349,7 @@ class VisualizationWorkspace(QTabWidget):
         self.ndd_zero = True
         self._selected_tube = 1
         self._history_outages = None
+        self._history_combinations = []
         def panel():
             return ChartPanel(client=client, permissions=permissions)
         self.overview_page = QWidget()
@@ -564,13 +581,15 @@ class VisualizationWorkspace(QTabWidget):
     def view_state(self):
         state = {}
         for name in ("comparison_mode", "total_metric", "focus_unit", "trend_unit", "trend_metric",
-                     "distribution_scope", "curve_mode", "mode"):
+                     "distribution_scope", "curve_mode", "mode", "history_site", "history_unit"):
             state[name] = getattr(self, name).currentData()
         for name in ("frequency_threshold", "heat_threshold", "jump", "tube_number"):
             state[name] = getattr(self, name).value()
         state["all_tubes"] = self.all_tubes.isChecked()
         state["comparison_units"] = None if self.comparison_units is None else set(self.comparison_units)
         state["history_outages"] = None if self._history_outages is None else set(self._history_outages)
+        state["selected_tube"] = self._selected_tube
+        state["tube_history"] = self.tube_history.view_state()
         current = self.current_snapshot()
         state["snapshot"] = (current["unit"], current["outage"]) if current else None
         return state
@@ -579,8 +598,11 @@ class VisualizationWorkspace(QTabWidget):
         from PySide6.QtCore import QSignalBlocker
         self.comparison_units = state["comparison_units"]
         self._history_outages = state["history_outages"]
+        site_index = self.history_site.findData(state["history_site"])
+        if site_index >= 0:
+            self.history_site.setCurrentIndex(site_index)
         for name in ("comparison_mode", "total_metric", "focus_unit", "trend_unit", "trend_metric",
-                     "distribution_scope", "curve_mode", "mode"):
+                     "distribution_scope", "curve_mode", "mode", "history_unit"):
             combo = getattr(self, name)
             with QSignalBlocker(combo):
                 index = combo.findData(state[name])
@@ -598,12 +620,14 @@ class VisualizationWorkspace(QTabWidget):
                           if (row["unit"], row["outage"]) == snapshot), -1)
             with QSignalBlocker(self.snapshot):
                 self.snapshot.setCurrentIndex(index)
-        self._selected_tube = self.tube_number.value()
+        self._selected_tube = state["selected_tube"]
+        self.tube_history.restore_view_state(state["tube_history"])
         self.refresh_total()
         self.refresh_trends()
         self.refresh_distribution()
         self.refresh_frequency()
         self.refresh_snapshot()
+        self.load_longitudinal()
 
     def set_metric_columns(self, columns):
         if columns == getattr(self, "_metric_columns", None):
@@ -709,6 +733,7 @@ class VisualizationWorkspace(QTabWidget):
         self.replacements.bars("机组累计明确换管次数", [
             (unit, sum(tube.get("lifetime_replacements", 0) for tube in snap["tubes"]))
             for unit, snap in latest.items()], "按机组全部已记录历史统计；移位不计为换管", "换管次数")
+        self.load_longitudinal()
         self.dataChanged.emit()
 
     def _watch_data_dialog(self, dialog, refresh):
@@ -1128,9 +1153,6 @@ class VisualizationWorkspace(QTabWidget):
                              f"最大深度：{tube.get('max_depth', '/')}\n"
                              f"状态：{tube.get('state_label', '未记录')}\n"
                              f"备注：{tube.get('remarks', '')}\n来源：{tube.get('source', '')}")
-        self.tube_number.blockSignals(True)
-        self.tube_number.setValue(number)
-        self.tube_number.blockSignals(False)
         self.scatter_panel.scatter(f"{current['unit']} · {current['outage']} 通道最大深度",
                                    [(row["tube"], valid_depth(row)) for row in current["tubes"]
                                     if valid_depth(row) is not None],
@@ -1152,12 +1174,14 @@ class VisualizationWorkspace(QTabWidget):
     def set_theme(self, theme, animations):
         for panel in self.chart_panels.values():
             panel.set_theme(theme, animations)
+        self.tube_history.set_theme(theme, animations, self.longitudinal.point_labels)
 
     def set_analysis_options(self, ndd_zero, point_labels):
         changed = self.ndd_zero != ndd_zero
         self.ndd_zero = bool(ndd_zero)
         for panel in self.chart_panels.values():
             panel.set_point_labels(point_labels)
+        self.tube_history.set_theme(self.longitudinal.theme, self.longitudinal.animations, point_labels)
         if changed:
             self._longitudinal_request += 1
             self._longitudinal_cache.clear()
@@ -1359,11 +1383,25 @@ class VisualizationWorkspace(QTabWidget):
             self.refresh_snapshot()
 
     def _build_longitudinal_controls(self):
+        scope = QHBoxLayout()
+        self.history_site, self.history_unit = QComboBox(), QComboBox()
+        self.history_site.setAccessibleName("完整历史基地")
+        self.history_unit.setAccessibleName("完整历史机组")
+        scope.addWidget(QLabel("基地"))
+        scope.addWidget(self.history_site)
+        scope.addWidget(QLabel("机组"))
+        scope.addWidget(self.history_unit)
+        self.history_retry = button("刷新历史", "refresh-cw", self.reload_history)
+        scope.addWidget(self.history_retry)
+        scope.addStretch()
+        self.longitudinal.layout().insertLayout(0, scope)
+        self.history_site.currentIndexChanged.connect(self._history_site_changed)
+        self.history_unit.currentIndexChanged.connect(self.load_longitudinal)
         row = QHBoxLayout()
         self.tube_number = QSpinBox()
         self.tube_number.setRange(1, 50)
         self.tube_number.setPrefix("管号 ")
-        self.tube_number.valueChanged.connect(self._tube_selected)
+        self.tube_number.valueChanged.connect(self.draw_longitudinal)
         row.addWidget(self.tube_number)
         self.curve_mode = QComboBox()
         self.curve_mode.addItem("当前寿期与原始报告", "both")
@@ -1382,13 +1420,55 @@ class VisualizationWorkspace(QTabWidget):
         row.addWidget(self.jump)
         self.jump.valueChanged.connect(self.load_longitudinal)
         row.addStretch()
-        self.longitudinal.layout().insertLayout(0, row)
+        self.longitudinal.layout().insertLayout(1, row)
         self.longitudinal_table = QTableWidget(0, 8)
         self.longitudinal_table.setHorizontalHeaderLabels(
             ["大修", "原始报告", "当前寿期", "变化", "寿期代次", "维护", "突变", "来源/核查"])
         self.longitudinal_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.longitudinal_table.setMaximumHeight(190)
+        self.longitudinal_table.hide()
         self.longitudinal.layout().addWidget(self.longitudinal_table)
+        from .native_tube_history import TubeHistoryView
+        self.tube_history = TubeHistoryView(self.client, self.permissions)
+        self.tube_history.recordsRequested.connect(self.historyRecordsRequested.emit)
+        self.longitudinal.layout().insertWidget(self.longitudinal.layout().indexOf(self.longitudinal.view),
+                                                self.tube_history.intro)
+        self.longitudinal.layout().addWidget(self.tube_history)
+
+    def set_history_units(self, combinations):
+        self._history_combinations = list(combinations)
+        current = self.history_site.currentData()
+        snapshot = self.current_snapshot()
+        if current is None and snapshot:
+            current = re.sub(r"\d+$", "", snapshot["unit"])
+        self.history_site.blockSignals(True)
+        self.history_site.clear()
+        sites = sorted({row["site"] for row in combinations})
+        for site in sites:
+            self.history_site.addItem(SITE_NAMES.get(site, site), site)
+        self.history_site.setCurrentIndex(max(0, self.history_site.findData(current)))
+        self.history_site.blockSignals(False)
+        self._history_site_changed()
+
+    def _history_site_changed(self, *_):
+        current, site = self.history_unit.currentData(), self.history_site.currentData()
+        self.history_unit.blockSignals(True)
+        self.history_unit.clear()
+        for number in sorted({int(row["unit_id"]) for row in self._history_combinations if row["site"] == site}):
+            self.history_unit.addItem(f"{number}号机组", f"{site}{number}")
+        self.history_unit.setCurrentIndex(max(0, self.history_unit.findData(current)))
+        self.history_unit.blockSignals(False)
+        self.load_longitudinal()
+
+    def longitudinal_unit(self):
+        current = self.current_snapshot()
+        return self.history_unit.currentData() or (current["unit"] if current else "")
+
+    def reload_history(self):
+        self._longitudinal_request += 1
+        self._longitudinal_cache.clear()
+        self._longitudinal_pending.clear()
+        self.load_longitudinal()
 
     def current_snapshot(self):
         snapshots = self.data.get("snapshots") or []
@@ -1398,14 +1478,18 @@ class VisualizationWorkspace(QTabWidget):
     def load_longitudinal(self, *_):
         import re
         from urllib.parse import urlencode
-        current = self.current_snapshot()
-        if not current:
+        unit = self.longitudinal_unit()
+        if not unit:
+            self.longitudinal.lines("单管完整历史", {}, "当前没有可读取的机组范围")
+            self.tube_history.hide()
+            self.tube_history.intro.hide()
+            self.longitudinal_table.setRowCount(0)
             return
-        match = re.fullmatch(r"([A-Z]+)(\d+)", current["unit"])
+        match = re.fullmatch(r"([A-Z]+)(\d+)", unit)
         if not match or self.client is None:
             self.longitudinal.lines("单管寿期曲线", {}, "没有可读取的机组范围")
             return
-        key = (current["unit"], self.jump.value())
+        key = (unit, self.jump.value())
         if key in self._longitudinal_cache:
             self.draw_longitudinal()
             return
@@ -1413,26 +1497,31 @@ class VisualizationWorkspace(QTabWidget):
             return
         self._longitudinal_pending.add(key)
         number = self._longitudinal_request
-        self.longitudinal.note.setText("正在读取完整寿期与维护记录…")
+        self.tube_history.hide()
+        self.tube_history.intro.hide()
+        self.longitudinal.lines(f"{unit} · 单管完整历史", {}, "正在读取完整寿期与维护记录...")
         def loaded(data, error):
             if number != self._longitudinal_request:
                 return
             self._longitudinal_pending.discard(key)
             if error or not data:
-                self.longitudinal.lines("单管寿期曲线", {}, error or "读取失败")
+                if unit == self.longitudinal_unit() and key[1] == self.jump.value():
+                    self.longitudinal.lines(f"{unit} · 单管完整历史", {}, error or "读取失败")
                 return
             self._longitudinal_cache[key] = data
-            self.draw_longitudinal()
+            if unit == self.longitudinal_unit() and key[1] == self.jump.value():
+                self.draw_longitudinal()
         self.client.get("/api/analysis/tube-longitudinal?" + urlencode(
             {"site": match[1], "unit": match[2], "jump": self.jump.value(),
              "ndd_zero": int(self.ndd_zero)}), loaded)
 
     def draw_longitudinal(self, *_):
-        current = self.current_snapshot()
-        if not current:
+        unit = self.longitudinal_unit()
+        if not unit:
             return
-        data = self._longitudinal_cache.get((current["unit"], self.jump.value())) or {}
-        tube = next((t for t in data.get("tubes") or [] if t["tube"] == self._selected_tube), {})
+        data = self._longitudinal_cache.get((unit, self.jump.value())) or {}
+        number = self.tube_number.value()
+        tube = next((t for t in data.get("tubes") or [] if t["tube"] == number), {})
         points = tube.get("series") or []
         groups, breaks = {}, {}
         selected = data.get("tubes") or [] if self.all_tubes.isChecked() else [tube]
@@ -1444,8 +1533,8 @@ class VisualizationWorkspace(QTabWidget):
                 if self.curve_mode.currentData() in modes:
                     groups[prefix + title] = [(p["order"], p.get(key)) for p in series_points]
                     breaks[prefix + title] = {p["order"] for p in series_points if p.get("break_before")}
-        self.longitudinal.lines(f"{current['unit']} · " +
-                                ("全部管寿期曲线" if self.all_tubes.isChecked() else f"{self._selected_tube}号管寿期曲线"), groups,
+        self.longitudinal.lines(f"{unit} · " +
+                                ("全部管寿期曲线" if self.all_tubes.isChecked() else f"{number}号管寿期曲线"), groups,
                                 "完整机组历史 · 换管建立新寿期并断线；移位不清零；"
                                 + ("NDD 显示 0 基线（判定值，非实测）；" if self.ndd_zero else "NDD 不计深度；")
                                 + "缺测不补零",
@@ -1461,6 +1550,10 @@ class VisualizationWorkspace(QTabWidget):
             for ci, value in enumerate(values):
                 self.longitudinal_table.setItem(ri, ci, QTableWidgetItem("/" if value is None else str(value)))
         self.longitudinal_table.resizeColumnsToContents()
+        if tube:
+            self.tube_history.set_data(unit, tube, data.get("outages") or [], self.ndd_zero)
+        self.tube_history.setVisible(bool(tube))
+        self.tube_history.intro.setVisible(bool(tube))
 
     def _build_change_page(self):
         page = QWidget()

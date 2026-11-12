@@ -3234,6 +3234,55 @@ def tube_longitudinal(site: str, unit: int, jump: float = TUBE_LONGITUDINAL_JUMP
             "tubes": tubes}
 
 
+def export_tube_history(data: dict) -> dict:
+    site = str(data.get("site") or "").strip().upper()
+    if any(type(data.get(key)) is bool or not re.fullmatch(r"\d{1,2}", str(data.get(key) or ""))
+           for key in ("unit", "tube")):
+        raise ValueError("请选择有效机组和1-50号管")
+    unit, number = int(data["unit"]), int(data["tube"])
+    if not re.fullmatch(r"[A-Z]+", site) or not 1 <= unit <= 99 or not 1 <= number <= 50:
+        raise ValueError("请选择有效基地、机组和1-50号管")
+    ndd_zero = data.get("ndd_zero", True)
+    if type(ndd_zero) not in (bool, int) or ndd_zero not in (0, 1):
+        raise ValueError("NDD零基线设置无效")
+    history = tube_longitudinal(site, unit, ndd_zero=bool(ndd_zero))
+    tube = next(row for row in history["tubes"] if row["tube"] == number)
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, quoting=csv.QUOTE_ALL)
+    writer.writerow(["基地机组", "管号", "管位", "大修", "管子代次", "检测结论", "磨损位置",
+                     "三字符", "磨损深度(%)", "测量通道", "数据文件", "维护事件", "有效维护状态"])
+    labels = {"normal": "正常", "plugged": "堵管", "shifted": "移位", "replaced": "换管"}
+    count, ids = 0, []
+    for point in tube["series"]:
+        head = [history["unit_code"], number, tube["position"], point["outage"],
+                point.get("generation"), point.get("conclusion")]
+        tail = ["/".join(labels.get(event, event) for event in point.get("current_events") or []),
+                point.get("state_label") or "未记录"]
+        for finding in point.get("findings") or [{}]:
+            row = head + [finding.get(key) for key in ("location", "indication", "percent", "channel", "source")] + tail
+            # CSV quoting alone does not stop spreadsheet formula evaluation.
+            writer.writerow(["'" + value if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@"))
+                             else value for value in row])
+            count += 1
+            if finding.get("id") is not None:
+                ids.append(finding["id"])
+    content = b"\xef\xbb\xbf" + output.getvalue().encode("utf-8")
+    filename = artifact_naming.filename("历次检测演变", f"{site}{unit}_{number}号管_完整历史", "csv")
+    EXCEL_DIR.mkdir(parents=True, exist_ok=True)
+    target = EXCEL_DIR / filename
+    temporary = target.with_suffix(".tmp")
+    try:
+        temporary.write_bytes(content)
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return record_file_export("tube_history", {
+        "filename": filename, "file_path": str(target), "rows": count,
+        "download_url": f"/api/download-excel?name={quote(filename)}",
+    }, {"site": site, "unit": unit, "tube": number, "ndd_zero": bool(ndd_zero),
+        "outages": [point["outage"] for point in tube["series"]], "finding_ids": ids})
+
+
 SUMMARY_WATCH_LEVEL = 30.0   # 关注水位（壁厚%）：与可视化工作台分布视图统一口径
 SUMMARY_LIMIT_LEVEL = 50.0   # 极限水位（壁厚%）
 SUMMARY_ANOMALY_ROWS = 200   # 摘要异常清单行数上限，超出时提示查看明细工作表
@@ -5073,15 +5122,18 @@ class Handler(SimpleHTTPRequestHandler):
         if status >= 400:
             task_progress.finish(False)
         payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_security_headers()
-        self.send_header("Cache-Control", "no-store")
-        if getattr(self, 'auth_cookie', None):
-            self.send_header('Set-Cookie', self.auth_cookie)
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_security_headers()
+            self.send_header("Cache-Control", "no-store")
+            if getattr(self, 'auth_cookie', None):
+                self.send_header('Set-Cookie', self.auth_cookie)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            self.close_connection = True
 
     def body(self):
         length = int(self.headers.get("Content-Length", 0) or 0)
@@ -5225,6 +5277,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return self.json_response(update_finding_field(data))
             if path == "/api/data-ledger/export":
                 return self.json_response(export_data_ledger(data))
+            if path == "/api/analysis/tube-history/export":
+                return self.json_response(export_tube_history(data))
             if path == "/api/settings/data-source":
                 return self.json_response(data_source.save_settings(DB_PATH, data))
             if path == "/api/settings/state-direction":

@@ -208,6 +208,24 @@ class LocalEnterpriseTests(unittest.TestCase):
         self.assertEqual(code,200)
         with server.connect() as db:self.assertEqual(db.execute('SELECT operator FROM export_audits').fetchone()[0],'admin')
 
+    def test_tube_history_csv_rechecks_live_export_permission_and_operator(self):
+        _, viewer, _ = self.user('viewer')
+        reporter, cookie, ident = self.user('reporter')
+        payload = {'site': 'N', 'unit': 1, 'tube': 1, 'operator': 'forged-admin'}
+        route = '/api/analysis/tube-history/export'
+        self.assertEqual(self.request(route, 'POST', payload)[0], 401)
+        self.assertEqual(self.request(route, 'POST', payload, viewer)[0], 403)
+        status, exported, _ = self.request(route, 'POST', payload, cookie)
+        self.assertEqual(status, 200, exported)
+        evidence = json.loads(Path(exported['provenance_file_path']).read_text(encoding='utf-8'))
+        self.assertEqual(evidence['operator'], reporter['username'])
+        self.assertEqual(evidence['tube'], 1)
+        self.assertEqual(self.request('/api/auth/users/update', 'POST',
+                                      {'id': ident, 'active': False}, self.cookie)[0], 200)
+        count = len(list(server.EXCEL_DIR.glob('*.csv')))
+        self.assertEqual(self.request(route, 'POST', payload, cookie)[0], 401)
+        self.assertEqual(len(list(server.EXCEL_DIR.glob('*.csv'))), count)
+
     def test_export_download_records_server_operator_and_hash(self):
         status,payload,_=self.request('/api/export',cookie=self.cookie)
         self.assertEqual(status,200)

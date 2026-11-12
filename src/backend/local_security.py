@@ -321,6 +321,7 @@ POST_PERMISSIONS = {
     '/api/auth/setup':None,'/api/auth/login':None,'/api/auth/logout':'authenticated',
     '/api/auth/password':'authenticated','/api/auth/users':'users.manage','/api/auth/users/update':'users.manage',
     '/api/findings/edit':'data.edit','/api/data-ledger/export':'export.create',
+    '/api/analysis/tube-history/export':'export.create',
     '/api/settings/data-source':'settings.manage','/api/settings/data-source/validate':'settings.manage',
     '/api/settings/state-direction':'authenticated',
     '/api/cross-group-reviews':'review.write','/api/reports/preview':'data.read','/api/reports/export':'export.create',
