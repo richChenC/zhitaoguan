@@ -567,6 +567,23 @@ try {
             if ($assemblyTab.Count -ne 1) { throw 'Assembly mode tab missing after part details' }
             $assemblyTab[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
             Start-Sleep -Milliseconds 150
+            $cutToggle = @(Find-NamedControl $window '剖切' |
+                Where-Object { $_.Current.ClassName -eq 'QCheckBox' })
+            if ($cutToggle.Count -eq 0 -or $cutToggle[0].Current.IsOffscreen) {
+                $cutHeading = @(Find-NamedControl $window '剖切' |
+                    Where-Object { $_.Current.ClassName -eq 'QToolButton' })
+                if ($cutHeading.Count -ne 1) { throw 'Assembly section disclosure missing' }
+                Activate-Control $cutHeading[0]
+                Start-Sleep -Milliseconds 200
+            }
+            $cutToggle = @(Find-NamedControl $window '剖切' |
+                Where-Object { $_.Current.ClassName -eq 'QCheckBox' -and -not $_.Current.IsOffscreen })
+            if ($cutToggle.Count -ne 1) { throw 'Assembly section switch missing after expanding disclosure' }
+            Activate-Control $cutToggle[0]
+            Start-Sleep -Milliseconds 300
+            Capture 'frozen-three-d-assembly-section-caps'
+            Activate-Control $cutToggle[0]
+            $result.steps += 'native-assembly-section-caps-on-and-off'
             Activate-Control $modelSettings[0]
             $result.steps += 'native-floating-model-settings-colors-and-type-filter'
             $result.steps += 'native-six-part-tree-metadata-right-click-hide-and-restore'

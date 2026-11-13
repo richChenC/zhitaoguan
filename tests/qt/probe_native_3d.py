@@ -1149,6 +1149,11 @@ def real_data_probe(database):
         output["sections"] = verify_sections(page, root, work, wait, pixels)
         output["passed"] = True
         return finish_desktop_probe(app, page, work, output, messages, previous_handler)
+    if "--assembly-only" in sys.argv:
+        from probe_native_assembly import verify_assembly
+        output["assembly_caps"] = verify_assembly(page, root, work, wait, pixels)
+        output["passed"] = True
+        return finish_desktop_probe(app, page, work, output, messages, previous_handler)
     if "--annotations-only" not in sys.argv and "--axes-only" not in sys.argv:
         output["model_panel"] = verify_model_panel(page, work)
         output["column_groups"] = verify_column_groups(page, root, work)
@@ -1158,6 +1163,8 @@ def real_data_probe(database):
         output["detail_clipping"] = verify_detail_clipping(page, root, work)
         from probe_native_sections import verify_sections
         output["sections"] = verify_sections(page, root, work, wait, pixels)
+        from probe_native_assembly import verify_assembly
+        output["assembly_caps"] = verify_assembly(page, root, work, wait, pixels)
     if "--axes-only" not in sys.argv:
         output["annotations"] = verify_annotations(page, root, work)
     output["axes"] = verify_axes(page, root, work)

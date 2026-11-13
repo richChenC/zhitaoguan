@@ -9,6 +9,7 @@ Rectangle {
     property var tubes: []
     property var tubeColors: ({})
     property var columns: []
+    property var assemblyCaps: []
     property var columnVisibility: ({})
     property var defects: []
     property int selectedTube: 0
@@ -105,6 +106,9 @@ Rectangle {
     property string clipAxis: "x"
     property real clipOffset: 0
     property bool showSectionCaps: true
+    property bool showAssemblyCaps: true
+    readonly property bool assemblyCapsActive: clipEnabled && clipAxis === "x" && clipOffset === 0 &&
+        displayMode === "assembly" && tubes.length > 0
     property bool measurementEnabled: false
     property int measurementCount: 0
     property vector3d measureA: Qt.vector3d(0,0,0)
@@ -436,7 +440,8 @@ Rectangle {
             visible: root.showVessel && root.displayMode === "assembly" && root.tubes.length > 0
             geometry: ReferenceGeometry { partId: "vessel" }
             materials: SectionMaterial {
-                tint: "#9db4c9"; alphaValue: .085
+                tint: "#9db4c9"; alphaValue: root.clipEnabled ? .14 : .085
+                depthDrawMode: root.clipEnabled ? Material.AlwaysDepthDraw : Material.NeverDepthDraw
                 metalnessValue: .45; roughnessValue: .5
                 objectName: "vesselMaterial"
             }
@@ -454,6 +459,27 @@ Rectangle {
                 diffuseColor: "#9fb8cf"
                 opacity: .18
                 depthDrawMode: Material.NeverDepthDraw
+            }
+        }
+        Repeater3D {
+            model: root.assemblyCaps
+            delegate: Model {
+                required property var modelData
+                objectName: modelData.id
+                visible: root.showAssemblyCaps && root.assemblyCapsActive &&
+                    (modelData.target === "vessel" ? root.showVessel : modelData.target === "plate" ?
+                     root.showPlates : root.showSupports && root.columnVisibility[modelData.columnType] !== false)
+                y: root.explode * modelData.explodeOffset
+                geometry: ReferenceGeometry { partId: modelData.id }
+                pickable: false
+                materials: SectionMaterial {
+                    objectName: "material-" + modelData.id
+                    clipActive: false
+                    tint: modelData.material.color
+                    metalnessValue: modelData.material.metalness
+                    roughnessValue: modelData.material.roughness
+                    alphaValue: 1
+                }
             }
         }
         Repeater3D {
@@ -484,6 +510,7 @@ Rectangle {
                           modelData.type === "sec-hollow" ? "#8a7fb8" :
                           modelData.type === "sec-solid" ? "#9fb4c9" : "#8fa6bb"
                     metalnessValue: .58; roughnessValue: .44; alphaValue: .92
+                    cullMode: root.clipEnabled ? Material.NoCulling : Material.BackFaceCulling
                     objectName: "columnMaterial-" + modelData.meshId
                 }
             }

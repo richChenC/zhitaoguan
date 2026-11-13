@@ -19,7 +19,13 @@ from .native_model_data import MODEL_DATA, reference_layout
 def model_parts():
     data = json.loads((MODEL_DATA / "thimble_assembly.json").read_text(encoding="utf-8"))
     structure = json.loads((Path(__file__).with_name("model_assets") / "structure.json").read_text(encoding="utf-8"))
-    return {part["id"]: part for part in data["parts"] + structure["parts"]}
+    return {part["id"]: part for part in data["parts"] + structure["parts"] + assembly_caps()}
+
+
+@lru_cache(maxsize=1)
+def assembly_caps():
+    path = Path(__file__).with_name("model_assets") / "assembly-caps.json"
+    return json.loads(path.read_text(encoding="utf-8"))["parts"]
 
 
 @lru_cache(maxsize=160)

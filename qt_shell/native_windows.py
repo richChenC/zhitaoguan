@@ -5870,7 +5870,7 @@ class NativeThreeDPage(QWidget):
             if hasattr(root, "measurementChanged"):
                 root.measurementChanged.connect(self.measurement_value.setText)
             from .native_model_data import reference_layout
-            from .native_geometry import geometry_data
+            from .native_geometry import assembly_caps, geometry_data
             vessel = reference_layout()["vessel"]
             radius = vessel["outerRadius"]
             root.setProperty("assemblyMinimum", QVector3D(-radius, vessel["headBottomY"], -radius))
@@ -5881,6 +5881,9 @@ class NativeThreeDPage(QWidget):
             root.setProperty("columns", [{**row, "meshId": f"column-{index}",
                                           "bounds": list(geometry_data(f"column-{index}")[2])}
                                          for index, row in enumerate(reference_layout()["structure"]["columns"])])
+            root.setProperty("assemblyCaps", [
+                {key: part[key] for key in ("id", "target", "columnType", "explodeOffset", "material")}
+                for part in assembly_caps()])
         self.view_container.setMinimumSize(320, 280)
         self.scene_host = QWidget()
         self.scene_host.setMinimumSize(320, 280)

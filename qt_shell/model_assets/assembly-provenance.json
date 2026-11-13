@@ -1,0 +1,15 @@
+{
+  "source": "TRAE actual buildVesselScene, Three r180",
+  "source_sha256": "f2e21fed8b859668cd0b427b702764c41022157179d639ced63d9af3754bb68e",
+  "columns": 72,
+  "column_surfaces": 96,
+  "cap_summary": {
+    "capCount": 13,
+    "capColumns": 8,
+    "plateHoles": 192,
+    "assemblyMeshes": 100
+  },
+  "column_geometry": "Exact world float32 positions and normals; merged surfaces retain reference indices.",
+  "tie_mode": "none",
+  "retained_structure": "Existing plates/vessel preserved; their positions differ by at most 0.00005mm."
+}
