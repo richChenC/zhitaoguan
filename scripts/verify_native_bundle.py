@@ -42,7 +42,8 @@ def verify(executable, root):
                 "qt_shell.native_plate_snapshot"}
     errors.extend(f"missing module: {name}" for name in sorted(required - set(modules)))
     internal = executable.parent / "_internal"
-    pairs = [(root / "qt_shell/native_model.qml", internal / "qt_shell/native_model.qml")]
+    pairs = [(root / "qt_shell/native_model.qml", internal / "qt_shell/native_model.qml"),
+             (root / "src/desktop-ui/assets/app-icon.png", internal / "native_resources/assets/app-icon.png")]
     for folder, destination in (
         (root / "qt_shell/model_assets", internal / "qt_shell/model_assets"),
         (root / "qt_shell/shaders", internal / "qt_shell/shaders"),

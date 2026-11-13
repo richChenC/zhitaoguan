@@ -13,6 +13,7 @@ datas = [
     (str(ROOT / "qt_shell" / "model_assets"), "qt_shell/model_assets"),
     (str(ROOT / "qt_shell" / "shaders"), "qt_shell/shaders"),
     (str(ROOT / "qt_shell" / "assets"), "qt_shell/assets"),
+    (str(ROOT / "src/desktop-ui/assets/app-icon.png"), "native_resources/assets"),
     (str(ROOT / "src/desktop-ui/assets/icons"), "native_resources/assets/icons"),
     (str(ROOT / "src/desktop-ui/visualizations/reference-thimble/data"),
      "native_resources/visualizations/reference-thimble/data"),

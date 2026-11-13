@@ -224,7 +224,7 @@ try {
     foreach ($edit in $masked) {
         $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('FrozenProbe@2026')
     }
-    $submit = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '创建管理员并进入'
+    $submit = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '创建并进入'
     if ($submit.Count -ne 1) { throw 'Initialization button missing' }
     Activate-Control $submit[0]
     for ($attempt=0; $attempt -lt 100; $attempt++) {
