@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QEvent, QIODevice, QModelIndex, QObject, QSaveFile, QUrl, QTimer, Qt, Signal
-from PySide6.QtGui import QCloseEvent, QColor, QCursor, QIcon, QImage, QPainter, QPixmap, QVector3D
+from PySide6.QtGui import QBrush, QCloseEvent, QColor, QCursor, QIcon, QImage, QPainter, QPixmap, QVector3D
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -5644,7 +5644,8 @@ class NativeThreeDPage(QWidget):
         self.visibility_checks = {}
         for label, prop, checked in (("容器包络", "showVessel", True), ("下封头", "showDome", True),
                                      ("支承板", "showPlates", True), ("支承柱", "showSupports", True),
-                                     ("管座", "showSockets", True), ("管径放大", "enlargeTubes", True)):
+                                     ("管座", "showSockets", True), ("贯穿管", "showPenetrations", True),
+                                     ("管径放大", "enlargeTubes", True)):
             check = QCheckBox(label)
             check.setChecked(checked)
             check.toggled.connect(lambda value, name=prop: self._set_scene_property(name, value))
@@ -5745,9 +5746,9 @@ class NativeThreeDPage(QWidget):
         display_settings.addWidget(self.ghost)
         self.opacity = QSlider(Qt.Orientation.Horizontal)
         self.opacity.setRange(10, 100)
-        self.opacity.setValue(65)
+        self.opacity.setValue(100)
         self.opacity.valueChanged.connect(lambda v: self._set_scene_property("modelOpacity", v / 100))
-        display_settings.addWidget(QLabel("透明度"))
+        display_settings.addWidget(QLabel("管身透明度"))
         display_settings.addWidget(self.opacity)
         cut_settings = section("剖切与测距")
         self.explode = QSlider(Qt.Orientation.Horizontal)
@@ -5822,6 +5823,7 @@ class NativeThreeDPage(QWidget):
                 root.stationSelected.connect(self._station_selected)
             root.setProperty("partVisibility", self._part_visibility)
             root.setProperty("partColors", {key: part["color"] for key, part in self._parts.items()})
+            root.setProperty("partMetalness", {key: part["metalness"] for key, part in self._parts.items()})
             if hasattr(root, "viewManipulated"):
                 root.viewManipulated.connect(lambda: self.camera_preset.setCurrentIndex(-1))
                 root.viewReset.connect(self._reset_three_d_view)
@@ -5834,7 +5836,7 @@ class NativeThreeDPage(QWidget):
             root.setProperty("assemblyMinimum", QVector3D(-radius, vessel["headBottomY"], -radius))
             root.setProperty("assemblyMaximum", QVector3D(radius, vessel["cylinderTopY"], radius))
             root.setProperty("geometryBounds", {
-                part: list(geometry_data(part)[2]) for part in ("vessel", "dome", "ucsPlate", "secondaryGrid", "P01", "P02")
+                part: list(geometry_data(part)[2]) for part in ("vessel", "dome", "ucsPlate", "secondaryGrid", "P01", "P02", "P05")
             })
             root.setProperty("columns", [{**row, "meshId": f"column-{index}",
                                           "bounds": list(geometry_data(f"column-{index}")[2])}
@@ -6054,8 +6056,9 @@ class NativeThreeDPage(QWidget):
             item.setData(0, Qt.ItemDataRole.AccessibleTextRole,
                          f"{self._parts[key]['cn']}，{'显示' if visible else '隐藏'}")
             for column in range(3):
-                item.setForeground(column, self.part_tree.palette().text() if visible else
-                                   self.part_tree.palette().placeholderText())
+                item.setForeground(column, QBrush() if visible else
+                                   QBrush(QColor("#a8b8b5" if getattr(self, "_model_dark_theme", False)
+                                                 else "#647c8c")))
         if hasattr(self, "view"):
             self._set_scene_property("partVisibility", dict(self._part_visibility))
             self._update_model_annotations()
@@ -6171,7 +6174,9 @@ class NativeThreeDPage(QWidget):
         self._update_tube_colors()
 
     def set_theme(self, theme):
-        self._set_scene_property("darkTheme", theme == "dark")
+        self._model_dark_theme = theme == "dark"
+        self._set_scene_property("darkTheme", self._model_dark_theme)
+        self._sync_part_tree()
 
     def _tube_color_changed(self, mode, checked):
         # The reference clears length/type when depth is enabled; depth keeps

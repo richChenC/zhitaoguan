@@ -15,14 +15,17 @@ Rectangle {
     property bool showVessel: true
     property bool showSupports: true
     property bool showSockets: true
+    property bool showPenetrations: true
     property bool showDome: true
     property bool showPlates: true
     property bool enlargeTubes: true
-    property real modelOpacity: 0.65
+    property real modelOpacity: 1
+    property real renderExposure: 1.05
     property real detailLength: 3000
     property var partVisibility: ({P01: true, P02: true, P03: false, P04: false, P05: true, P06: true})
     property var partColors: ({P01: "#667c8c", P02: "#9fa9b5", P03: "#d9d2c4",
                               P04: "#c8b89a", P05: "#8f9aa6", P06: "#9aa4b0"})
+    property var partMetalness: ({P01:.72, P02:.85, P03:.8, P04:.78, P05:.55, P06:.5})
     property bool ghostContext: true
     property var stations: []
     property bool showStations: true
@@ -113,6 +116,11 @@ Rectangle {
     component SectionMaterial: CustomMaterial {
         property color tint: "#a9bac6"
         property real alphaValue: root.modelOpacity
+        property real roughnessValue: .34
+        property real metalnessValue: .8
+        property color emissiveTint: "#000000"
+        property real emissiveIntensity: 0
+        property real exposureValue: root.renderExposure
         property bool clipActive: root.clipEnabled || root.displayMode === "socket"
         property real clipDistance: root.clipOffset
         property vector3d clipNormal: Qt.vector3d(root.clipAxis === "x" ? 1 : 0,
@@ -195,6 +203,7 @@ Rectangle {
             const position = [tube.x, tube.yBase, tube.z]
             include(geometryBounds.P01, position, [enlargeTubes ? 3 : 1, tube.length/3000, enlargeTubes ? 3 : 1])
             if (showSockets) include(geometryBounds.P02, [tube.x, tube.yBase+explode*150, tube.z])
+            if (showPenetrations) include(geometryBounds.P05, position)
         }
         if (!isFinite(low[0])) {
             low = [assemblyMinimum.x, assemblyMinimum.y, assemblyMinimum.z]
@@ -250,6 +259,7 @@ Rectangle {
     onShowPlatesChanged: fitView()
     onShowSupportsChanged: fitView()
     onShowSocketsChanged: fitView()
+    onShowPenetrationsChanged: fitView()
     onEnlargeTubesChanged: fitView()
     onExplodeChanged: fitView()
     onTubeTypeChanged: fitView()
@@ -312,9 +322,14 @@ Rectangle {
             ReferenceGeometry { id: enlargedStationGeometry; partId: "station-ring-enlarged" }
         }
         environment: SceneEnvironment {
+            objectName: "referenceEnvironment"
             backgroundMode: SceneEnvironment.Transparent
             antialiasingMode: SceneEnvironment.MSAA
             tonemapMode: SceneEnvironment.TonemapModeAces
+            lightProbe: Texture {
+                objectName: "referenceProbeTexture"
+                source: "assets/reference-neutral-environment.png"
+            }
         }
         Node {
             position: root.displayMode === "assembly" ? root.framing.center : Qt.vector3d(0,0,0)
@@ -350,12 +365,30 @@ Rectangle {
             }
         }
         DirectionalLight {
-            eulerRotation.x: -40
-            eulerRotation.y: -25
-            brightness: 0.8
-            ambientColor: "#505050"
+            objectName: "referenceKeyLight"
+            eulerRotation: Qt.vector3d(-Math.atan2(2.2,Math.hypot(1.4,1.6))*180/Math.PI,
+                                       Math.atan2(1.4,1.6)*180/Math.PI,0)
+            brightness: 2.1
         }
-        DirectionalLight { eulerRotation: Qt.vector3d(20,160,0); brightness: 0.35 }
+        DirectionalLight {
+            objectName: "referenceFillLight"
+            color: "#dce9f7"
+            eulerRotation: Qt.vector3d(-Math.atan2(.6,Math.hypot(-1.8,-1.2))*180/Math.PI,
+                                       Math.atan2(-1.8,-1.2)*180/Math.PI,0)
+            brightness: 1.1
+        }
+        DirectionalLight {
+            objectName: "referenceRimLight"
+            eulerRotation: Qt.vector3d(-Math.atan2(-1.5,Math.hypot(.2,.8))*180/Math.PI,
+                                       Math.atan2(.2,.8)*180/Math.PI,0)
+            brightness: .7
+        }
+        DirectionalLight {
+            objectName: "referenceAmbientLight"
+            color: "#000000"
+            brightness: 1
+            ambientColor: Qt.rgba(.6262096812,.6262096812,.6262096812,1)
+        }
         Model {
             objectName: "plateOverlayModel"
             visible: root.showPlateOverlay && root.displayMode === "assembly" && root.tubes.length > 0
@@ -378,12 +411,35 @@ Rectangle {
             visible: root.showDome && root.displayMode === "assembly" && root.tubes.length > 0
             geometry: ReferenceGeometry { partId: "dome" }
             y: -root.explode * 800
-            materials: SectionMaterial { tint: "#a9bac6"; alphaValue: root.domeAlpha }
+            materials: SectionMaterial {
+                tint: "#8aa0bd"; alphaValue: root.domeAlpha
+                metalnessValue: .25; roughnessValue: .72
+                objectName: "domeMaterial"
+            }
         }
         Model {
             visible: root.showVessel && root.displayMode === "assembly" && root.tubes.length > 0
             geometry: ReferenceGeometry { partId: "vessel" }
-            materials: SectionMaterial { tint: "#a9bac6"; alphaValue: 0.08 }
+            materials: SectionMaterial {
+                tint: "#9db4c9"; alphaValue: .085
+                metalnessValue: .45; roughnessValue: .5
+                objectName: "vesselMaterial"
+            }
+        }
+        Model {
+            objectName: "vesselWire"
+            visible: root.showVessel && root.displayMode === "assembly" && root.tubes.length > 0
+            geometry: VesselWireGeometry {
+                objectName: "vesselWireGeometry"
+                clipActive: root.clipEnabled; clipAxis: root.clipAxis; clipOffset: root.clipOffset
+            }
+            materials: DefaultMaterial {
+                objectName: "vesselWireMaterial"
+                lighting: DefaultMaterial.NoLighting
+                diffuseColor: "#9fb8cf"
+                opacity: .18
+                depthDrawMode: Material.NeverDepthDraw
+            }
         }
         Repeater3D {
             model: ["ucsPlate", "secondaryGrid"]
@@ -392,7 +448,11 @@ Rectangle {
                 visible: root.showPlates && root.displayMode === "assembly" && root.tubes.length > 0
                 geometry: ReferenceGeometry { partId: modelData }
                 y: root.explode * (modelData === "ucsPlate" ? 800 : 400)
-                materials: SectionMaterial { tint: "#839cab"; alphaValue: root.plateAlpha }
+                materials: SectionMaterial {
+                    tint: "#8fa3b8"; alphaValue: root.plateAlpha
+                    metalnessValue: .5; roughnessValue: .6
+                    objectName: "plateMaterial-" + modelData
+                }
             }
         }
         Repeater3D {
@@ -402,8 +462,12 @@ Rectangle {
                 geometry: ReferenceGeometry { partId: modelData.meshId }
                 visible: root.showSupports && root.displayMode === "assembly" && root.tubes.length > 0
                 materials: SectionMaterial {
-                    tint: modelData.type === "core-hollow" ? "#8299a7" :
-                               modelData.type === "sec-hollow" ? "#94a488" : "#b1a88e"
+                    tint: modelData.type === "core-hollow" ? "#5f87a8" :
+                          modelData.type === "core-solid" ? "#4f9d9d" :
+                          modelData.type === "sec-hollow" ? "#8a7fb8" :
+                          modelData.type === "sec-solid" ? "#9fb4c9" : "#8fa6bb"
+                    metalnessValue: .58; roughnessValue: .44; alphaValue: .92
+                    objectName: "columnMaterial-" + modelData.meshId
                 }
             }
         }
@@ -431,6 +495,9 @@ Rectangle {
                     materials: SectionMaterial {
                         tint: tubeNode.selected ? "#f4bd3c" : tubeNode.tubeColor
                         alphaValue: tubeNode.selected ? 1 : root.modelOpacity
+                        metalnessValue: .32; roughnessValue: .42
+                        emissiveTint: "#16232f"; emissiveIntensity: .42
+                        objectName: "tubeMaterial-" + tubeNode.modelData.tube
                     }
                 }
                 Model {
@@ -450,7 +517,22 @@ Rectangle {
                     geometry: socketGeometry
                     pickable: true
                     y: root.explode * 150
-                    materials: SectionMaterial { tint:"#aab6c0"; alphaValue: 1 }
+                    materials: SectionMaterial {
+                        tint:"#9dafc2"; alphaValue: 1
+                        objectName: "socketMaterial-" + tubeNode.modelData.tube
+                    }
+                }
+                Model {
+                    objectName: "penetration-" + tubeNode.modelData.tube
+                    property int tubeNumber: tubeNode.modelData.tube
+                    property string partId: "P05"
+                    visible: root.showPenetrations && root.displayMode === "assembly"
+                    geometry: penetrationGeometry
+                    pickable: true
+                    materials: SectionMaterial {
+                        tint:"#b9c7d4"; alphaValue: 1; metalnessValue: .5
+                        objectName: "penetrationMaterial-" + tubeNode.modelData.tube
+                    }
                 }
             }
         }
@@ -485,6 +567,7 @@ Rectangle {
                     materials: SectionMaterial {
                         tint: modelData === "P01" ? "#667c8c" : root.partColors[modelData]
                         alphaValue: contextPart && root.ghostContext ? .22 : 1
+                        metalnessValue: root.partMetalness[modelData] ?? .8
                         objectName: "detailMaterial-" + modelData
                     }
                 }

@@ -43,7 +43,7 @@ def reference_parts():
     dimensions = {row["id"]: row for row in json.loads(
         (MODEL_DATA / "dimensions.json").read_text(encoding="utf-8"))["dimensions"]}
     return tuple({
-        **{key: part.get(key) for key in ("id", "cn", "en", "kind", "color", "triCount", "volumeMm3", "note")},
+        **{key: part.get(key) for key in ("id", "cn", "en", "kind", "color", "metalness", "triCount", "volumeMm3", "note")},
         "visible": part["id"] != "P04" and not part.get("hidden", False),
         "dimensions": tuple(dimensions[key] for key in PART_DIMENSIONS.get(part["id"], ())),
     } for part in data["parts"])

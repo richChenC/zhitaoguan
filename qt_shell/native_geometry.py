@@ -139,10 +139,67 @@ class ReferenceGeometry(QQuick3DGeometry):
 _registered = False
 
 
+@lru_cache(maxsize=1)
+def vessel_wire_positions():
+    data = json.loads((Path(__file__).with_name("model_assets") / "vessel-wire.json").read_text(encoding="utf-8"))
+    return tuple(data["positions"])
+
+
+class VesselWireGeometry(QQuick3DGeometry):
+    clipChanged = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._active, self._axis, self._offset = False, "x", 0.
+        self._rebuild()
+
+    def _set_option(self, name, value):
+        if getattr(self, name) != value:
+            setattr(self, name, value)
+            self._rebuild()
+            self.clipChanged.emit()
+
+    def _rebuild(self):
+        original = vessel_wire_positions()
+        if self._active:
+            points = array("f")
+            axis = {"x": 0, "y": 1, "z": 2}[self._axis]
+            for i in range(0, len(original), 6):
+                a, b = original[i:i+3], original[i+3:i+6]
+                da, db = a[axis]-self._offset, b[axis]-self._offset
+                if da > 0 and db > 0:
+                    continue
+                if (da > 0) != (db > 0):
+                    fraction = da/(da-db)
+                    intersection = tuple(a[j]+(b[j]-a[j])*fraction for j in range(3))
+                    a, b = (intersection, b) if da > 0 else (a, intersection)
+                points.extend((*a, *b))
+        else:
+            points = array("f", original)
+        self.clear()
+        self.setVertexData(QByteArray(points.tobytes()))
+        self.setStride(12)
+        self.setPrimitiveType(QQuick3DGeometry.PrimitiveType.Lines)
+        attribute = QQuick3DGeometry.Attribute
+        self.addAttribute(attribute.Semantic.PositionSemantic, 0, attribute.ComponentType.F32Type)
+        minimum = [min(points[i::3]) if points else 0 for i in range(3)]
+        maximum = [max(points[i::3]) if points else 0 for i in range(3)]
+        self.setBounds(QVector3D(*minimum), QVector3D(*maximum))
+        self.update()
+
+    clipActive = Property(bool, lambda self: self._active,
+                          lambda self, value: self._set_option("_active", value), notify=clipChanged)
+    clipAxis = Property(str, lambda self: self._axis,
+                        lambda self, value: self._set_option("_axis", value), notify=clipChanged)
+    clipOffset = Property(float, lambda self: self._offset,
+                          lambda self, value: self._set_option("_offset", value), notify=clipChanged)
+
+
 def register_geometry():
     global _registered
     if not _registered:
         from .native_plate_texture import PlateTextureData
         qmlRegisterType(ReferenceGeometry, "Thimble.Native", 1, 0, "ReferenceGeometry")
         qmlRegisterType(PlateTextureData, "Thimble.Native", 1, 0, "PlateTextureData")
+        qmlRegisterType(VesselWireGeometry, "Thimble.Native", 1, 0, "VesselWireGeometry")
         _registered = True

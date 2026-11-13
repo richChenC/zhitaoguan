@@ -38,9 +38,9 @@ def verify(executable, root):
                 "qt_shell.native_tube_history", "qt_shell.native_report_choice"}
     errors.extend(f"missing module: {name}" for name in sorted(required - set(modules)))
     internal = executable.parent / "_internal"
-    pairs = [(root / "qt_shell/native_model.qml", internal / "qt_shell/native_model.qml"),
-             (root / "qt_shell/model_assets/structure.json", internal / "qt_shell/model_assets/structure.json")]
+    pairs = [(root / "qt_shell/native_model.qml", internal / "qt_shell/native_model.qml")]
     for folder, destination in (
+        (root / "qt_shell/model_assets", internal / "qt_shell/model_assets"),
         (root / "qt_shell/shaders", internal / "qt_shell/shaders"),
         (root / "qt_shell/assets", internal / "qt_shell/assets"),
         (root / "src/desktop-ui/assets/icons", internal / "native_resources/assets/icons"),

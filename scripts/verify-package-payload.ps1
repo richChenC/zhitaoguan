@@ -54,6 +54,16 @@ foreach ($allowedSource in @(
 if ($PackageRoot) {
     $PackageRoot = [IO.Path]::GetFullPath($PackageRoot)
     Require-Path $PackageRoot '待检查的发布目录'
+    foreach ($runtimePath in @(
+        '在役检查系统-指套管数据管理工具.exe',
+        'build\backend\thimble-backend.exe',
+        'assets\app-icon.ico',
+        'assets\report-templates\inspection.docx',
+        'assets\report-templates\comparison.docx',
+        'docs\使用手册'
+    )) {
+        Require-Path (Join-Path $PackageRoot $runtimePath) "运行时必需文件或目录：$runtimePath"
+    }
     $forbiddenNames = @(
         'user-data', '验证', 'tests', 'tmp', '05_测试与验证', '.venv-qt',
         '.git', '打包', 'src', 'qt_shell', 'scripts', '开发与验收记录'

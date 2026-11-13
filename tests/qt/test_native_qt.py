@@ -588,6 +588,51 @@ class NativeQtTests(unittest.TestCase):
         self.assertFalse(root.property("showAxes"))
         page.close()
 
+    def test_vessel_wire_clips_all_axes_and_restores_original_segments(self):
+        from array import array
+        from qt_shell.native_geometry import VesselWireGeometry, vessel_wire_positions
+
+        geometry = VesselWireGeometry()
+        original = array("f", vessel_wire_positions()).tobytes()
+        self.assertEqual(bytes(geometry.vertexData()), original)
+        self.assertEqual(len(original)//24, 4145)
+        geometry.setProperty("clipActive", True)
+        for index, axis in enumerate(("x", "y", "z")):
+            geometry.setProperty("clipAxis", axis)
+            geometry.setProperty("clipOffset", 0.)
+            clipped = array("f")
+            clipped.frombytes(bytes(geometry.vertexData()))
+            self.assertGreater(len(clipped), 0)
+            self.assertLess(len(clipped)*4, len(original))
+            self.assertEqual(len(clipped) % 6, 0)
+            self.assertLessEqual(max(clipped[index::3]), .001)
+            geometry.setProperty("clipOffset", min(vessel_wire_positions()[index::3])-1)
+            self.assertEqual(bytes(geometry.vertexData()), b"")
+            geometry.setProperty("clipOffset", max(vessel_wire_positions()[index::3])+1)
+            self.assertEqual(bytes(geometry.vertexData()), original)
+        geometry.setProperty("clipActive", False)
+        self.assertEqual(bytes(geometry.vertexData()), original)
+
+    def test_three_d_penetrations_and_metalness_follow_original_source(self):
+        from qt_shell.native_model_data import reference_parts
+
+        class Client:
+            def get(self, _path, _callback):
+                return None
+
+        page = NativeThreeDPage(Client())
+        root = page.view.rootObject()
+        self.assertEqual(root.property("partMetalness"),
+                         {part["id"]: part["metalness"] for part in reference_parts()})
+        self.assertEqual(page.opacity.value(), 100)
+        control = page.visibility_checks["showPenetrations"]
+        self.assertTrue(control.isChecked())
+        control.click()
+        self.assertFalse(root.property("showPenetrations"))
+        control.click()
+        self.assertTrue(root.property("showPenetrations"))
+        page.close()
+
     def test_three_d_rotation_fit_and_shutdown_keep_camera_controls_consistent(self):
         class Client:
             def get(self, _path, _callback):
@@ -707,6 +752,38 @@ class NativeQtTests(unittest.TestCase):
         self.assertEqual(root.property("tubes"), [])
         self.assertEqual(root.property("tubeColors"), {})
         self.assertEqual(page._scene_tubes, [])
+        page.close()
+
+    def test_three_d_part_tree_text_tracks_theme_and_visibility(self):
+        from PySide6.QtGui import QColor
+        from qt_shell.native_components import workspace_styles
+
+        class Client:
+            def get(self, _path, _callback):
+                return None
+
+        page = NativeThreeDPage(Client())
+        page.resize(800, 650)
+        page.show()
+        page.scene_settings_button.setChecked(True)
+        for theme, text, muted in (("dark", "#e5eeec", "#a8b8b5"),
+                                   ("light", "#23465b", "#647c8c"),
+                                   ("dark", "#e5eeec", "#a8b8b5")):
+            page.setStyleSheet(workspace_styles(theme))
+            page.set_theme(theme)
+            self.app.processEvents()
+            visible, hidden = page.part_items["P01"], page.part_items["P03"]
+            self.assertEqual(visible.foreground(0).style(), Qt.BrushStyle.NoBrush)
+            self.assertEqual(hidden.foreground(0).color().name(), muted)
+            image = page.part_tree.viewport().grab().toImage()
+            for item, color in ((visible, text), (hidden, muted)):
+                rect = page.part_tree.visualItemRect(item).intersected(image.rect())
+                count = sum(image.pixelColor(x, y) == QColor(color)
+                            for y in range(rect.top(), rect.bottom()+1)
+                            for x in range(rect.left()+20, min(rect.right()+1, 180)))
+                self.assertGreater(count, 5, (theme, color, count))
+        page.toggle_part("P03")
+        self.assertEqual(hidden.foreground(0).style(), Qt.BrushStyle.NoBrush)
         page.close()
 
     def test_three_d_parts_click_visibility_metadata_and_empty_scope(self):

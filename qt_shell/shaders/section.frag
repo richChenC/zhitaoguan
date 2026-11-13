@@ -4,6 +4,11 @@ void MAIN()
     if (clipActive && dot(modelWorldPosition, clipNormal) > clipDistance)
         discard;
     BASE_COLOR = vec4(tint.rgb, alphaValue);
-    ROUGHNESS = 0.5;
-    METALNESS = 0.2;
+    ROUGHNESS = roughnessValue;
+    METALNESS = metalnessValue;
+    EMISSIVE_COLOR = emissiveTint.rgb * emissiveIntensity;
+}
+void POST_PROCESS()
+{
+    COLOR_SUM.rgb *= exposureValue;
 }

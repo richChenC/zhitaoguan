@@ -449,6 +449,16 @@ def verify_parts(page, root, work):
         page.set_theme(theme)
         page.resize(width, height)
         wait(200)
+        from PySide6.QtGui import QColor
+        tree_image = page.part_tree.viewport().grab().toImage()
+        for key in ("P01", "P03"):
+            color = ("#e5eeec" if theme == "dark" else "#23465b") if page._part_visibility[key] else (
+                "#a8b8b5" if theme == "dark" else "#647c8c")
+            rect = page.part_tree.visualItemRect(page.part_items[key]).intersected(tree_image.rect())
+            count = sum(tree_image.pixelColor(x, y) == QColor(color)
+                        for y in range(rect.top(), rect.bottom()+1)
+                        for x in range(rect.left()+20, min(rect.right()+1, 180)))
+            assert count > 5, ("Part tree text does not follow theme", width, key, color, count)
         for part in reference_parts():
             key = part["id"]
             page.scene_settings_host.ensureWidgetVisible(page.part_tree)
@@ -884,6 +894,11 @@ def real_data_probe(database):
     work = test_root / ("native-3d-widget-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     work.mkdir()
     image.save(str(work / "assembly.png"))
+    reference_lighting = os.environ.get("THIMBLE_REFERENCE_LIGHTING_CAPTURE")
+    if reference_lighting:
+        from probe_reference_materials import verify_render_materials
+        output["reference_materials"] = verify_render_materials(
+            page, root, work, reference_lighting, wait, pixels)
     if "--annotations-only" not in sys.argv and "--axes-only" not in sys.argv:
         output["cameras"] = verify_camera_views(page, root, work)
         output["coloring"] = verify_tube_colors(page, root, work, data)

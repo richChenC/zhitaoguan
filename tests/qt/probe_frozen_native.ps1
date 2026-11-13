@@ -381,6 +381,25 @@ try {
                 Where-Object { -not $_.Current.IsOffscreen })
             if ($axisGizmo.Count -ne 1) { throw 'Native assembly axis toggle failed to restore indicator' }
             $result.steps += 'native-rotating-axis-toggle-and-seven-views'
+            $penetrationToggle = Find-Control $window ([System.Windows.Automation.ControlType]::CheckBox) '贯穿管'
+            if ($penetrationToggle.Count -ne 1) { throw 'Native assembly penetration toggle missing' }
+            $penetrationPattern = $penetrationToggle[0].GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+            if ($penetrationPattern.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) {
+                throw 'Native assembly penetrations must be enabled initially'
+            }
+            Activate-Control $penetrationToggle[0]
+            Start-Sleep -Milliseconds 150
+            if ($penetrationPattern.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::Off) {
+                throw 'Native assembly penetration toggle failed to turn off'
+            }
+            Capture 'frozen-three-d-penetrations-off'
+            Activate-Control $penetrationToggle[0]
+            Start-Sleep -Milliseconds 150
+            if ($penetrationPattern.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) {
+                throw 'Native assembly penetration toggle failed to restore'
+            }
+            Capture 'frozen-three-d-penetrations-on'
+            $result.steps += 'native-assembly-penetration-toggle-off-and-restore'
             $result.three_d_color_controls = @()
             foreach ($colorName in @('按管长着色', '按型号着色', '按检测数据着色（最大磨损）')) {
                 $colorControl = Find-NamedControl $window $colorName
