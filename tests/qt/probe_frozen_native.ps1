@@ -516,6 +516,32 @@ try {
                 Where-Object { -not $_.Current.IsOffscreen })
             if ($axisGizmo.Count -ne 0) { throw 'Assembly axis indicator leaked into detail mode' }
             $result.steps += 'native-independent-detail-axis-and-grid'
+            $cutHeading = @(Find-NamedControl $window '剖切' |
+                Where-Object { $_.Current.ClassName -eq 'QToolButton' })
+            if ($cutHeading.Count -ne 1) { throw 'Native section disclosure missing' }
+            Activate-Control $cutHeading[0]
+            Start-Sleep -Milliseconds 200
+            $cutToggle = @(Find-NamedControl $window '剖切' |
+                Where-Object { $_.Current.ClassName -eq 'QCheckBox' -and -not $_.Current.IsOffscreen })
+            if ($cutToggle.Count -ne 1) { throw 'Native section switch missing' }
+            Activate-Control $cutToggle[0]
+            Start-Sleep -Milliseconds 500
+            Capture 'frozen-three-d-detail-section-caps'
+            $sectionWorkers = @(Get-CimInstance Win32_Process | Where-Object {
+                $_.ParentProcessId -eq $process.Id -and $_.CommandLine -like '*--native-section-worker*'
+            })
+            if ($sectionWorkers.Count -ne 1) { throw 'Expected one isolated native section calculator' }
+            $result.section_worker_pid = $sectionWorkers[0].ProcessId
+            if ([NativeProbeWindow]::Find($result.section_worker_pid) -ne [IntPtr]::Zero) {
+                throw 'Private section calculator unexpectedly opened a UI window'
+            }
+            Activate-Control $cutToggle[0]
+            Start-Sleep -Milliseconds 150
+            $cutState = $cutToggle[0].GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+            if ($cutState.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::Off) {
+                throw 'Native section switch failed to restore'
+            }
+            $result.steps += 'native-detail-section-controls-on-and-off'
             $partClose = Find-NamedControl $window '关闭零件详情'
             Activate-Control $partClose[0]
             $fullTab = Find-Control $window ([System.Windows.Automation.ControlType]::TabItem) '整管视图'
@@ -672,6 +698,13 @@ try {
     if (-not $process.WaitForExit(20000)) { throw 'Normal WM_CLOSE did not terminate application' }
     $result.exit_code = $process.ExitCode
     if ($process.ExitCode -ne 0) { throw "Application exited with $($process.ExitCode)" }
+    if ($result.section_worker_pid) {
+        $sectionWorker = Get-Process -Id $result.section_worker_pid -ErrorAction SilentlyContinue
+        if ($sectionWorker -and -not $sectionWorker.WaitForExit(3000)) {
+            throw 'Native section calculator survived application exit'
+        }
+        $result.section_worker_exited = $true
+    }
     $result.passed = $true
 } catch {
     $result.error = $_.ToString()

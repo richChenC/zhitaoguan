@@ -1,0 +1,12 @@
+{
+  "reference_viewer": "src\\desktop-ui\\visualizations\\reference-thimble\\app.js",
+  "reference_viewer_sha256": "f2e21fed8b859668cd0b427b702764c41022157179d639ced63d9af3754bb68e",
+  "earcut": "mapbox/earcut 3.0.1, from three.js 0.180.0",
+  "earcut_source_sha256": "16b9da88d31f192fc8f5db09b08a337ce7694fae37fe36e9afaa9e7294fea9b0",
+  "adaptation": "Array input replaces BufferAttribute and identity matrix conversion; section stitching and loop cleanup are unchanged. Earcut exports removed for QJSEngine.",
+  "assets": {
+    "section-loops.js": "e0469f2a87313ebb8b7bfd229d4c4c8cade51b76d547b764e8caab594c4effd0",
+    "earcut.js": "a27d996ff6f52acbd0fdd6b4dd23177b193e4431b1f7b3bdd40cd664c97d9a2d",
+    "section-algorithms.LICENSE": "bfe119ea4fd413f5f7ca3fcd63adb0c4a073ed39daa2fe7d3e6b769e21272601"
+  }
+}

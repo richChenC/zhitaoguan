@@ -199,7 +199,9 @@ def register_geometry():
     global _registered
     if not _registered:
         from .native_plate_texture import PlateTextureData
+        from .native_sections import SectionGeometry
         qmlRegisterType(ReferenceGeometry, "Thimble.Native", 1, 0, "ReferenceGeometry")
         qmlRegisterType(PlateTextureData, "Thimble.Native", 1, 0, "PlateTextureData")
         qmlRegisterType(VesselWireGeometry, "Thimble.Native", 1, 0, "VesselWireGeometry")
+        qmlRegisterType(SectionGeometry, "Thimble.Native", 1, 0, "SectionGeometry")
         _registered = True

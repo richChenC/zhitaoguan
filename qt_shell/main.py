@@ -167,6 +167,9 @@ def _install_staged_backend(log) -> None:
 
 
 def main() -> int:
+    if "--native-section-worker" in sys.argv:
+        from .native_section_worker import main as section_worker
+        return section_worker()
     if os.name == "nt":
         try:
             import ctypes

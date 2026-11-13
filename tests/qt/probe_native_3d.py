@@ -1144,6 +1144,11 @@ def real_data_probe(database):
         from probe_reference_materials import verify_render_materials
         output["reference_materials"] = verify_render_materials(
             page, root, work, reference_lighting, wait, pixels)
+    if "--sections-only" in sys.argv:
+        from probe_native_sections import verify_sections
+        output["sections"] = verify_sections(page, root, work, wait, pixels)
+        output["passed"] = True
+        return finish_desktop_probe(app, page, work, output, messages, previous_handler)
     if "--annotations-only" not in sys.argv and "--axes-only" not in sys.argv:
         output["model_panel"] = verify_model_panel(page, work)
         output["column_groups"] = verify_column_groups(page, root, work)
@@ -1151,6 +1156,8 @@ def real_data_probe(database):
         output["coloring"] = verify_tube_colors(page, root, work, data)
         output["parts"] = verify_parts(page, root, work)
         output["detail_clipping"] = verify_detail_clipping(page, root, work)
+        from probe_native_sections import verify_sections
+        output["sections"] = verify_sections(page, root, work, wait, pixels)
     if "--axes-only" not in sys.argv:
         output["annotations"] = verify_annotations(page, root, work)
     output["axes"] = verify_axes(page, root, work)
@@ -1234,6 +1241,10 @@ def real_data_probe(database):
     assert overlay_model.property("visible") and page.plate_view.isChecked()
     output["overlay_mode_sync"] = True
     output["passed"] = len(tubes) == 50 and actual == expected and colors > 12
+    return finish_desktop_probe(app, page, work, output, messages, previous_handler)
+
+
+def finish_desktop_probe(app, page, work, output, messages, previous_handler):
     output["qml_messages"] = messages
     assert not messages, messages
     (work / "result.json").write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -1244,6 +1255,8 @@ def real_data_probe(database):
     page.deleteLater()
     wait(100)
     print("deferred deletes processed", flush=True)
+    from qt_shell.native_sections import section_service
+    section_service().shutdown()
     app.quit()
     qInstallMessageHandler(previous_handler)
     return 0 if output["passed"] else 1

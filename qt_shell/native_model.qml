@@ -104,6 +104,7 @@ Rectangle {
     property bool clipEnabled: false
     property string clipAxis: "x"
     property real clipOffset: 0
+    property bool showSectionCaps: true
     property bool measurementEnabled: false
     property int measurementCount: 0
     property vector3d measureA: Qt.vector3d(0,0,0)
@@ -135,6 +136,15 @@ Rectangle {
         destinationAlphaBlend: CustomMaterial.OneMinusSrcAlpha
         vertexShader: "shaders/section.vert"
         fragmentShader: "shaders/section.frag"
+    }
+    function sectionTint(base: color, context: bool): color {
+        const target = context ? Qt.rgba(201/255,212/255,225/255,1) : Qt.rgba(140/255,155/255,171/255,1)
+        const mix = context ? .72 : .62
+        function linear(v) { return v <= .04045 ? v/12.92 : Math.pow((v+.055)/1.055, 2.4) }
+        function srgb(v) { return v <= .0031308 ? v*12.92 : 1.055*Math.pow(v, 1/2.4)-.055 }
+        return Qt.rgba(srgb(linear(base.r)*(1-mix)+linear(target.r)*mix),
+                       srgb(linear(base.g)*(1-mix)+linear(target.g)*mix),
+                       srgb(linear(base.b)*(1-mix)+linear(target.b)*mix), 1)
     }
     function pickTube(x, y) {
         const hit = pickVisible(x, y)
@@ -578,7 +588,33 @@ Rectangle {
                         tint: modelData === "P01" ? "#667c8c" : root.partColors[modelData]
                         alphaValue: contextPart && root.ghostContext ? .22 : 1
                         metalnessValue: root.partMetalness[modelData] ?? .8
+                        cullMode: clipActive ? Material.BackFaceCulling : Material.NoCulling
                         objectName: "detailMaterial-" + modelData
+                    }
+                    Model {
+                        objectName: "detailCap-" + detailPart.modelData
+                        property string partId: detailPart.partId
+                        property int tubeNumber: detailPart.tubeNumber
+                        visible: root.showSectionCaps && capGeometry && capGeometry.triangleCount > 0
+                        pickable: true
+                        geometry: SectionGeometry {
+                            id: capGeometry
+                            objectName: "detailCapGeometry-" + detailPart.modelData
+                            partId: detailPart.partId
+                            clipAxis: root.clipAxis
+                            clipOffset: root.clipOffset
+                            partScale: detailPart.scale
+                            active: root.singleMode && detailPart.visible &&
+                                (root.clipEnabled || root.displayMode === "socket")
+                        }
+                        materials: SectionMaterial {
+                            objectName: "detailCapMaterial-" + detailPart.modelData
+                            clipActive: false
+                            tint: root.sectionTint(root.partColors[detailPart.modelData], detailPart.contextPart)
+                            metalnessValue: .1
+                            roughnessValue: .85
+                            alphaValue: 1
+                        }
                     }
                 }
             }
