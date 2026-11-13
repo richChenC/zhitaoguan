@@ -7137,6 +7137,7 @@ class NativeMainWindow(QMainWindow):
         self.client.get("/api/settings/state-direction", self.stack.widget(1)._direction_loaded)
         self.client.get("/api/settings/state-direction", self.settings_dialog._direction_loaded)
         self.settings_dialog.rules_panel.load()
+        self.settings_dialog.quality_panel.refresh_if_visible()
         analytics = self.stack.widget(3)
         analytics.load()
         analytics.load_complex_analysis()

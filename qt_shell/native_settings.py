@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from .native_components import button
+from .native_import_quality import ImportQualityPanel, quality_styles
 from .native_settings_layout import (
     SettingsNavigation, SettingsNavigationDelegate, SettingsPreferencePanel,
     SettingsQuickActions, SettingsToggle, SettingsPreferenceRow, settings_styles,
@@ -336,6 +337,8 @@ class SettingsDialog(QDialog):
         form.addWidget(self.severity_note)
         self.display_status = label("导入与显示设置已保存", "settingsBusinessHint")
         form.addWidget(self.display_status)
+        self.quality_panel = ImportQualityPanel(client, self.permissions)
+        display_layout.addWidget(self.quality_panel)
         display_layout.addStretch()
         self.source_path.textChanged.connect(self._source_edited)
         self.policy.currentIndexChanged.connect(self._preference_policy_selected)
@@ -430,7 +433,8 @@ class SettingsDialog(QDialog):
 
     def set_theme(self, theme):
         dark = theme == "dark"
-        self.setStyleSheet(settings_styles(theme) + business_styles(dark))
+        self.setStyleSheet(settings_styles(theme) + business_styles(dark) + quality_styles(dark))
+        self.quality_panel.set_theme(theme)
         self.rules_panel.setProperty("dark", dark)
         for control in self.rules_panel.group.buttons():
             control.setProperty("dark", dark)

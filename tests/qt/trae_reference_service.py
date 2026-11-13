@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 from datetime import datetime
 import json
 import os
@@ -21,10 +22,11 @@ def main():
     work.mkdir(parents=True)
     database = work / "data" / "thimble.db"
     database.parent.mkdir()
-    with sqlite3.connect((project / "user-data/data/thimble.db").as_uri() + "?mode=ro", uri=True) as source:
-        with sqlite3.connect(database) as target:
+    with closing(sqlite3.connect((project / "user-data/data/thimble.db").as_uri() + "?mode=ro", uri=True)) as source:
+        with closing(sqlite3.connect(database)) as target:
             source.backup(target)
             target.executescript("DELETE FROM login_sessions; DELETE FROM user_roles; DELETE FROM users;")
+            target.commit()
     for key, value in {"THIMBLE_USER_DATA_DIR": work, "THIMBLE_DATA_DIR": database.parent,
                        "THIMBLE_DB_PATH": database, "THIMBLE_OUTPUT_DIR": work / "exports",
                        "THIMBLE_REPORT_DIR": work / "reports", "THIMBLE_LOG_PATH": work / "server.log"}.items():

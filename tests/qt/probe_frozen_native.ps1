@@ -577,6 +577,45 @@ try {
             }
             if (-not $sourceSaved) { throw 'Frozen explicit source profile did not persist' }
             $result.steps += 'native-import-source-explicit-save-and-profile-file'
+            $auditScroll = @(Find-Control $window ([System.Windows.Automation.ControlType]::ScrollBar) |
+                Where-Object { -not $_.Current.IsOffscreen -and
+                    $_.Current.BoundingRectangle.Height -gt $_.Current.BoundingRectangle.Width })
+            if ($auditScroll.Count -ne 1) { throw 'Native import page vertical scrollbar missing' }
+            $scrollRange = $auditScroll[0].GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern)
+            $scrollRange.SetValue($scrollRange.Current.Maximum)
+            Start-Sleep -Milliseconds 200
+            $auditHeading = @(Find-NamedControl $window '数据质量与导入审计' |
+                Where-Object { -not $_.Current.IsOffscreen })
+            if ($auditHeading.Count -ne 1) {
+                $result.audit_heading_controls = @(Find-NamedControl $window '数据质量与导入审计' |
+                    ForEach-Object { @{type=$_.Current.ControlType.ProgrammaticName;
+                        offscreen=$_.Current.IsOffscreen;bounds=$_.Current.BoundingRectangle.ToString()} })
+                Capture 'frozen-audit-heading-position'
+                throw 'Native import audit heading not visible'
+            }
+            $result.audit_heading_type = $auditHeading[0].Current.ControlType.ProgrammaticName
+            $auditRefresh = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) '刷新清单' |
+                Where-Object { -not $_.Current.IsOffscreen })
+            if ($auditRefresh.Count -ne 1) { throw 'Native import audit refresh not visible' }
+            Activate-Control $auditRefresh[0]
+            Start-Sleep -Milliseconds 250
+            $result.audit_tabs = @()
+            foreach ($auditTab in @('校验问题','导入批次','文件校验','报告版本','跨组复核')) {
+                $auditControl = @(Find-NamedControl $window $auditTab |
+                    Where-Object { -not $_.Current.IsOffscreen -and $_.Current.IsEnabled -and
+                        $_.Current.ControlType -in @([System.Windows.Automation.ControlType]::Button,
+                            [System.Windows.Automation.ControlType]::CheckBox,
+                            [System.Windows.Automation.ControlType]::RadioButton) })
+                if ($auditControl.Count -ne 1) { throw "Native audit tab missing or not visible: $auditTab" }
+                Activate-Control $auditControl[0]
+                Start-Sleep -Milliseconds 250
+                $result.audit_tabs += $auditTab
+                $auditFeedback = @(Find-Control $window ([System.Windows.Automation.ControlType]::Text) |
+                    Where-Object { $_.Current.Name -like '审计列表读取失败*' })
+                if ($auditFeedback.Count) { throw "Native audit read failed: $auditTab" }
+            }
+            Capture 'frozen-import-quality-five-tabs'
+            $result.steps += 'native-import-quality-location-refresh-and-five-visible-tabs'
             $ruleCategory = Find-Control $window ([System.Windows.Automation.ControlType]::ListItem) '对比规则'
             if ($ruleCategory.Count -ne 1) { throw 'Native rule category missing' }
             $categoryBounds = $ruleCategory[0].Current.BoundingRectangle
