@@ -239,7 +239,7 @@ class NativeWorkflowTests(unittest.TestCase):
         values = Preferences.validated({"theme": ["dark"], "last_page": "garbage",
                                         "depth_levels": [30, 20, 20], "depth_colors": ["red"],
                                         "animations": "false", "report_policy": "all"})
-        self.assertEqual(values["theme"], "light")
+        self.assertEqual(values["theme"], "system")
         self.assertEqual(values["last_page"], 0)
         self.assertEqual(values["depth_levels"], [30, 50])
         self.assertIs(values["animations"], True)

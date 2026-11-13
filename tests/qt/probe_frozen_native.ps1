@@ -472,6 +472,77 @@ try {
         }
         if ($settingsHandle -eq [IntPtr]::Zero) { throw "Navigation utility did not open settings: $utilityName" }
         $window = [System.Windows.Automation.AutomationElement]::FromHandle($settingsHandle)
+        if ($utilityName -eq '软件设置') {
+            $copyPath = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '复制数据库文件路径'
+            if ($copyPath.Count -ne 1) { throw 'Native settings copy path control missing' }
+            Activate-Control $copyPath[0]
+            Start-Sleep -Milliseconds 100
+            $copyFeedback = Find-Control $window ([System.Windows.Automation.ControlType]::Text) '数据库路径已复制到剪贴板。'
+            if ($copyFeedback.Count -ne 1) { throw 'Native settings copy feedback missing' }
+            $validateDatabase = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '校验数据库'
+            if ($validateDatabase.Count -ne 1) { throw 'Native settings integrity control missing' }
+            Activate-Control $validateDatabase[0]
+            $validated = $false
+            for ($attempt=0; $attempt -lt 100; $attempt++) {
+                Start-Sleep -Milliseconds 100
+                $badge = Find-Control $window ([System.Windows.Automation.ControlType]::Text) '本地使用中 · 校验通过'
+                if ($badge.Count -eq 1) { $validated=$true; break }
+            }
+            if (-not $validated) { throw 'Native settings database integrity failed' }
+            $result.steps += 'native-settings-exact-path-copy-and-database-integrity'
+            $quick = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '导入与显示 维护检测来源、Report 策略和颜色阈值'
+            if ($quick.Count -ne 1) { throw 'Native settings quick navigation missing' }
+            Activate-Control $quick[0]
+            Start-Sleep -Milliseconds 100
+            $navFocus = [System.Windows.Automation.AutomationElement]::FocusedElement
+            $result.settings_navigation_focus = @{
+                type=$navFocus.Current.ControlType.ProgrammaticName; name=$navFocus.Current.Name
+            }
+            if ($navFocus.Current.ControlType -notin @([System.Windows.Automation.ControlType]::List,
+                                                      [System.Windows.Automation.ControlType]::ListItem)) {
+                throw "Native quick navigation did not focus category list: $($navFocus.Current.ControlType.ProgrammaticName)"
+            }
+            foreach ($keyCode in @(0x24, 0x27)) {
+                [NativeProbeWindow]::PostMessage($settingsHandle, 0x0100, [IntPtr]$keyCode, [IntPtr]1) | Out-Null
+                [NativeProbeWindow]::PostMessage($settingsHandle, 0x0101, [IntPtr]$keyCode, [IntPtr]1) | Out-Null
+            }
+            Start-Sleep -Milliseconds 100
+            $motion = Find-Control $window ([System.Windows.Automation.ControlType]::ComboBox) '交互动画'
+            if ($motion.Count -ne 1 -or $motion[0].Current.IsOffscreen) {
+                throw 'Native preference keyboard route or motion combo missing'
+            }
+            $motionBounds = $motion[0].Current.BoundingRectangle
+            [NativeProbeWindow]::ClickWindow($settingsHandle,
+                [int]($motionBounds.Right-10), [int]($motionBounds.Y+$motionBounds.Height/2)) | Out-Null
+            $reduced = @()
+            for ($attempt=0; $attempt -lt 50 -and $reduced.Count -eq 0; $attempt++) {
+                Start-Sleep -Milliseconds 100
+                $processRoots = [System.Windows.Automation.AutomationElement]::RootElement.FindAll(
+                    [System.Windows.Automation.TreeScope]::Children,
+                    [System.Windows.Automation.PropertyCondition]::new(
+                        [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id))
+                $reduced = @($processRoots | ForEach-Object {
+                    Find-Control $_ ([System.Windows.Automation.ControlType]::ListItem) '减少动画'
+                } | Where-Object { -not $_.Current.IsOffscreen })
+            }
+            if ($reduced.Count -ne 1) {
+                $result.motion_popup_controls = @($processRoots | ForEach-Object {
+                    Find-NamedControl $_ '减少动画'
+                } | ForEach-Object { @{name=$_.Current.Name;type=$_.Current.ControlType.ProgrammaticName;
+                    bounds=$_.Current.BoundingRectangle.ToString();offscreen=$_.Current.IsOffscreen} })
+                Capture 'frozen-settings-motion-failure'
+                throw 'Native motion mode item missing'
+            }
+            $reducedBounds = $reduced[0].Current.BoundingRectangle
+            if (-not [NativeProbeWindow]::ClickInPopup($process.Id,
+                [int]($reducedBounds.X+$reducedBounds.Width/2), [int]($reducedBounds.Y+$reducedBounds.Height/2))) {
+                throw 'Could not click native motion mode popup item'
+            }
+            Start-Sleep -Milliseconds 350
+            $savedPreferences = Get-Content -LiteralPath (Join-Path $work 'native-preferences.json') -Raw | ConvertFrom-Json
+            if ($savedPreferences.animations -ne $false) { throw 'Frozen native motion choice did not persist' }
+            $result.steps += 'native-settings-quick-keyboard-and-saved-motion-mode'
+        }
         Capture ('frozen-navigation-utility-' + $result.steps.Count)
         [NativeProbeWindow]::PostMessage($settingsHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
         Start-Sleep -Milliseconds 200
@@ -986,6 +1057,11 @@ try {
     $result.error = $_.ToString()
 } finally {
     if ($process -and -not $process.HasExited) {
+        $settingsHandle = [NativeProbeWindow]::FindNamed($process.Id, '软件设置')
+        if ($settingsHandle -ne [IntPtr]::Zero) {
+            [NativeProbeWindow]::PostMessage($settingsHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+            Start-Sleep -Milliseconds 200
+        }
         $saveHandle = [NativeProbeWindow]::FindNamed($process.Id, '导出管板图片')
         if ($saveHandle -ne [IntPtr]::Zero) {
             [NativeProbeWindow]::PostMessage($saveHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null

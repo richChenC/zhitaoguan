@@ -368,9 +368,9 @@ def export_widget_image(parent, client, widget, title, *, image=None, default_na
 
 class Preferences(QObject):
     changed = Signal()
-    defaults = {"theme": "light", "density": "comfortable", "animations": True,
+    defaults = {"theme": "system", "density": "comfortable", "animations": True,
                 "start_page": 0, "remember_page": True, "last_page": 0,
-                "auto_ndd": True, "notification_duration": 3000, "notification_sound": False,
+                "auto_ndd": True, "notification_duration": 3000, "notification_sound": True,
                 "ndd_zero": True, "point_labels": False,
                 "report_policy": "manual", "source_path": "", "login_username": "",
                 "depth_levels": [30, 50], "depth_colors": ["#79b98c", "#e5a83b", "#df4b45"]}

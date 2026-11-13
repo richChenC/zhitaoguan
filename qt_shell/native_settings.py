@@ -1,44 +1,19 @@
 """Native settings categories, sharing the live account and maintenance pages."""
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, QSignalBlocker, QTimer, Qt, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtCore import QSignalBlocker, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox, QColorDialog, QComboBox, QDialog, QFileDialog, QFormLayout,
-    QHBoxLayout, QLabel, QListWidget, QMessageBox, QPushButton, QSpinBox,
+    QHBoxLayout, QLabel, QMessageBox, QPushButton, QSpinBox,
     QStackedWidget, QVBoxLayout, QWidget, QLineEdit, QGroupBox, QScrollArea, QTableWidget, QTableWidgetItem,
-    QListWidgetItem, QStyledItemDelegate, QStyle, QStyleOptionViewItem, QTabWidget,
+    QListWidgetItem, QTabWidget,
 )
 
 from .native_components import button
-
-
-class SettingsNavigationDelegate(QStyledItemDelegate):
-    def sizeHint(self, option, index):
-        return QSize(204, 66)
-
-    def paint(self, painter, option, index):
-        opt = QStyleOptionViewItem(option)
-        self.initStyleOption(opt, index)
-        opt.text = ""
-        opt.widget.style().drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, opt.widget)
-        painter.save()
-        painter.setPen(opt.palette.text().color())
-        title = QFont(opt.font)
-        title.setBold(True)
-        painter.setFont(title)
-        rect = opt.rect.adjusted(16, 8, -8, -8)
-        painter.drawText(rect.adjusted(0, 0, 0, -22), Qt.AlignmentFlag.AlignVCenter,
-                         index.data(Qt.ItemDataRole.DisplayRole))
-        subtitle = QFont(opt.font)
-        subtitle.setPointSize(max(8, subtitle.pointSize() - 1))
-        painter.setFont(subtitle)
-        color = opt.palette.text().color()
-        color.setAlpha(180)
-        painter.setPen(color)
-        painter.drawText(rect.adjusted(0, 24, 0, 0), Qt.AlignmentFlag.AlignVCenter,
-                         index.data(Qt.ItemDataRole.UserRole) or "")
-        painter.restore()
+from .native_settings_layout import (
+    SettingsNavigation, SettingsNavigationDelegate, SettingsPreferencePanel,
+    SettingsQuickActions, SettingsToggle, settings_styles,
+)
 
 
 class SettingsDialog(QDialog):
@@ -46,10 +21,12 @@ class SettingsDialog(QDialog):
 
     def __init__(self, client, preferences, account_page, maintenance_page, rules_action, parent=None):
         super().__init__(parent)
+        self.setObjectName("nativeSettings")
         self.setWindowTitle("软件设置")
         self.resize(1180, 820)
         self.setMinimumSize(820, 600)
         self.client, self.preferences = client, preferences
+        self._report_policy_value = preferences.values["report_policy"]
         self.permissions = set(account_page.user.get("permissions") or [])
         self._preference_timer = QTimer(self)
         self._preference_timer.setSingleShot(True)
@@ -59,39 +36,31 @@ class SettingsDialog(QDialog):
         self._display_timer.setSingleShot(True)
         self._display_timer.setInterval(250)
         self._display_timer.timeout.connect(self.save_display)
-        root = QVBoxLayout(self)
-        root.setContentsMargins(18, 16, 18, 18)
-        root.setSpacing(12)
-        heading = QHBoxLayout()
-        title = QLabel("软件设置")
-        title.setObjectName("pageTitle")
-        heading.addWidget(title)
-        heading.addStretch()
-        source = QLabel("本地 SQLite")
-        source.setObjectName("muted")
-        heading.addWidget(source)
-        root.addLayout(heading)
-        body = QHBoxLayout()
+        root = self.root_layout = QVBoxLayout(self)
+        root.setContentsMargins(26, 26, 26, 28)
+        root.setSpacing(0)
+        body = self.body_layout = QHBoxLayout()
         body.setSpacing(22)
-        sidebar = QWidget()
+        sidebar = self.sidebar = QWidget()
         sidebar.setObjectName("settingsSidebar")
-        sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(10, 12, 10, 14)
-        caption = QLabel("偏好与维护")
-        caption.setObjectName("muted")
-        sidebar_layout.addWidget(caption)
-        self.nav = QListWidget()
+        caption = self.sidebar_caption = QLabel("偏好与维护", sidebar)
+        caption.setObjectName("settingsSidebarCaption")
+        self.nav = SettingsNavigation(sidebar)
         self.nav.setObjectName("settingsNav")
         self.nav.setItemDelegate(SettingsNavigationDelegate(self.nav))
-        sidebar.setFixedWidth(236)
-        sidebar_layout.addWidget(self.nav)
-        local = QLabel("本地 SQLite")
-        local.setObjectName("muted")
-        sidebar_layout.addWidget(local)
-        sidebar_layout.addStretch()
+        self.nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.nav.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.nav.setMouseTracking(True)
+        self.local = QWidget(sidebar)
+        self.local.setObjectName("settingsLocal")
+        dot = QWidget(self.local)
+        dot.setObjectName("settingsLocalDot")
+        dot.setGeometry(0, 20, 8, 8)
+        local = QLabel("本地 SQLite", self.local)
+        local.setGeometry(15, 15, 150, 17)
         self.stack = QStackedWidget()
         self.stack.setObjectName("settingsStack")
-        body.addWidget(sidebar)
+        body.addWidget(sidebar, 0, Qt.AlignmentFlag.AlignTop)
         body.addWidget(self.stack, 1)
         root.addLayout(body, 1)
 
@@ -99,34 +68,22 @@ class SettingsDialog(QDialog):
         account_page.tabs.removeTab(account_page.tabs.indexOf(account_page.source))
         storage = QWidget()
         storage_layout = QVBoxLayout(storage)
+        storage_layout.setContentsMargins(0, 0, 0, 0)
+        storage_layout.setSpacing(28)
         storage_layout.addWidget(account_page.source)
         account_page.source.show()
-        quick_heading = QLabel("常用操作")
-        quick_heading.setObjectName("settingsSectionTitle")
-        storage_layout.addWidget(quick_heading)
-        self.quick_actions = {}
-        quick_actions = QHBoxLayout()
-        for text, index, name in (("导入与显示", 2, "upload"), ("对比规则", 3, "arrow-right-left"),
-                                  ("备份与维护", 5, "archive-restore")):
-            jump = button(text, name, lambda _checked=False, target=index: self.nav.setCurrentRow(target))
-            self.quick_actions[index] = jump
-            quick_actions.addWidget(jump, 1)
-        storage_layout.addLayout(quick_actions)
+        self.quick_host = SettingsQuickActions()
+        self.quick_actions = self.quick_host.buttons
+        self.quick_host.jumpRequested.connect(self._jump)
+        storage_layout.addWidget(self.quick_host)
         storage_layout.addStretch()
-        self.add_page("数据存储", storage, subtitle="本地数据库", title="当前数据库", scroll=True)
-        flow = QWidget()
-        flow_layout = QVBoxLayout(flow)
-        self.save_status = QLabel("偏好已保存")
-        self.save_status.setObjectName("muted")
-        flow_layout.addWidget(self.save_status)
-
-        def group(title):
-            box = QGroupBox(title)
-            form = QFormLayout(box)
-            form.setVerticalSpacing(12)
-            form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
-            flow_layout.addWidget(box)
-            return form
+        self.add_page("数据存储", storage, subtitle="本地数据库", title="当前数据库", scroll=True, framed=False)
+        self.save_status = QLabel("修改后自动保存")
+        self.preference_badge = QLabel("自动保存")
+        self._saved_timer = QTimer(self)
+        self._saved_timer.setSingleShot(True)
+        self._saved_timer.setInterval(1800)
+        self._saved_timer.timeout.connect(lambda: self.preference_badge.setText("自动保存"))
 
         self.theme = QComboBox()
         self.theme.addItem("日间", "light")
@@ -134,14 +91,18 @@ class SettingsDialog(QDialog):
         self.theme.addItem("跟随系统", "system")
         self.theme.setCurrentIndex(max(0, self.theme.findData(preferences.values["theme"])))
         self.theme.hide()
-        theme_host = QWidget()
+        theme_host = self.theme_host = QWidget()
+        theme_host.setObjectName("settingsThemeSwitch")
+        theme_host.setFixedSize(274, 40)
         theme_layout = QHBoxLayout(theme_host)
-        theme_layout.setContentsMargins(0, 0, 0, 0)
-        theme_layout.setSpacing(0)
+        theme_layout.setContentsMargins(4, 4, 4, 4)
+        theme_layout.setSpacing(4)
         self.theme_choices = {}
         for text, value, name in (("跟随系统", "system", None), ("日间", "light", "sun"), ("夜间", "dark", "moon")):
             choice = button(text, name, lambda _checked=False, key=value: self.theme.setCurrentIndex(self.theme.findData(key)))
             choice.setCheckable(True)
+            choice.setAutoExclusive(True)
+            choice.setFixedSize(86, 32)
             choice.setChecked(value == self.theme.currentData())
             self.theme_choices[value] = choice
             theme_layout.addWidget(choice)
@@ -152,55 +113,73 @@ class SettingsDialog(QDialog):
         self.density.addItem("标准", "comfortable")
         self.density.addItem("紧凑", "compact")
         self.density.setCurrentIndex(max(0, self.density.findData(preferences.values["density"])))
-        self.animations = QCheckBox()
-        self.animations.setChecked(preferences.values["animations"])
+        self.animations = QComboBox()
+        self.animations.addItem("完整反馈", True)
+        self.animations.addItem("减少动画", False)
+        self.animations.setCurrentIndex(self.animations.findData(preferences.values["animations"]))
         self.start = QComboBox()
         self.start.addItem("恢复上次工作区", -1)
         for index, text in enumerate(("数据工作台", "三维缺陷模型", "数据可视化", "报告中心", "状态处理")):
             self.start.addItem(text, index)
         self.start.setCurrentIndex(self.start.findData(-1 if preferences.values["remember_page"]
                                                        else int(preferences.values["start_page"])))
-        self.remember = QCheckBox()
+        self.remember = SettingsToggle("记住上次工作区")
         self.remember.setChecked(preferences.values["remember_page"])
         self.direction = QComboBox()
+        self.direction.setEnabled(False)
+        self._direction_value = None
+        self._direction_busy = False
+        self._direction_serial = 0
+        self._direction_writable = False
         for text, value in (("正向（+）", "1"), ("负向（-）", "-1"), ("留待核对", "pending")):
             self.direction.addItem(text, value)
         self.policy = QComboBox()
         for name, value in (("手动选择 RPT", "manual"), ("预选最新并逐组确认", "latest")):
             self.policy.addItem(name, value)
         self.policy.setCurrentIndex(max(0, self.policy.findData(preferences.values["report_policy"])))
-        form = group("界面显示")
-        for label, widget in (("外观模式", theme_host), ("工作区密度", self.density), ("交互动画", self.animations)):
-            form.addRow(label, widget)
-        form = group("操作通知")
         self.notification_duration = QComboBox()
-        for text, value in (("3 秒", 3000), ("5 秒", 5000), ("手动关闭", 0)):
+        for text, value in (("3 秒", 3000), ("5 秒", 5000), ("不自动隐藏", 0)):
             self.notification_duration.addItem(text, value)
         self.notification_duration.setCurrentIndex(max(0, self.notification_duration.findData(
             preferences.values["notification_duration"])))
-        self.notification_sound = QCheckBox("播放提示音")
+        self.notification_sound = SettingsToggle("通知提示音")
         self.notification_sound.setChecked(preferences.values["notification_sound"])
-        form.addRow("提示停留时间", self.notification_duration)
-        form.addRow("提示音", self.notification_sound)
-        form = group("启动与导航")
-        for label, widget in (("启动工作区", self.start), ("记住上次工作区", self.remember)):
-            form.addRow(label, widget)
-        form = group("状态与导入默认值")
         self.auto_ndd = QCheckBox("自动识别无磨损信息的空白结论为 NDD")
         self.auto_ndd.setChecked(preferences.values["auto_ndd"])
-        for label, widget in (("无符号移位默认方向", self.direction),):
-            form.addRow(label, widget)
-        flow_layout.addWidget(button("恢复默认偏好", "rotate-ccw", self.reset_preferences))
+        self.reset_button = QPushButton("恢复本页默认")
+        self.reset_button.clicked.connect(self.reset_preferences)
+        self.preference_panel = SettingsPreferencePanel([
+            ("界面显示", [
+                ("外观模式", "跟随系统、日间或夜间；报告和管板的原始颜色不变", theme_host),
+                ("工作区密度", "紧凑模式减少行距", self.density),
+                ("交互动画", "减少界面过渡和弹出动画", self.animations)]),
+            ("操作通知", [
+                ("通知自动隐藏", "通知默认显示 3 秒；鼠标悬停或键盘聚焦时会暂停隐藏", self.notification_duration),
+                ("通知提示音", "操作完成、提醒或失败时播放", self.notification_sound)]),
+            ("启动与导航", [
+                ("启动工作区", "下次启动恢复最后使用的主工作区" if self.remember.isChecked()
+                 else "下次启动打开所选工作区", self.start),
+                ("记住上次工作区", "启用后，启动页面同步为“恢复上次工作区”", self.remember)]),
+            ("状态与导入默认值", [
+                ("无符号移位默认方向", "识别到“移位 42 mm”但原文没有正负号时使用；“留待核对”不会自动确认方向", self.direction),
+                ("RPT 选择策略", "手动逐组选择，或预选修改时间最新版本后逐组确认", self.policy)]),
+        ], self.preference_badge, self.save_status, self.reset_button)
+        self.start_hint = self.preference_panel.rows[5].hint
+        flow = QWidget()
+        flow_layout = QVBoxLayout(flow)
+        flow_layout.setContentsMargins(0, 0, 0, 0)
+        flow_layout.setSpacing(0)
+        flow_layout.addWidget(self.preference_panel)
         flow_layout.addStretch()
-        for control in (self.theme, self.density, self.notification_duration):
+        for control in (self.theme, self.density, self.animations, self.notification_duration):
             control.currentIndexChanged.connect(self._queue_preferences)
-        for control in (self.animations, self.notification_sound, self.auto_ndd):
+        for control in (self.notification_sound, self.auto_ndd):
             control.toggled.connect(self._queue_preferences)
         self.start.currentIndexChanged.connect(self._startup_selected)
         self.remember.toggled.connect(self._remember_selected)
         self.direction.activated.connect(self.save_direction)
-        self.add_page("界面与工作流", flow, subtitle="偏好设置", scroll=True)
-        client.get("/api/settings/state-direction", self._direction_loaded)
+        self.add_page("界面与工作流", flow, subtitle="偏好设置", scroll=True, framed=False)
+        client.get("/api/settings/state-direction", lambda data, error: self._direction_loaded(data, error, 0))
         display = QWidget()
         display_layout = QVBoxLayout(display)
         source_group = QGroupBox("导入来源")
@@ -225,7 +204,11 @@ class SettingsDialog(QDialog):
         form.addRow(self.scan_status)
         parsing_group = QGroupBox("文件解析")
         parsing_form = QFormLayout(parsing_group)
-        parsing_form.addRow("RPT 选择策略", self.policy)
+        self.display_policy = QComboBox()
+        for index in range(self.policy.count()):
+            self.display_policy.addItem(self.policy.itemText(index), self.policy.itemData(index))
+        self.display_policy.setCurrentIndex(self.policy.currentIndex())
+        parsing_form.addRow("RPT 选择策略", self.display_policy)
         display_layout.addWidget(parsing_group)
         depth_group = QGroupBox("磨损显示分级")
         form = QFormLayout(depth_group)
@@ -263,7 +246,8 @@ class SettingsDialog(QDialog):
         display_layout.addWidget(self.display_status)
         display_layout.addStretch()
         self.source_path.editingFinished.connect(self.save_display)
-        self.policy.currentIndexChanged.connect(self._queue_display)
+        self.policy.currentIndexChanged.connect(self._preference_policy_selected)
+        self.display_policy.currentIndexChanged.connect(self._display_policy_selected)
         self.point_labels.toggled.connect(self._queue_display)
         self.ndd_zero.toggled.connect(self._queue_display)
         for control in self.levels:
@@ -313,17 +297,65 @@ class SettingsDialog(QDialog):
         self.maintenance_tabs.addTab(maintenance_page, "质量与操作审计")
         self.add_page("备份与维护", self.maintenance_tabs, subtitle="安全与审计")
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
-        self.nav.setMinimumHeight(self.nav.count() * 66 + 8)
         self.nav.setCurrentRow(0)
         self.preferences.changed.connect(self._sync_report_policy)
         if "backup.manage" in self.permissions:
             client.get("/api/backup-policy", self._policy_loaded)
+        self._layout_sidebar()
+
+    def _jump(self, index):
+        self.nav.setCurrentRow(index)
+        self.nav.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "sidebar"):
+            self._layout_sidebar()
+
+    def _layout_sidebar(self):
+        narrow = self.width() <= 900
+        margin, top, gap, width = (16, 20, 14, 190) if narrow else (26, 26, 22, 236)
+        self.root_layout.setContentsMargins(margin, top, margin, 28)
+        self.body_layout.setSpacing(gap)
+        self.sidebar.setFixedSize(width, 522)
+        self.sidebar_caption.setGeometry(13, 19, width - 26, 29)
+        self.nav.setGeometry(13, 48, width - 26, 407)
+        self.local.setGeometry(23, 473, width - 46, 32)
+        if hasattr(self, "preference_panel"):
+            self.preference_panel.narrow = narrow
+            self.preference_panel.window_width = self.width()
+            self.preference_panel.relayout()
+
+    def set_theme(self, theme):
+        dark = theme == "dark"
+        self.setStyleSheet(settings_styles(theme))
+        self.nav.setProperty("dark", dark)
+        self.nav.viewport().update()
+        for control in self.quick_actions.values():
+            control.set_theme(dark)
+        self.preference_panel.set_theme(dark)
+        self.preference_panel.relayout()
 
     def _sync_report_policy(self):
-        with QSignalBlocker(self.policy):
-            self.policy.setCurrentIndex(self.policy.findData(self.preferences.values["report_policy"]))
+        value = self.preferences.values["report_policy"]
+        if value == self._report_policy_value:
+            return
+        self._report_policy_value = value
+        for control in (self.policy, self.display_policy):
+            with QSignalBlocker(control):
+                control.setCurrentIndex(control.findData(value))
 
-    def add_page(self, text, widget, *, subtitle="", title=None, scroll=False):
+    def _preference_policy_selected(self, *_):
+        with QSignalBlocker(self.display_policy):
+            self.display_policy.setCurrentIndex(self.display_policy.findData(self.policy.currentData()))
+        self._queue_preferences()
+
+    def _display_policy_selected(self, *_):
+        with QSignalBlocker(self.policy):
+            self.policy.setCurrentIndex(self.policy.findData(self.display_policy.currentData()))
+        self._queue_display()
+
+    def add_page(self, text, widget, *, subtitle="", title=None, scroll=False, framed=True):
         widget.setObjectName(widget.objectName() or "settingsPage")
         item = QListWidgetItem(text)
         item.setData(Qt.ItemDataRole.UserRole, subtitle)
@@ -332,16 +364,24 @@ class SettingsDialog(QDialog):
         panel = QWidget()
         panel.setObjectName("settingsSection")
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(16, 12, 16, 16)
-        heading = QLabel(title or text)
-        heading.setObjectName("settingsSectionTitle")
-        layout.addWidget(heading)
+        if framed:
+            layout.setContentsMargins(16, 12, 16, 16)
+            heading = QLabel(title or text)
+            heading.setObjectName("settingsSectionTitle")
+            layout.addWidget(heading)
+        else:
+            panel.setObjectName("settingsUnframedSection")
+            widget.setObjectName("settingsUnframedPage")
+            layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(widget, 1)
         widget = panel
         if scroll:
             host = QScrollArea()
+            host.setObjectName("settingsPageScroll")
             host.setWidgetResizable(True)
             host.setFrameShape(QScrollArea.Shape.NoFrame)
+            host.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            host.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
             host.setWidget(widget)
             widget = host
         self.stack.addWidget(widget)
@@ -354,12 +394,19 @@ class SettingsDialog(QDialog):
         with QSignalBlocker(self.remember):
             self.remember.setChecked(self.start.currentData() == -1)
         self._queue_preferences()
+        self._startup_hint()
 
     def _remember_selected(self, checked):
         with QSignalBlocker(self.start):
             value = -1 if checked else self.preferences.values["start_page"]
             self.start.setCurrentIndex(self.start.findData(value))
         self._queue_preferences()
+        self._startup_hint()
+
+    def _startup_hint(self):
+        self.start_hint.setText("下次启动恢复最后使用的主工作区" if self.remember.isChecked()
+                                else "下次启动打开所选工作区")
+        self.preference_panel.relayout()
 
     def choose_source(self):
         path = QFileDialog.getExistingDirectory(self, "选择默认导入目录", self.source_path.text())
@@ -377,6 +424,7 @@ class SettingsDialog(QDialog):
 
     def _queue_preferences(self, *_):
         self.save_status.setText("正在保存...")
+        self.preference_badge.setText("正在保存")
         self._preference_timer.start()
 
     def _queue_display(self, *_):
@@ -384,16 +432,41 @@ class SettingsDialog(QDialog):
         self._display_timer.start()
 
     def reset_preferences(self):
-        defaults = self.preferences.defaults
-        for control, key in ((self.theme, "theme"), (self.density, "density"),
-                             (self.notification_duration, "notification_duration")):
-            control.setCurrentIndex(control.findData(defaults[key]))
-        self.start.setCurrentIndex(self.start.findData(-1 if defaults["remember_page"] else defaults["start_page"]))
-        self.policy.setCurrentIndex(self.policy.findData(defaults["report_policy"]))
-        for control, key in ((self.animations, "animations"), (self.remember, "remember_page"),
-                             (self.notification_sound, "notification_sound"), (self.auto_ndd, "auto_ndd")):
-            control.setChecked(defaults[key])
-        self.save_preferences()
+        if self._direction_busy:
+            return
+        if QMessageBox.question(self, "恢复设置默认值", "恢复本页默认设置？数据库、检测数据和报告文件不会改变。"
+                                ) != QMessageBox.StandardButton.Yes:
+            return
+        if self._direction_writable:
+            self._set_direction("1", reset=True)
+        else:
+            self._apply_default_preferences()
+
+    def _apply_default_preferences(self):
+        defaults = dict(theme="system", density="comfortable", animations=True, start_page=0,
+                        remember_page=True, last_page=0, report_policy="manual",
+                        notification_duration=3000, notification_sound=True)
+        try:
+            self.preferences.save(**defaults)
+        except OSError as exc:
+            self.save_status.setText(f"恢复本机偏好失败：{exc}")
+            self.preference_badge.setText("保存失败")
+            return
+        self._preference_timer.stop()
+        for control, key in ((self.theme, "theme"), (self.density, "density"), (self.animations, "animations"),
+                             (self.notification_duration, "notification_duration"), (self.policy, "report_policy"),
+                             (self.display_policy, "report_policy")):
+            with QSignalBlocker(control):
+                control.setCurrentIndex(control.findData(defaults[key]))
+        for control, key in ((self.remember, "remember_page"), (self.notification_sound, "notification_sound")):
+            with QSignalBlocker(control):
+                control.setChecked(defaults[key])
+        with QSignalBlocker(self.start):
+            self.start.setCurrentIndex(self.start.findData(-1))
+        self._theme_selected()
+        self._startup_hint()
+        self.preferencesChanged.emit()
+        self._preference_saved("已恢复本页默认设置")
 
     def scan_sources(self):
         path = self.source_path.text().strip()
@@ -420,16 +493,24 @@ class SettingsDialog(QDialog):
     def save_preferences(self):
         try:
             self.preferences.save(theme=self.theme.currentData(), density=self.density.currentData(),
-                                  animations=self.animations.isChecked(),
+                                  animations=self.animations.currentData(),
                                   start_page=(self.start.currentData() if self.start.currentData() != -1
                                               else self.preferences.values["start_page"]),
                                   remember_page=self.remember.isChecked(), auto_ndd=self.auto_ndd.isChecked(),
                                   notification_duration=self.notification_duration.currentData(),
-                                  notification_sound=self.notification_sound.isChecked())
+                                  notification_sound=self.notification_sound.isChecked(),
+                                  report_policy=self.policy.currentData())
             self.preferencesChanged.emit()
-            self.save_status.setText("偏好已保存")
+            self._preference_saved("已保存到本机")
         except OSError as exc:
+            self.preference_badge.setText("保存失败")
+            self.save_status.setText(str(exc))
             QMessageBox.warning(self, "保存失败", str(exc))
+
+    def _preference_saved(self, message):
+        self.save_status.setText(message)
+        self.preference_badge.setText("已保存")
+        self._saved_timer.start()
 
     def save_display(self):
         levels = [control.value() for control in self.levels]
@@ -445,14 +526,40 @@ class SettingsDialog(QDialog):
         except OSError as exc:
             QMessageBox.warning(self, "保存失败", str(exc))
 
-    def _direction_loaded(self, data, error):
-        self.direction.setEnabled(bool(data and data.get("writable")))
+    def _direction_loaded(self, data, error, serial=None, *, changed=False, reset=False):
+        if serial is not None and serial != self._direction_serial:
+            return
+        self._direction_busy = False
+        if not data and not error:
+            error = "服务未返回有效的方向设置"
         if data:
-            self.direction.setCurrentIndex(max(0, self.direction.findData(data.get("shift_direction"))))
+            self._direction_value = data.get("shift_direction", self._direction_value)
+            self._direction_writable = bool(data.get("writable"))
+        self.direction.setEnabled(self._direction_writable)
+        self.reset_button.setEnabled(True)
+        if self._direction_value is not None:
+            with QSignalBlocker(self.direction):
+                self.direction.setCurrentIndex(max(0, self.direction.findData(self._direction_value)))
+        if error:
+            self.save_status.setText(f"移位默认方向未保存：{error}" if changed else f"移位默认方向读取失败：{error}")
+            self.preference_badge.setText("保存失败" if changed else "读取失败")
+        elif reset:
+            self._apply_default_preferences()
+        elif changed:
+            self._preference_saved("移位方向默认值已更新")
 
     def save_direction(self):
-        self.client.post("/api/settings/state-direction", {"shift_direction": self.direction.currentData()},
-                         self._direction_loaded)
+        if not self._direction_busy and self._direction_writable:
+            self._set_direction(self.direction.currentData())
+
+    def _set_direction(self, value, *, reset=False):
+        self._direction_busy = True
+        self._direction_serial += 1
+        serial = self._direction_serial
+        self.direction.setEnabled(False)
+        self.reset_button.setEnabled(False)
+        self.client.post("/api/settings/state-direction", {"shift_direction": value},
+                         lambda data, error: self._direction_loaded(data, error, serial, changed=True, reset=reset))
 
     def _policy_loaded(self, data, error):
         if data:

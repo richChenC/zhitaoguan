@@ -5402,41 +5402,10 @@ class NativeSettingsPage(QWidget):
         self.user_hint = QLabel("")
         self.user_hint.setObjectName("muted")
         account_layout.addRow("", self.user_hint)
-        self.source = QWidget()
-        source_layout = QVBoxLayout(self.source)
-        source_form = QFormLayout()
-        self.source_fields = {}
-        for key, caption in (("engine", "存储引擎"), ("size", "数据库大小"),
-                             ("path", "文件位置"), ("exists", "文件状态"),
-                             ("integrity", "校验结果")):
-            value = QLabel("正在读取…")
-            value.setTextFormat(Qt.TextFormat.PlainText)
-            value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            value.setWordWrap(True)
-            self.source_fields[key] = value
-            source_form.addRow(caption, value)
-        source_layout.addLayout(source_form)
-        self.source_text = QPlainTextEdit()
-        self.source_text.setReadOnly(True)
-        self.source_text.hide()
-        source_layout.addWidget(button("诊断详情", "files",
-                                       lambda: self.source_text.setVisible(self.source_text.isHidden())))
-        source_layout.addWidget(self.source_text)
-        source_actions = QHBoxLayout()
-        self.source_status = QLabel("正在读取本地数据库")
-        self.source_status.setWordWrap(True)
-        self.source_status.setObjectName("muted")
-        source_actions.addWidget(self.source_status, 1)
-        self.source_copy = button("", "files", self.copy_source_path)
-        self.source_copy.setToolTip("复制数据库文件路径")
-        self.source_copy.setEnabled(False)
-        self.source_refresh = button("刷新状态", "refresh-cw", self.load_source)
-        self.source_validate = button("校验数据库", "check-check", self.validate_source)
-        self.source_validate.setEnabled("settings.manage" in permissions)
-        source_actions.addWidget(self.source_copy)
-        source_actions.addWidget(self.source_refresh)
-        source_actions.addWidget(self.source_validate)
-        source_layout.addLayout(source_actions)
+        from .native_settings_layout import SettingsStoragePanel
+        self.source = SettingsStoragePanel(self)
+        self._source_serial = 0
+        self._source_busy = False
         self.backups = JsonTablePage(client, "数据库备份", "/api/backups",
                                      [("name", "备份名称"), ("created_at", "时间"), ("size_bytes", "大小"), ("path", "路径"), ("note", "备注")],
                                      permissions=permissions)
@@ -5617,16 +5586,31 @@ class NativeSettingsPage(QWidget):
         self.load_users()
 
     def load_source(self) -> None:
+        if self._source_busy:
+            return
+        self._source_busy = True
+        self._source_serial += 1
+        serial = self._source_serial
         self.source_refresh.setEnabled(False)
+        self.source_validate.setEnabled(False)
         self.source_status.setText("正在读取本地数据库")
-        self.client.get("/api/settings/data-source", lambda data, error: self._source_loaded(data, error))
+        self.client.get("/api/settings/data-source", lambda data, error: self._source_loaded(data, error, serial))
 
-    def _source_loaded(self, data: dict[str, Any] | None, error: str | None) -> None:
+    def _source_loaded(self, data: dict[str, Any] | None, error: str | None, serial=None, *, validated=False) -> None:
+        if serial is not None and serial != self._source_serial:
+            return
+        self._source_busy = False
         self.source_refresh.setEnabled(True)
         self.source_validate.setEnabled("settings.manage" in self.user.get("permissions", []))
+        self.source_validate.setText("校验数据库")
         if error:
             self.source_text.setPlainText(error)
             self.source_status.setText(error)
+            self.source_badge.setText("状态不可用")
+            self.source_badge.setProperty("state", "error")
+            self.source_badge.style().unpolish(self.source_badge)
+            self.source_badge.style().polish(self.source_badge)
+            self.source._layout_content()
             return
         import json
         self.source_text.setPlainText(json.dumps(data or {}, ensure_ascii=False, indent=2))
@@ -5634,26 +5618,44 @@ class NativeSettingsPage(QWidget):
         self._source_path = active.get("path")
         self.source_copy.setEnabled(bool(self._source_path))
         self.source_status.setText((data or {}).get("message") or "所有业务数据保存在此本地数据库。")
+        local = active.get("mode", "local") == "local" and str(active.get("engine") or "").lower() == "sqlite"
+        available = local and active.get("exists")
+        self.source_badge.setText(("本地使用中 · 校验通过" if validated and (data or {}).get("ok") else
+                                  "本地使用中") if available else "文件不可用" if local else "状态异常")
+        self.source_badge.setProperty("state", "success" if available else "error")
+        self.source_badge.style().unpolish(self.source_badge)
+        self.source_badge.style().polish(self.source_badge)
+        size = active.get("size_bytes", 0)
         values = {"engine": "SQLite · 本地文件" if str(active.get("engine") or "").lower() == "sqlite"
                   else str(active.get("engine") or "").upper(),
                   "path": active.get("path") or "未提供",
                   "exists": "已存在" if active.get("exists") else "未找到",
-                  "size": f"{active.get('size_bytes', 0) / 1024 / 1024:.2f} MB",
+                  "size": f"{size / 1024:.1f} KB" if size < 1048576 else f"{size / 1048576:.2f} MB",
                   "integrity": (data or {}).get("message") or "尚未校验"}
         for key, value in values.items():
             self.source_fields[key].setText(value)
+        self.source._layout_content()
 
     def validate_source(self) -> None:
+        if self._source_busy or "settings.manage" not in self.user.get("permissions", []):
+            return
+        self._source_busy = True
+        self._source_serial += 1
+        serial = self._source_serial
+        self.source_refresh.setEnabled(False)
         self.source_validate.setEnabled(False)
+        self.source_validate.setText("正在校验…")
         self.source_status.setText("正在校验数据库")
         self.client.post("/api/settings/data-source/validate", {"target": "local"},
-                         self._source_loaded)
+                         lambda data, error: self._source_loaded(data, error, serial, validated=True))
 
     def copy_source_path(self):
         if getattr(self, "_source_path", None):
             from PySide6.QtWidgets import QApplication
             QApplication.clipboard().setText(self._source_path)
-            self.source_status.setText("数据库文件路径已复制")
+            self.source_status.setText("数据库路径已复制到剪贴板。")
+            self.source_copy.setText("已复制")
+            QTimer.singleShot(1500, self.source_copy, lambda: self.source_copy.setText("复制路径"))
 
     def create_backup(self) -> None:
         self.client.post("/api/backup", {"note": "原生 Qt 手动备份"}, lambda data, error: self._backup_done(data, error))
@@ -7138,34 +7140,50 @@ class NativeMainWindow(QMainWindow):
         if theme == "system":
             from PySide6.QtGui import QGuiApplication
             theme = "dark" if QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark else "light"
-        self.setStyleSheet(workspace_styles(theme, prefs["density"]))
-        for control in self.findChildren(QPushButton):
-            if control.property("iconName"):
-                control.setIcon(icon(control.property("iconName"), theme))
-        self.nav.set_theme(theme)
-        for control, name in ((self.notifications_button, "bell"), (self.settings_button, "settings")):
-            control.setIcon(colored_icon(name, "#a8b8b5" if theme == "dark" else "#b0bdc1"))
-        for plate in (self.workbench.plate, self.stack.widget(1).plate, self.stack.widget(3).visualization.plate):
-            plate.levels = list(prefs["depth_levels"])
-            plate.colors = list(prefs["depth_colors"])
-            plate.update()
-        self.workbench.map_panel.set_theme(theme)
-        self.workbench.model.dark = theme == "dark"
-        self.workbench.table.viewport().update()
+        previous = getattr(self, "_applied_preferences", {})
+        theme_changed = previous.get("theme") != theme
+        density_changed = previous.get("density") != prefs["density"]
+        severity_changed = any(previous.get(key) != prefs[key] for key in ("depth_levels", "depth_colors"))
+        motion_changed = previous.get("animations") != prefs["animations"]
+        analysis_changed = any(previous.get(key) != prefs[key] for key in ("ndd_zero", "point_labels"))
+        if theme_changed or density_changed:
+            self.setStyleSheet(workspace_styles(theme, prefs["density"]))
+        if theme_changed:
+            self.settings_dialog.set_theme(theme)
+            for control in self.findChildren(QPushButton):
+                if control.property("iconName"):
+                    control.setIcon(icon(control.property("iconName"), theme))
+            self.nav.set_theme(theme)
+            for control, name in ((self.notifications_button, "bell"), (self.settings_button, "settings")):
+                control.setIcon(colored_icon(name, "#a8b8b5" if theme == "dark" else "#b0bdc1"))
+            self.workbench.map_panel.set_theme(theme)
+            self.workbench.model.dark = theme == "dark"
+            self.workbench.table.viewport().update()
+            self.stack.widget(2).set_theme(theme)
+        if severity_changed:
+            for plate in (self.workbench.plate, self.stack.widget(1).plate, self.stack.widget(3).visualization.plate):
+                plate.levels = list(prefs["depth_levels"])
+                plate.colors = list(prefs["depth_colors"])
+                plate.update()
+            self.stack.widget(2).set_severity(prefs["depth_levels"], prefs["depth_colors"])
         visualization = self.stack.widget(3).visualization
-        visualization.set_theme(theme, prefs["animations"])
-        visualization.set_severity(prefs["depth_levels"], prefs["depth_colors"])
-        self.stack.widget(2).set_severity(prefs["depth_levels"], prefs["depth_colors"])
-        self.stack.widget(2).set_theme(theme)
-        if visualization.set_analysis_options(prefs["ndd_zero"], prefs["point_labels"]):
+        if theme_changed or motion_changed:
+            visualization.set_theme(theme, prefs["animations"])
+        if severity_changed:
+            visualization.set_severity(prefs["depth_levels"], prefs["depth_colors"])
+        if analysis_changed and visualization.set_analysis_options(prefs["ndd_zero"], prefs["point_labels"]):
             self.stack.widget(3).load()
             self.stack.widget(3).load_complex_analysis()
-        for dialog in self.stack.widget(3)._chart_windows:
-            dialog.apply_preferences()
-        self.workbench.table.verticalHeader().setDefaultSectionSize(28 if prefs["density"] == "compact" else 37)
+        if theme_changed or motion_changed or severity_changed or analysis_changed:
+            for dialog in self.stack.widget(3)._chart_windows:
+                dialog.apply_preferences()
+        if density_changed:
+            self.workbench.table.verticalHeader().setDefaultSectionSize(28 if prefs["density"] == "compact" else 37)
         if self.workbench.auto_ndd != prefs["auto_ndd"]:
             self.workbench.auto_ndd = prefs["auto_ndd"]
             self.workbench.apply_filters()
+        self._applied_preferences = {**prefs, "theme": theme, "depth_levels": list(prefs["depth_levels"]),
+                                     "depth_colors": list(prefs["depth_colors"])}
 
     def _notify_error(self, path, error):
         self.statusBar().showMessage(error)

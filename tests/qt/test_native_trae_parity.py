@@ -200,7 +200,7 @@ class NativeParityTests(unittest.TestCase):
         QTest.qWait(260)
         self.assertEqual(window.workbench.auto_ndd, not previous)
         self.assertEqual(Preferences().values["notification_duration"], 5000)
-        self.assertEqual(settings.save_status.text(), "偏好已保存")
+        self.assertEqual(settings.save_status.text(), "已保存到本机")
 
     def test_native_login_reveal_remember_and_lock_feedback(self):
         from qt_shell.native_login import NativeLoginWindow
