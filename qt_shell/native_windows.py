@@ -69,6 +69,7 @@ from .native_components import (
 class FindingsModel(QAbstractTableModel):
     editRequested = Signal(int, str, object, object)
     selectionChanged = Signal()
+    selectionRejected = Signal(str)
     headers = ["选择", "序号", "大修", "机组", "通道编号", "堆芯位置", "三字符", "幅值（V）",
                "相位", "磨损深度\n（壁厚%）", "磨损位置", "测量通道", "探头类型",
                "分析人员", "数据", "数据组", "维护状态", "备注", "堵管移位信息"]
@@ -84,6 +85,7 @@ class FindingsModel(QAbstractTableModel):
         self.editable = False
         self.page_offset = 0
         self.pending = set()
+        self.dark = False
 
     def rowCount(self, parent=QModelIndex()) -> int:
         return 0 if parent.isValid() else len(self.rows)
@@ -98,6 +100,8 @@ class FindingsModel(QAbstractTableModel):
         field = self.fields[index.column()]
         if role == Qt.ItemDataRole.CheckStateRole and index.column() == 0:
             return Qt.CheckState.Checked if row.get("id") in self.selected else Qt.CheckState.Unchecked
+        if role == Qt.ItemDataRole.BackgroundRole and row.get("id") in self.selected:
+            return QBrush(QColor("#31524e" if self.dark else "#e9f5f4"))
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
             if index.column() == 0:
                 return ""
@@ -137,13 +141,9 @@ class FindingsModel(QAbstractTableModel):
             return False
         row = self.rows[index.row()]
         if role == Qt.ItemDataRole.CheckStateRole and index.column() == 0:
-            if value in (Qt.CheckState.Checked, Qt.CheckState.Checked.value):
-                self.selected[row["id"]] = dict(row)
-            else:
-                self.selected.pop(row["id"], None)
-            self.dataChanged.emit(index, index, [role])
-            self.selectionChanged.emit()
-            return True
+            applied, skipped = self.set_checked_rows([index.row()],
+                value in (Qt.CheckState.Checked, Qt.CheckState.Checked.value))
+            return bool(applied and not skipped)
         field = self.fields[index.column()]
         if role == Qt.ItemDataRole.EditRole and self.editable and field in self.editable_fields:
             key = (row["id"], field)
@@ -155,6 +155,33 @@ class FindingsModel(QAbstractTableModel):
             self.editRequested.emit(row["id"], field, value, row.get(field))
             return True
         return False
+
+    def set_checked_rows(self, indices, checked, anchor=None):
+        from .native_workbench_table import finding_scope
+        indices = [number for number in indices if 0 <= number < len(self.rows)]
+        first = next(iter(self.selected.values()), None) or anchor
+        if first is None and indices:
+            first = self.rows[indices[0]]
+        applied = skipped = 0
+        for number in indices:
+            row = self.rows[number]
+            if checked and first and finding_scope(first) != finding_scope(row):
+                skipped += 1
+                continue
+            if checked:
+                self.selected[row["id"]] = dict(row)
+            else:
+                self.selected.pop(row["id"], None)
+            applied += 1
+        if applied:
+            self.dataChanged.emit(self.index(min(indices), 0), self.index(max(indices), self.columnCount() - 1),
+                                  [Qt.ItemDataRole.CheckStateRole, Qt.ItemDataRole.BackgroundRole])
+            self.selectionChanged.emit()
+        if skipped:
+            self.selectionRejected.emit(
+                f"不能同时选择不同基地、机组或大修的数据；当前范围为 {first.get('outage')} · {first.get('unit_id')}号机"
+                if len(indices) == 1 else f"已按同一基地、机组和大修处理 {applied} 条；跳过其他范围 {skipped} 条")
+        return applied, skipped
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
         if role != Qt.ItemDataRole.DisplayRole:
@@ -209,11 +236,14 @@ class DataWorkbench(QWidget):
         self._filter_busy = False
         self._loaded_page = 1
         self._loaded_scope = None
+        self._selection_scope = None
         self._filter_timer = QTimer(self)
         self._filter_timer.setSingleShot(True)
         self._filter_timer.setInterval(350)
         self._filter_timer.timeout.connect(self.apply_filters)
-        self.sort_field, self.sort_order = "", "asc"
+        from .native_workbench_table import WorkbenchSortPreference
+        self.sort_preference = WorkbenchSortPreference((user or {}).get("username"), self.model.fields)
+        self.sort_field, self.sort_order = self.sort_preference.load()
         self.column_filters = {}
         self.auto_ndd = True
         outer = QVBoxLayout(self)
@@ -278,7 +308,7 @@ class DataWorkbench(QWidget):
         self.channel.setPlaceholderText("如 6")
         from PySide6.QtGui import QIntValidator
         self.channel.setValidator(QIntValidator(1, 50, self.channel))
-        from .native_workbench_table import FieldModeControl, FindingDelegate, WorkbenchPager
+        from .native_workbench_table import FieldModeControl, FindingDelegate, FindingTable, WorkbenchPager
         self.pager = WorkbenchPager()
         self.page_size = self.pager.size_combo
         self.search = button("应用筛选", "funnel")
@@ -353,7 +383,7 @@ class DataWorkbench(QWidget):
                                     (self.clear, "data.purge")):
             control.setEnabled(self.permissions is None or permission in self.permissions)
 
-        self.table = QTableView()
+        self.table = FindingTable()
         self.table.setObjectName("workbenchTable")
         self.table.setModel(self.model)
         self.table.setItemDelegate(FindingDelegate(self.table))
@@ -368,9 +398,12 @@ class DataWorkbench(QWidget):
         self.table.verticalHeader().hide()
         self.table.setColumnWidth(0, 45)
         self.table.setColumnWidth(1, 50)
-        self.table.clicked.connect(self._record_clicked)
+        self.table.checkRequested.connect(self._check_rows)
+        self.table.selectPageRequested.connect(self.toggle_page)
+        self.model.selectionRejected.connect(self.pager.status.setText)
         self.table.horizontalHeader().setSectionsClickable(True)
         self.table.horizontalHeader().sectionClicked.connect(self.sort_column)
+        self._paint_sort()
         self.table.horizontalHeader().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.horizontalHeader().customContextMenuRequested.connect(self.filter_column)
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -435,6 +468,7 @@ class DataWorkbench(QWidget):
         self.plate_detail = map_host.details
         self.plate_detail.focusRequested.connect(self.tubeFocusRequested.emit)
         self.plate_stats = map_host.stats
+        map_host.export_button.setEnabled(self.permissions is None or "export.create" in self.permissions)
         self.splitter.addWidget(map_host)
         map_host.geometryChanged.connect(self._sync_splitter_height)
         self.splitter.setStretchFactor(0, 1)
@@ -512,8 +546,6 @@ class DataWorkbench(QWidget):
             for control in (self.analyst, self.channel, self.detection_status, self.maintenance_status):
                 control.blockSignals(False)
         self.column_filters.clear()
-        self.sort_field = ""
-        self.table.horizontalHeader().setSortIndicatorShown(False)
         self.scope_bar.clear()
 
     def _arrange_filters(self, width):
@@ -624,13 +656,26 @@ class DataWorkbench(QWidget):
         field = self.model.fields[section]
         if field.startswith("_"):
             return
-        self.sort_order = "desc" if self.sort_field == field and self.sort_order == "asc" else "asc"
-        self.sort_field = field
-        header = self.table.horizontalHeader()
-        header.setSortIndicatorShown(True)
-        header.setSortIndicator(section, Qt.SortOrder.DescendingOrder if self.sort_order == "desc"
-                                else Qt.SortOrder.AscendingOrder)
+        if self.sort_field != field:
+            self.sort_field, self.sort_order = field, "asc"
+        elif self.sort_order == "asc":
+            self.sort_order = "desc"
+        else:
+            self.sort_field, self.sort_order = "", "asc"
+        self._paint_sort()
         self.apply_filters()
+        try:
+            self.sort_preference.save(self.sort_field, self.sort_order)
+        except OSError as error:
+            self.status.setText(f"排序已切换，但未能保存偏好：{error}")
+
+    def _paint_sort(self):
+        header = self.table.horizontalHeader()
+        header.setSortIndicatorShown(bool(self.sort_field))
+        if self.sort_field:
+            header.setSortIndicator(self.model.fields.index(self.sort_field),
+                                    Qt.SortOrder.DescendingOrder if self.sort_order == "desc"
+                                    else Qt.SortOrder.AscendingOrder)
 
     def filter_column(self, point):
         section = self.table.horizontalHeader().logicalIndexAt(point)
@@ -748,6 +793,11 @@ class DataWorkbench(QWidget):
     def load_findings(self, *, page_only=False) -> None:
         from urllib.parse import parse_qsl, urlencode
         params = dict(parse_qsl(self._params()[1:]))
+        selection_scope = tuple(sorted((key, value) for key, value in params.items()
+                                      if key not in {"page", "size", "sort", "order"}))
+        if selection_scope != self._selection_scope:
+            self._selection_scope = selection_scope
+            self.clear_selection()
         scope = tuple(sorted((key, value) for key, value in params.items() if key != "page"))
         keep_page = page_only and scope == self._loaded_scope and bool(self.model.rows)
         if keep_page:
@@ -786,6 +836,8 @@ class DataWorkbench(QWidget):
         self.model.page_offset = (self.page - 1) * size
         self.model.replace(data.get("items") or [])
         total = int(data.get("total") or 0)
+        if not total:
+            self.clear_selection()
         self.record_count.setText(f"共 {total} 条")
         if not page_only:
             self.core_rows = data.get("core_items") or []
@@ -908,14 +960,15 @@ class DataWorkbench(QWidget):
                             + ",".join(map(str, chunk)), loaded)
 
     def toggle_page(self):
-        checked = not all(row["id"] in self.model.selected for row in self.model.rows)
-        for row in self.model.rows:
-            if checked:
-                self.model.selected[row["id"]] = dict(row)
-            else:
-                self.model.selected.pop(row["id"], None)
-        self.model.layoutChanged.emit()
-        self._selection_changed()
+        if not self._filter_busy:
+            self.model.set_checked_rows(range(self.model.rowCount()), True)
+
+    def _check_rows(self, number, extend, checked, anchor_index):
+        if self._filter_busy:
+            return
+        anchor = self.model.rows[anchor_index] if 0 <= anchor_index < self.model.rowCount() else None
+        indices = range(min(anchor_index, number), max(anchor_index, number) + 1) if extend and anchor else [number]
+        self.model.set_checked_rows(indices, checked, anchor if extend else None)
 
     def _update_plate(self, *_):
         if not hasattr(self, "plate"):
@@ -937,6 +990,7 @@ class DataWorkbench(QWidget):
         self.map_panel.show_records(rows)
 
     def _record_clicked(self, index):
+        self._plate_detail_request = getattr(self, "_plate_detail_request", 0) + 1
         row = self.model.row(index)
         if row:
             self.scopeChanged.emit({"site": canonical_site(row.get("site_code") or re.sub(r"\d.*", "", row["outage"])),
@@ -980,7 +1034,22 @@ class DataWorkbench(QWidget):
         self.client.get("/api/findings?" + urlencode({**scope, "page": 1, "size": 200}), loaded)
 
     def export_plate(self):
-        export_widget_image(self, self.client, self.plate, "导出管板图片")
+        if self.permissions is not None and "export.create" not in self.permissions:
+            self.status.setText("当前账户没有图片导出权限")
+            return
+        from .artifact_save import artifact_name
+        from .native_plate_snapshot import create_plate_snapshot
+        try:
+            image, scope = create_plate_snapshot(list(self.model.selected.values()), self.plate.channels,
+                                                 self.plate.levels, self.plate.colors)
+        except ValueError as error:
+            self.status.setText(str(error))
+            return
+        site = {"P": "HZ", "C": "CN"}.get(scope["site"], scope["site"])
+        outage = re.sub(r"^[A-Za-z]+", lambda match: {"P": "HZ", "C": "CN"}.get(match[0], match[0]),
+                        scope["outage"])
+        name = artifact_name("管板缺陷分布", f"{site}_{scope['unit']}号机组_{outage}", "png")
+        export_widget_image(self, self.client, None, "导出管板图片", image=image, default_name=name)
 
     def export_ledger(self):
         from urllib.parse import parse_qs
@@ -7075,6 +7144,8 @@ class NativeMainWindow(QMainWindow):
             plate.colors = list(prefs["depth_colors"])
             plate.update()
         self.workbench.map_panel.set_theme(theme)
+        self.workbench.model.dark = theme == "dark"
+        self.workbench.table.viewport().update()
         visualization = self.stack.widget(3).visualization
         visualization.set_theme(theme, prefs["animations"])
         visualization.set_severity(prefs["depth_levels"], prefs["depth_colors"])

@@ -1,9 +1,6 @@
 """Native workbench plate header, selection statistics and record details."""
 from __future__ import annotations
 
-from collections import Counter
-import re
-
 from PySide6.QtCore import QAbstractListModel, QModelIndex, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import (
@@ -12,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from .native_components import ReferencePlateMap, button
+from .native_plate_snapshot import selected_statistics
 
 
 class PlateModeTabs(QTabBar):
@@ -195,13 +193,9 @@ class PlateStatistics(QWidget):
         if len(scopes) != 1:
             self.setText("已保留跨机组或大修的勾选；缺陷分布需选择同一机组、同次大修")
             return
-        defects = [row for row in rows if str(row.get("display_conclusion") or row.get("indication") or "").upper() != "NDD"
-                   and row.get("detection_status") != "ndd" and (row.get("percent") or 0) > 0]
-        zones = Counter((match[0].upper() if (match := re.search(r"P[1-6]", row.get("location") or "", re.I))
-                         else "未标注") for row in defects)
-        dense, count = sorted(zones.items(), key=lambda item: (-item[1], item[0]))[0] if zones else ("/", 0)
-        maximum = max((row["percent"] for row in defects), default=0)
-        values = (str(len(rows)), str(len({row["thimble_id"] for row in defects})),
+        stats = selected_statistics(rows)
+        dense, count, maximum = stats["dense"], stats["dense_count"], stats["max_percent"]
+        values = (str(len(rows)), str(len(stats["tube_maximums"])),
                   f"{maximum:g}%" if maximum else "/", f"{dense} · {count}条" if count else dense)
         self.message.hide()
         for (host, value), text in zip(self.fields, values):

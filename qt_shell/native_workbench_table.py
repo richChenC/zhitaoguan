@@ -2,17 +2,125 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
+import time
 
-from PySide6.QtCore import QEvent, QIODevice, QRect, QSaveFile, QSize, Qt, Signal
-from PySide6.QtGui import QFont, QIntValidator
+from PySide6.QtCore import QEvent, QIODevice, QPointF, QRect, QSaveFile, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QIntValidator, QKeySequence, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QHBoxLayout, QLabel, QLineEdit, QStyle, QStyledItemDelegate,
-    QStyleOptionButton, QStyleOptionViewItem, QTabBar, QWidget,
+    QAbstractItemView, QApplication, QComboBox, QHBoxLayout, QLabel, QLineEdit, QStyle, QStyledItemDelegate,
+    QStyleOptionViewItem, QTabBar, QTableView, QWidget,
 )
 
 from .constants import USER_DATA
-from .native_components import ToolFlowLayout, button
+from .native_components import ToolFlowLayout, button, canonical_site
+
+
+def finding_scope(row):
+    import re
+    site = row.get("site_code") or row.get("site") or re.sub(r"\d.*", "", str(row.get("outage") or ""))
+    return canonical_site(site), str(row.get("unit_id") or ""), str(row.get("outage") or "")
+
+
+class WorkbenchSortPreference:
+    def __init__(self, username, fields):
+        account = hashlib.sha256(str(username or "").encode("utf-8")).hexdigest()
+        self.path = USER_DATA / "workspace-sorting" / f"{account}.json"
+        self.fields = set(fields) - {"_checked", "_number"}
+
+    def load(self):
+        try:
+            saved = json.loads(self.path.read_text(encoding="utf-8"))
+            if isinstance(saved, dict):
+                field = "analysis" if saved.get("sort") == "note" else saved.get("sort")
+                if isinstance(field, str) and field in self.fields:
+                    return field, "desc" if saved.get("order") == "desc" else "asc"
+        except (OSError, ValueError):
+            pass
+        return "", "asc"
+
+    def save(self, field, order):
+        if not field:
+            self.path.unlink(missing_ok=True)
+            return
+        if field not in self.fields or order not in ("asc", "desc"):
+            raise ValueError("Invalid workbench sorting preference")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        output = QSaveFile(str(self.path))
+        raw = json.dumps({"sort": field, "order": order}).encode("utf-8")
+        if (not output.open(QIODevice.OpenModeFlag.WriteOnly)
+                or output.write(raw) != len(raw) or not output.commit()):
+            raise OSError(output.errorString())
+
+
+class FindingTable(QTableView):
+    checkRequested = Signal(int, bool, bool, int)
+    selectPageRequested = Signal()
+    handles_checks = True
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._anchor = -1
+        self._last_click = None
+        self._double_release = False
+        self.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+
+    def setModel(self, model):
+        super().setModel(model)
+        model.modelReset.connect(self._reset_anchor)
+
+    def _reset_anchor(self):
+        self._anchor = -1
+        self._last_click = None
+
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        index = self.indexAt(event.position().toPoint())
+        if self._double_release:
+            self._double_release = False
+            return
+        if event.button() != Qt.MouseButton.LeftButton or not index.isValid():
+            return
+        model = self.model()
+        if not model.flags(index) & Qt.ItemFlag.ItemIsEnabled:
+            return
+        # A live editor owns its own mouse events; only table cells toggle rows.
+        if self.state() == QAbstractItemView.State.EditingState:
+            return
+        checked = index.siblingAtColumn(0).data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked
+        self._last_click = (index.row(), checked, time.monotonic())
+        extend = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier) and self._anchor >= 0
+        self.checkRequested.emit(index.row(), extend, not checked, self._anchor)
+        self._anchor = index.row()
+
+    def mouseDoubleClickEvent(self, event):
+        index = self.indexAt(event.position().toPoint())
+        if index.isValid():
+            previous = self._last_click
+            if (self.model().flags(index) & Qt.ItemFlag.ItemIsEditable and previous
+                    and previous[0] == index.row() and time.monotonic() - previous[2] < .5):
+                self.checkRequested.emit(index.row(), False, previous[1], self._anchor)
+            self._double_release = True
+        super().mouseDoubleClickEvent(event)
+
+    def keyPressEvent(self, event):
+        if self.state() == QAbstractItemView.State.EditingState:
+            super().keyPressEvent(event)
+            return
+        if event.matches(QKeySequence.StandardKey.SelectAll):
+            self.selectPageRequested.emit()
+            event.accept()
+            return
+        index = self.currentIndex()
+        if index.isValid() and event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            checked = index.siblingAtColumn(0).data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked
+            self.checkRequested.emit(index.row(), bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier),
+                                     not checked, self._anchor)
+            self._anchor = index.row()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 
 class FieldTabs(QTabBar):
@@ -62,17 +170,30 @@ class FindingDelegate(QStyledItemDelegate):
         cell.features &= ~QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
         style = cell.widget.style() if cell.widget else QApplication.style()
         style.drawControl(QStyle.ControlElement.CE_ItemViewItem, cell, painter, cell.widget)
-        checkbox = QStyleOptionButton()
-        checkbox.rect = QRect(0, 0, 14, 14)
-        checkbox.rect.moveCenter(option.rect.center())
-        checkbox.state = QStyle.StateFlag.State_Enabled if option.state & QStyle.StateFlag.State_Enabled else QStyle.StateFlag.State_None
-        checkbox.state |= (QStyle.StateFlag.State_On if index.data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked
-                           else QStyle.StateFlag.State_Off)
-        style.drawPrimitive(QStyle.PrimitiveElement.PE_IndicatorCheckBox, checkbox, painter, cell.widget)
+        rect = QRect(0, 0, 14, 14)
+        rect.moveCenter(option.rect.center())
+        checked = index.data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked
+        dark = bool(getattr(index.model(), "dark", False))
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(QColor("#3fb3a6" if dark else "#087d79") if checked else
+                            QColor("#718681" if dark else "#8a9398"), 1))
+        painter.setBrush(QColor("#3fb3a6" if dark else "#087d79") if checked else
+                         QColor("#1c2527" if dark else "#ffffff"))
+        painter.drawRoundedRect(rect.adjusted(0, 0, -1, -1), 2, 2)
+        if checked:
+            path = QPainterPath(QPointF(rect.left() + 3, rect.top() + 6))
+            path.lineTo(rect.left() + 6, rect.top() + 9)
+            path.lineTo(rect.left() + 11, rect.top() + 3)
+            painter.setPen(QPen(QColor("#182123" if dark else "#ffffff"), 1.8))
+            painter.drawPath(path)
+        painter.restore()
 
     def editorEvent(self, event, model, option, index):
         if index.column() != 0:
             return super().editorEvent(event, model, option, index)
+        if getattr(option.widget, "handles_checks", False):
+            return True
         if not option.state & QStyle.StateFlag.State_Enabled:
             return False
         if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:

@@ -157,7 +157,8 @@ class NativeParityTests(unittest.TestCase):
             self.assertIn(text, path)
         page.reset_query()
         self.assertFalse(page.column_filters)
-        self.assertEqual(page.sort_field, "")
+        self.assertEqual(page.sort_field, "percent")
+        self.assertIn("sort=percent", client.requests[-1][1])
         self.assertEqual(page.detection_status.currentData(), "")
 
     def test_workbench_source_conclusions_and_analyst_completer_refresh_without_duplicates(self):

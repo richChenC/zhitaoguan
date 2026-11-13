@@ -334,15 +334,16 @@ class ToolFlowLayout(QLayout):
         return y + height - rect.y() + margins.bottom()
 
 
-def export_widget_image(parent, client, widget, title):
+def export_widget_image(parent, client, widget, title, *, image=None, default_name=""):
     """Recheck the live session and audit the exact image before saving."""
-    path, _ = QFileDialog.getSaveFileName(parent, title, "", "PNG (*.png)")
+    path, _ = QFileDialog.getSaveFileName(parent, title, default_name, "PNG (*.png)")
     if not path:
         return
     raw = QByteArray()
     buffer = QBuffer(raw)
     buffer.open(QIODevice.OpenModeFlag.WriteOnly)
-    image = widget.grabWindow() if hasattr(widget, "grabWindow") else widget.grab()
+    if image is None:
+        image = widget.grabWindow() if hasattr(widget, "grabWindow") else widget.grab()
     if not image.save(buffer, "PNG"):
         QMessageBox.warning(parent, title, "无法生成图片")
         return

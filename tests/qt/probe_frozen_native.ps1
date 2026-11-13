@@ -19,6 +19,14 @@ public class NativeProbeWindow {
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int command);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, string text);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder text, int count);
+    public static bool SetFileName(IntPtr handle, string text) {
+        var name=new StringBuilder(256);
+        GetClassName(handle,name,256);
+        if(name.ToString()!="Edit") return false;
+        return SendMessage(handle,0x000C,IntPtr.Zero,text)!=IntPtr.Zero;
+    }
     public delegate bool Callback(IntPtr h, IntPtr l);
     [DllImport("user32.dll")] static extern bool EnumWindows(Callback cb, IntPtr l);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);
@@ -299,6 +307,91 @@ try {
     $pageSize = Find-Control $window ([System.Windows.Automation.ControlType]::ComboBox) '每页显示条数'
     if ($pageJump.Count -ne 1 -or $pageSize.Count -ne 1) { throw 'Native jump or page size control missing' }
     $result.steps += 'native-workbench-real-next-previous-and-page-controls'
+    foreach ($attempt in 1..2) {
+        $selectPage = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '全选本页'
+        if ($selectPage.Count -ne 1 -or -not $selectPage[0].Current.IsEnabled) {
+            throw 'Native select page control missing'
+        }
+        Activate-Control $selectPage[0]
+        Start-Sleep -Milliseconds 150
+        $selectedCount = Find-Control $window ([System.Windows.Automation.ControlType]::Text) '已勾选 56 条'
+        if ($selectedCount.Count -ne 1) { throw 'Native selection did not retain the first scope of 56 records' }
+    }
+    $exportImage = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '导出图片'
+    if ($exportImage.Count -ne 1 -or -not $exportImage[0].Current.IsEnabled) {
+        throw 'Native plate export button missing'
+    }
+    Activate-Control $exportImage[0]
+    $saveHandle = [IntPtr]::Zero
+    for ($attempt=0; $attempt -lt 50 -and $saveHandle -eq [IntPtr]::Zero; $attempt++) {
+        Start-Sleep -Milliseconds 100
+        $saveHandle = [NativeProbeWindow]::FindNamed($process.Id, '导出管板图片')
+    }
+    if ($saveHandle -eq [IntPtr]::Zero) { throw 'Native plate image save dialog missing' }
+    $saveWindow = [System.Windows.Automation.AutomationElement]::FromHandle($saveHandle)
+    for ($attempt=0; $attempt -lt 100; $attempt++) {
+        $saveNodes = $saveWindow.FindAll([System.Windows.Automation.TreeScope]::Descendants,
+                                         [System.Windows.Automation.Condition]::TrueCondition)
+        $fileName = @($saveNodes | Where-Object {
+            ($_.Current.ControlType -eq [System.Windows.Automation.ControlType]::Edit -and
+             $_.Current.Name -match '文件名|File name') -or
+            ($_.Current.AutomationId -eq '1001' -and $_.Current.Name -like 'TH_管板缺陷分布_*.png')
+        })
+        $saveButton = @($saveNodes | Where-Object { $_.Current.Name -match '^保存(\(S\))?$|^Save$' })
+        if ($fileName.Count -eq 1 -and $saveButton.Count -eq 1) { break }
+        Start-Sleep -Milliseconds 100
+    }
+    $result.save_dialog_controls = @($saveWindow.FindAll(
+        [System.Windows.Automation.TreeScope]::Descendants,
+        [System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {
+            @{name=$_.Current.Name; type=$_.Current.ControlType.ProgrammaticName;
+              id=$_.Current.AutomationId; enabled=$_.Current.IsEnabled;
+              handle=$_.Current.NativeWindowHandle;
+              patterns=@($_.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName })}
+        })
+    if ($fileName.Count -ne 1 -or $saveButton.Count -ne 1) {
+        throw 'Native plate save dialog controls missing'
+    }
+    $platePath = Join-Path $work 'frozen-plate-export.png'
+    $valuePattern = $null
+    if ($fileName[0].TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern,
+                                          [ref]$valuePattern)) {
+        $valuePattern.SetValue($platePath)
+    } elseif (-not [NativeProbeWindow]::SetFileName([IntPtr]$fileName[0].Current.NativeWindowHandle,
+                                                   $platePath)) {
+        throw 'Native file name edit cannot be set'
+    }
+    $saveBounds = $saveButton[0].Current.BoundingRectangle
+    $saveTarget = if ($saveButton[0].Current.NativeWindowHandle) {
+        [IntPtr]$saveButton[0].Current.NativeWindowHandle
+    } else { $saveHandle }
+    if (-not [NativeProbeWindow]::ClickWindow($saveTarget,
+            [int]($saveBounds.Left + $saveBounds.Width/2),
+            [int]($saveBounds.Top + $saveBounds.Height/2))) {
+        throw 'Native save button could not be clicked'
+    }
+    for ($attempt=0; $attempt -lt 100 -and -not [IO.File]::Exists($platePath); $attempt++) {
+        Start-Sleep -Milliseconds 100
+    }
+    if (-not [IO.File]::Exists($platePath)) { throw 'Frozen plate image was not saved' }
+    $plateImage = [Drawing.Image]::FromFile($platePath)
+    try {
+        if ($plateImage.Width -ne 1500 -or $plateImage.Height -ne 1390) {
+            throw 'Frozen plate export dimensions differ from reference'
+        }
+    } finally { $plateImage.Dispose() }
+    $result.plate_export_sha256 = (Get-FileHash -LiteralPath $platePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    & $python -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); r=c.execute('SELECT size_bytes FROM export_audits WHERE sha256=?',(sys.argv[2],)).fetchall(); c.close(); assert r==[(int(sys.argv[3]),)],r" (Join-Path $work 'data/thimble.db') $result.plate_export_sha256 ([IO.FileInfo]::new($platePath).Length)
+    if ($LASTEXITCODE -ne 0) { throw 'Frozen plate PNG audit hash mismatch' }
+    $result.steps += 'native-workbench-plate-png-save-dialog-dimensions-and-audit'
+    $clearSelection = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '清除勾选'
+    if ($clearSelection.Count -ne 1 -or -not $clearSelection[0].Current.IsEnabled) {
+        throw 'Native selected rows cannot be cleared'
+    }
+    Activate-Control $clearSelection[0]
+    Start-Sleep -Milliseconds 150
+    if ($clearSelection[0].Current.IsEnabled) { throw 'Native clear selection did not reset actions' }
+    $result.steps += 'native-workbench-same-scope-select-page-repeat-and-clear'
     Capture 'frozen-workbench-table'
     $mainWindow = $window
     foreach ($utilityName in @('Frozen Probe，已登录账户', '软件设置')) {
@@ -827,6 +920,11 @@ try {
     $result.error = $_.ToString()
 } finally {
     if ($process -and -not $process.HasExited) {
+        $saveHandle = [NativeProbeWindow]::FindNamed($process.Id, '导出管板图片')
+        if ($saveHandle -ne [IntPtr]::Zero) {
+            [NativeProbeWindow]::PostMessage($saveHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+            Start-Sleep -Milliseconds 200
+        }
         $choiceHandle = [NativeProbeWindow]::FindNamed($process.Id, '选择分析报告')
         if ($choiceHandle -ne [IntPtr]::Zero) {
             [NativeProbeWindow]::PostMessage($choiceHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null

@@ -62,8 +62,13 @@ def run(app, window, client, work, scope, request, wait, until):
         until(app, lambda: page.model.rows and page.model.rows[0].get("analysis") ==
               "NATIVE INLINE MUTATION VERIFIED", "inline persisted refresh")
         finish("/api/findings/edit", lambda: edit_cell(page, 0, column, original.get("analysis") or ""))
+        until(app, lambda: not page._filter_busy and page.model.rows
+              and page.model.rows[0]["id"] == original["id"]
+              and (page.model.rows[0].get("analysis") or "") == (original.get("analysis") or ""),
+              "reverted inline value and completed table refresh")
         result["inline_edit"] = {"finding_id": original["id"], "saved_and_reverted": True}
         page.clear_selection()
+        page.scroll.ensureWidgetVisible(page.table)
         page.table.scrollTo(page.model.index(0, 0))
         rect = page.table.visualRect(page.model.index(0, 0))
         QTest.mouseClick(page.table.viewport(), Qt.MouseButton.LeftButton,

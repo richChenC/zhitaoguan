@@ -21,6 +21,7 @@ def main():
     parser.add_argument("--workbench-only", action="store_true")
     parser.add_argument("--table-reference", type=Path)
     parser.add_argument("--plate-reference", type=Path)
+    parser.add_argument("--selection-reference", type=Path)
     args = parser.parse_args()
     project = Path(__file__).resolve().parents[2]
     work = project.parent / "05_测试与验证" / "03_自动化临时产物" / (
@@ -141,6 +142,10 @@ def main():
             from probe_native_workbench_plate import verify_workbench_plate
             result["workbench_plate"] = verify_workbench_plate(
                 app, window, client, work, args.plate_reference, wait, until, request)
+        if args.selection_reference:
+            from probe_native_workbench_selection import verify_workbench_selection
+            result["workbench_selection"] = verify_workbench_selection(
+                app, window, client, work, args.selection_reference, wait, until, request)
         with sqlite3.connect(database) as db:
             result["findings_after"] = db.execute("SELECT COUNT(*) FROM findings").fetchone()[0]
         assert result["findings_before"] == result["findings_after"]
