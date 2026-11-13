@@ -9,6 +9,7 @@ Rectangle {
     property var tubes: []
     property var tubeColors: ({})
     property var columns: []
+    property var columnVisibility: ({})
     property var defects: []
     property int selectedTube: 0
     property string displayMode: "assembly"
@@ -196,7 +197,9 @@ Rectangle {
             include(geometryBounds.ucsPlate, [0,explode*800,0])
             include(geometryBounds.secondaryGrid, [0,explode*400,0])
         }
-        if (showSupports) for (const column of columns) include(column.bounds)
+        if (showSupports) for (const column of columns) {
+            if (columnVisibility[column.type] !== false) include(column.bounds)
+        }
         for (const tube of tubes) {
             if (!(tube.category === "defect" ? showDefect : tube.category === "incomplete" ? showReview :
                   tube.category === "ndd" ? showNdd : showMissing)) continue
@@ -459,8 +462,10 @@ Rectangle {
             model: root.columns
             delegate: Model {
                 required property var modelData
+                objectName: "support-" + modelData.meshId
                 geometry: ReferenceGeometry { partId: modelData.meshId }
-                visible: root.showSupports && root.displayMode === "assembly" && root.tubes.length > 0
+                visible: root.showSupports && root.columnVisibility[modelData.type] !== false &&
+                         root.displayMode === "assembly" && root.tubes.length > 0
                 materials: SectionMaterial {
                     tint: modelData.type === "core-hollow" ? "#5f87a8" :
                           modelData.type === "core-solid" ? "#4f9d9d" :

@@ -11,7 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QAbstractTableModel, QEvent, QIODevice, QModelIndex, QObject, QSaveFile, QUrl, QTimer, Qt, Signal
+from PySide6.QtCore import QAbstractTableModel, QEvent, QIODevice, QModelIndex, QObject, QSaveFile, QSize, QUrl, QTimer, Qt, Signal
 from PySide6.QtGui import QBrush, QCloseEvent, QColor, QCursor, QIcon, QImage, QPainter, QPixmap, QVector3D
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -27,10 +27,12 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QMenu,
     QLabel,
+    QLayout,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
     QGridLayout,
+    QGraphicsOpacityEffect,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
@@ -5500,6 +5502,7 @@ class NativeThreeDPage(QWidget):
         self._scope_data = None
         self._scene_tubes = []
         self._selected_part = None
+        self._column_visibility = {}
         self._enlarge_auto = True
         self.severity_levels = [30, 50]
         self.severity_colors = ["#79b98c", "#e5a83b", "#df4b45"]
@@ -5680,6 +5683,43 @@ class NativeThreeDPage(QWidget):
             self.type_filter.addItem(kind, kind)
         self.type_filter.setAccessibleName("三维型号筛选")
         self.type_filter.currentIndexChanged.connect(self._tube_type_changed)
+        self.column_legend = QWidget()
+        self.column_legend.setAccessibleName("支承柱分类图例")
+        column_layout = QGridLayout(self.column_legend)
+        column_layout.setContentsMargins(22, 1, 0, 4)
+        column_layout.setHorizontalSpacing(8)
+        column_layout.setVerticalSpacing(1)
+        self.column_buttons = {}
+        column_colors = {"core-hollow": "#5f87a8", "core-solid": "#4f9d9d",
+                         "sec-hollow": "#8a7fb8", "sec-solid": "#9fb4c9"}
+        column_names = {"core-hollow": "空心柱 A", "core-solid": "实心柱 B",
+                        "sec-hollow": "二次空心", "sec-solid": "二次实心"}
+        for index, group in enumerate(reference_layout()["structure"]["columnGroups"]):
+            kind = group["id"]
+            control = QToolButton()
+            control.setObjectName("columnGroupLegend")
+            control.setText(f"{column_names.get(kind, group['cn'])} {group['count']}")
+            control.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            control.setIconSize(QSize(9, 9))
+            legend_font = control.font()
+            legend_font.setPixelSize(10)
+            control.setFont(legend_font)
+            control.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            control.setCheckable(True)
+            control.setChecked(True)
+            control.setAccessibleName(f"显示{group['cn']}，{group['count']} 根")
+            control.setToolTip(f"{group['cn']}　共 {group['count']} 根　点击切换显隐")
+            swatch = QPixmap(9, 9)
+            swatch.fill(QColor(column_colors.get(kind, "#8fa6bb")))
+            control.setIcon(QIcon(swatch))
+            effect = QGraphicsOpacityEffect(control)
+            effect.setOpacity(1)
+            control.setGraphicsEffect(effect)
+            control.toggled.connect(lambda visible, name=kind: self._column_group_changed(name, visible))
+            self.column_buttons[kind] = control
+            column_layout.addWidget(control, index // 2, index % 2)
+        self.visibility_checks["showSupports"].toggled.connect(self.column_legend.setVisible)
+        assembly_settings.addWidget(self.column_legend)
         assembly_settings.addWidget(self.type_filter)
         model_legend = ToolFlowLayout()
         model_legend.setContentsMargins(0, 0, 0, 0)
@@ -5843,7 +5883,9 @@ class NativeThreeDPage(QWidget):
                                          for index, row in enumerate(reference_layout()["structure"]["columns"])])
         self.view_container.setMinimumSize(320, 280)
         self.scene_host = QWidget()
+        self.scene_host.setMinimumSize(320, 280)
         scene_layout = QGridLayout(self.scene_host)
+        scene_layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         scene_layout.setContentsMargins(0, 0, 0, 0)
         scene_layout.addWidget(self.view_container, 0, 0)
         scene_layout.addWidget(self.scene_settings_host, 0, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
@@ -6195,6 +6237,11 @@ class NativeThreeDPage(QWidget):
         for name, control in self.type_buttons.items():
             control.setChecked(name == kind)
         self._update_tube_colors()
+
+    def _column_group_changed(self, kind, visible):
+        self._column_visibility[kind] = visible
+        self.column_buttons[kind].graphicsEffect().setOpacity(1 if visible else .4)
+        self._set_scene_property("columnVisibility", dict(self._column_visibility))
 
     def _tube_color_mode(self):
         return next((name for name in ("depth", "type", "length") if self.color_checks[name].isChecked()), "base")

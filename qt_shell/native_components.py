@@ -1064,6 +1064,9 @@ def workspace_styles(theme="light", density="comfortable"):
         QToolButton#modelSectionHeader:hover {{ color:{accent}; background:{hover}; }}
         QToolButton#modelTypeLegend {{ border:0; border-radius:3px; padding:3px; background:transparent; color:{muted}; }}
         QToolButton#modelTypeLegend:hover, QToolButton#modelTypeLegend:checked {{ color:{accent}; background:{hover}; }}
+          QToolButton#columnGroupLegend {{ border:0; border-radius:3px; padding:0 2px;
+              background:transparent; color:{muted}; font-size:10px; min-height:20px; }}
+          QToolButton#columnGroupLegend:hover {{ background:{hover}; }}
         QWidget#reportScopeBand {{ background:{surface}; border:1px solid {line};
             border-top:3px solid {accent}; border-radius:4px; }}
         QWidget#reportDraftPanel {{ background:{surface}; border-left:1px solid {line}; }}

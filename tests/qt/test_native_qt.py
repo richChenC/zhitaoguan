@@ -786,6 +786,49 @@ class NativeQtTests(unittest.TestCase):
         self.assertEqual(hidden.foreground(0).style(), Qt.BrushStyle.NoBrush)
         page.close()
 
+    def test_three_d_column_group_legend_preserves_independent_visibility(self):
+        from qt_shell.native_model_data import reference_layout
+
+        class Client:
+            def get(self, _path, _callback):
+                return None
+
+        page = NativeThreeDPage(Client())
+        page.resize(800, 650)
+        page.show()
+        page.scene_settings_button.setChecked(True)
+        self.app.processEvents()
+        self.assertTrue(page.column_legend.isVisible())
+        for group in reference_layout()["structure"]["columnGroups"]:
+            kind = group["id"]
+            control = page.column_buttons[kind]
+            self.assertTrue(control.isChecked())
+            self.assertIn(str(group["count"]), control.text())
+            self.assertIn(group["cn"], control.toolTip())
+            control.click()
+            self.assertFalse(page.view.rootObject().property("columnVisibility")[kind])
+            self.assertEqual(control.graphicsEffect().opacity(), .4)
+        page.visibility_checks["showSupports"].setChecked(False)
+        self.assertTrue(page.column_legend.isHidden())
+        page.visibility_checks["showSupports"].setChecked(True)
+        self.assertTrue(page.column_legend.isVisible())
+        self.assertTrue(all(not value for value in page._column_visibility.values()))
+        page.mode_tabs.setCurrentIndex(1)
+        self.assertFalse(page.column_legend.isVisible())
+        page.mode_tabs.setCurrentIndex(0)
+        self.assertTrue(page.column_legend.isVisible())
+        for control in page.column_buttons.values():
+            control.click()
+            self.assertEqual(control.graphicsEffect().opacity(), 1)
+        self.assertTrue(all(page.view.rootObject().property("columnVisibility").values()))
+        page.resize(1480, 920)
+        QTest.qWait(50)
+        page.resize(800, 650)
+        QTest.qWait(50)
+        self.assertEqual((page.width(), page.height()), (800, 650))
+        self.assertEqual(page.scene_settings_host.horizontalScrollBar().maximum(), 0)
+        page.close()
+
     def test_three_d_parts_click_visibility_metadata_and_empty_scope(self):
         class Client:
             def get(self, _path, _callback):

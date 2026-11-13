@@ -27,6 +27,103 @@ def pixels(image, step=4):
             for x in range(0, image.width(), step)]
 
 
+def verify_column_groups(page, root, work):
+    from PySide6.QtCore import QObject
+    from qt_shell.native_components import workspace_styles
+    from qt_shell.native_model_data import reference_layout
+
+    project = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        ["node", str(Path(__file__).with_name("reference_column_groups.mjs")),
+         str(project.parent / "10_TRAEqt优化版")],
+        capture_output=True, text=True, encoding="utf-8", check=True)
+    reference = json.loads(result.stdout)
+    groups = reference_layout()["structure"]["columnGroups"]
+    page.mode_tabs.setCurrentIndex(0)
+    page.scene_settings_button.setChecked(True)
+    page.data_details_button.setChecked(False)
+    page._hide_part_info()
+    page.plate_view.setChecked(False)
+    page.section.setChecked(False)
+    page.measurement.setChecked(False)
+    page.explode.setValue(0)
+    page._reset_three_d_view()
+    page.resize(1480, 920)
+    wait(150)
+    original_nodes = {column["meshId"]: root.findChild(QObject, "support-" + column["meshId"])
+                      for column in root.property("columns")}
+    assert len(original_nodes) == 72 and all(original_nodes.values())
+    for index, group in enumerate(groups):
+        control = page.column_buttons[group["id"]]
+        assert control.toolTip() == reference["initial"][index]["title"]
+        name, number = control.text().rsplit(" ", 1)
+        swatch = control.icon().pixmap(9, 9).toImage().pixelColor(4, 4).name()
+        assert f'<i style="background:{swatch}"></i>{name}<b>{number}</b>' == reference["initial"][index]["html"]
+    checks = []
+    for width, height, theme in ((800, 650, "dark"), (1480, 920, "light")):
+        page._column_visibility.clear()
+        page._set_scene_property("columnVisibility", {})
+        page.resize(width, height)
+        page.setStyleSheet(workspace_styles(theme))
+        page.set_theme(theme)
+        wait(150)
+        assert page.column_legend.layout().columnCount() == 2
+        page.scene_settings_host.ensureWidgetVisible(page.column_legend)
+        wait(100)
+        for expected in reference["states"]:
+            control = page.column_buttons[groups[expected["index"]]["id"]]
+            page.scene_settings_host.ensureWidgetVisible(control)
+            wait(30)
+            before = pixels(page.view.grabWindow(), 1)
+            QTest.mouseClick(control, Qt.MouseButton.LeftButton)
+            wait(100)
+            counts = {group["id"]: 0 for group in groups}
+            for column in root.property("columns"):
+                node = root.findChild(QObject, "support-" + column["meshId"])
+                assert node is original_nodes[column["meshId"]], "Visibility toggle rebuilt column meshes"
+                counts[column["type"]] += bool(node.property("visible"))
+            assert counts == expected["visibleCounts"], (width, counts, expected)
+            assert root.property("columnVisibility") == expected["visibility"]
+            assert [button.graphicsEffect().opacity() for button in page.column_buttons.values()] == expected["opacity"]
+            after = pixels(page.view.grabWindow(), 1)
+            change = sum(a != b for a, b in zip(before, after))
+            assert change > 5, (width, expected["index"], "No actual column pixels changed", change)
+            checks.append({"width": width, "theme": theme, "group": groups[expected["index"]]["id"],
+                           "visible_counts": counts, "changed_pixels": change})
+        page.grab().save(str(work / f"column-groups-{width}-{theme}.png"))
+        assert (page.width(), page.height()) == (width, height) and page.scene_settings_host.horizontalScrollBar().maximum() == 0, (
+            width, page.width(), page.height(), page.scene_settings_host.horizontalScrollBar().maximum())
+    first = page.column_buttons[groups[0]["id"]]
+    first.click()
+    supports = page.visibility_checks["showSupports"]
+    supports.setChecked(False)
+    wait(100)
+    assert page.column_legend.isHidden()
+    assert all(not node.property("visible") for node in original_nodes.values())
+    supports.setChecked(True)
+    wait(100)
+    assert page.column_legend.isVisible()
+    for column in root.property("columns"):
+        assert original_nodes[column["meshId"]].property("visible") == (column["type"] != groups[0]["id"])
+    assert all(root.findChild(QObject, "tubeNode-" + str(tube["tube"])).property("visible")
+               and root.findChild(QObject, "penetration-" + str(tube["tube"])).property("visible")
+               for tube in root.property("tubes"))
+    page.mode_tabs.setCurrentIndex(1)
+    wait(100)
+    assert not page.column_legend.isVisible()
+    page.mode_tabs.setCurrentIndex(0)
+    wait(100)
+    assert page.column_legend.isVisible() and not first.isChecked()
+    first.click()
+    page.scene_settings_button.setChecked(False)
+    page._reset_three_d_view()
+    page.resize(1100, 800)
+    wait(150)
+    return {"reference_click_states": len(reference["states"]), "checks": checks,
+            "column_meshes": len(original_nodes), "geometry_reused": True,
+            "supports_and_mode_preserve_groups": True, "channel_components_unchanged": True}
+
+
 def verify_camera_views(page, root, work):
     """Check actual projection, bounds, picking and panel insets on the desktop renderer."""
     from qt_shell.native_components import workspace_styles
@@ -900,6 +997,7 @@ def real_data_probe(database):
         output["reference_materials"] = verify_render_materials(
             page, root, work, reference_lighting, wait, pixels)
     if "--annotations-only" not in sys.argv and "--axes-only" not in sys.argv:
+        output["column_groups"] = verify_column_groups(page, root, work)
         output["cameras"] = verify_camera_views(page, root, work)
         output["coloring"] = verify_tube_colors(page, root, work, data)
         output["parts"] = verify_parts(page, root, work)

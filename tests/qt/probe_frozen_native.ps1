@@ -400,6 +400,32 @@ try {
             }
             Capture 'frozen-three-d-penetrations-on'
             $result.steps += 'native-assembly-penetration-toggle-off-and-restore'
+            $result.three_d_column_groups = @()
+            foreach ($group in @(
+                @{Name='空心支承柱（A型）'; Count=22},
+                @{Name='实心支承柱（B型）'; Count=46},
+                @{Name='空心二次支承柱'; Count=2},
+                @{Name='实心二次支承柱'; Count=2}
+            )) {
+                $groupControl = Find-NamedControl $window ("显示{0}，{1} 根" -f $group.Name,$group.Count)
+                if ($groupControl.Count -ne 1) { throw "Native column legend missing: $($group.Name)" }
+                $groupPattern = $groupControl[0].GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern)
+                if ($groupPattern.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) {
+                    throw "Native column group must start visible: $($group.Name)"
+                }
+                Activate-Control $groupControl[0]
+                Start-Sleep -Milliseconds 100
+                if ($groupPattern.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::Off) {
+                    throw "Native column group did not hide: $($group.Name)"
+                }
+                Activate-Control $groupControl[0]
+                if ($groupPattern.Current.ToggleState -ne [System.Windows.Automation.ToggleState]::On) {
+                    throw "Native column group did not restore: $($group.Name)"
+                }
+                $result.three_d_column_groups += $group.Name
+            }
+            Capture 'frozen-three-d-column-groups-restored'
+            $result.steps += 'native-four-column-group-legend-hide-and-restore'
             $result.three_d_color_controls = @()
             foreach ($colorName in @('按管长着色', '按型号着色', '按检测数据着色（最大磨损）')) {
                 $colorControl = Find-NamedControl $window $colorName
