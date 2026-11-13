@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import re
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
-    QButtonGroup, QDialog, QHBoxLayout, QProgressBar, QRadioButton, QScrollArea,
+    QButtonGroup, QDialog, QGridLayout, QHBoxLayout, QLineEdit, QProgressBar, QRadioButton, QScrollArea,
     QSizePolicy, QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -30,6 +30,136 @@ def latest_report(reports):
                      for part in re.split(r"(\d+)", str(value or "")))
     return max(reports, key=lambda row: (int(row.get("modified_ns") or 0),
                                         natural(row.get("name")), str(row["path"])))
+
+class ReportSelectionSummary(QWidget):
+    groupActivated = Signal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        box = QVBoxLayout(self)
+        box.setContentsMargins(0, 0, 0, 0)
+        box.setSpacing(7)
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("筛选已选分析人员或报告")
+        self.search.setAccessibleName("筛选已选分析人员或报告")
+        self.search.setClearButtonEnabled(True)
+        self.search.textChanged.connect(self._filter)
+        box.addWidget(self.search)
+        self.scroll = QScrollArea()
+        self.scroll.setObjectName("reportSelectionSummary")
+        self.scroll.setAccessibleName("已选 Report 摘要")
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setMinimumHeight(58)
+        self.scroll.setMaximumHeight(210)
+        self.host = QWidget()
+        self.host.setObjectName("reportSummaryBody")
+        self.rows_layout = QVBoxLayout(self.host)
+        self.rows_layout.setContentsMargins(0, 0, 0, 0)
+        self.rows_layout.setSpacing(0)
+        self.empty = plain_label("选择文件夹后扫描并确认 Report", "muted")
+        self.empty.setContentsMargins(10, 12, 10, 12)
+        self.rows_layout.addWidget(self.empty)
+        self.rows_layout.addStretch()
+        self.scroll.setWidget(self.host)
+        box.addWidget(self.scroll)
+        self.rows = []
+        self._layout_timer = QTimer(self)
+        self._layout_timer.setSingleShot(True)
+        self._layout_timer.timeout.connect(self._reflow)
+        self.scroll.viewport().installEventFilter(self)
+        self.set_choice(None)
+
+    def set_choice(self, choice):
+        self._layout_timer.stop()
+        for row in self.rows:
+            self.rows_layout.removeWidget(row["widget"])
+            row["widget"].hide()
+            row["widget"].deleteLater()
+        self.rows = []
+        for index, (key, _reports) in enumerate(choice.groups if choice else []):
+            selected = choice.selected[index] or {}
+            row = QWidget()
+            row.setObjectName("reportSummaryRow")
+            row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            row.setMinimumHeight(48)
+            row.setProperty("groupIndex", index)
+            row.setAccessibleName(f"{key[2]} · {key[3]}")
+            row.setAccessibleDescription(f"{key[0]}/{key[1]} · " +
+                                         ("已确认" if index in choice.confirmed else "未确认"))
+            grid = QGridLayout(row)
+            grid.setContentsMargins(10, 8, 10, 8)
+            grid.setHorizontalSpacing(8)
+            grid.setVerticalSpacing(4)
+            group = plain_label(f"{key[2]} · {key[3]}", "reportSummaryGroup")
+            analysts = QWidget()
+            analyst_layout = ToolFlowLayout(analysts)
+            analyst_layout.setContentsMargins(0, 0, 0, 0)
+            names = list(dict.fromkeys(str(value or "").strip() for value in selected.get("analysts") or []
+                                       if str(value or "").strip()))
+            listed = bool(names)
+            names = names or ["未标明分析人员" if selected else "未确认"]
+            for name in names:
+                label = plain_label(name, "reportSummaryAnalyst")
+                code = 0
+                for char in name:
+                    unit = int.from_bytes(char.encode("utf-16-le")[:2], "little")
+                    code = (code*31 + unit) & 0xffffffff
+                label.setProperty("tone", str(code % 6) if listed else "unlisted")
+                analyst_layout.addWidget(label)
+            text = f"{selected.get('name') or '尚未确认'} · {selected.get('records') or 0} 条结果"
+            if selected.get("modified_at"):
+                text += " · 修改于 " + str(selected["modified_at"]).replace("T", " ")
+            source = plain_label(text, "reportSummarySource")
+            source.setToolTip(str(selected.get("path") or ""))
+            for control in (group, analysts, source):
+                control.setMinimumWidth(0)
+                control.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+            for control in (row, group, source, analysts, *analysts.findChildren(QWidget)):
+                control.setProperty("groupIndex", index)
+                control.installEventFilter(self)
+            self.rows_layout.insertWidget(index, row)
+            self.rows.append({"widget": row, "group": group, "analysts": analysts, "source": source,
+                              "search": " ".join((group.text(), *names, text)).casefold()})
+        self.search.setVisible(bool(self.rows))
+        self.empty.setVisible(not self.rows)
+        self._filter()
+        self._reflow()
+
+    def _filter(self):
+        term = self.search.text().strip().casefold()
+        for row in self.rows:
+            row["widget"].setVisible(not term or term in row["search"])
+        self._layout_timer.start()
+
+    def _reflow(self):
+        width = self.scroll.viewport().width()
+        narrow = width < 620
+        height = 0
+        for row in self.rows:
+            grid = row["widget"].layout()
+            for control in (row["group"], row["analysts"], row["source"]):
+                grid.removeWidget(control)
+            grid.addWidget(row["group"], 0, 0)
+            grid.addWidget(row["analysts"], 0, 1)
+            grid.addWidget(row["source"], 1 if narrow else 0, 0 if narrow else 2, 1, 2 if narrow else 1)
+            for column, stretch in enumerate((8, 10, 0 if narrow else 12)):
+                grid.setColumnStretch(column, stretch)
+            if not row["widget"].isHidden():
+                height += max(48, grid.totalHeightForWidth(width) if grid.hasHeightForWidth()
+                              else grid.totalSizeHint().height())
+        self.scroll.setFixedHeight(min(210, max(58, height + self.scroll.frameWidth()*2)))
+        self.host.updateGeometry()
+
+    def eventFilter(self, watched, event):
+        if watched is self.scroll.viewport() and event.type() == QEvent.Type.Resize:
+            self._layout_timer.start()
+        elif event.type() == QEvent.Type.MouseButtonDblClick and event.button() == Qt.MouseButton.LeftButton:
+            index = watched.property("groupIndex")
+            if index is not None:
+                self.groupActivated.emit(index)
+                return True
+        return super().eventFilter(watched, event)
 
 
 class ReportChoiceDialog(QDialog):

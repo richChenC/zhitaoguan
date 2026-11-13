@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 from .constants import EXCEL_EXTENSIONS, EXCEL_SCAN_LIMIT, OFFICE_MAX_BYTES
 from .native_components import button, icon
-from .native_report_choice import ReportChoiceDialog
+from .native_report_choice import ReportChoiceDialog, ReportSelectionSummary
 
 
 def scan_excel_sources(directory, cancelled=None):
@@ -251,33 +251,46 @@ class ImportWizard(QDialog):
         split.addWidget(self.source_table)
         split.setSizes([360, 650])
         mapping.layout().addWidget(split, 1)
+        self.report_settings = QWidget()
+        report_box = QVBoxLayout(self.report_settings)
+        report_box.setContentsMargins(0, 0, 0, 0)
+        report_box.setSpacing(8)
+        source_box.addWidget(self.report_settings)
         self.report_actions = QWidget()
-        report_actions = QHBoxLayout(self.report_actions)
+        report_actions = QVBoxLayout(self.report_actions)
         report_actions.setContentsMargins(0, 0, 0, 0)
-        report_actions.addWidget(QLabel("RPT 选择"))
+        policy_row = QHBoxLayout()
+        policy_row.addWidget(QLabel("RPT 选择"))
         self.report_policy = QComboBox()
+        self.report_policy.setAccessibleName("RPT 选择策略")
         self.report_policy.addItem("手动选择 RPT", "manual")
         self.report_policy.addItem("预选最新并逐组确认", "latest")
         self.report_policy.setCurrentIndex(max(0, self.report_policy.findData(
             self.preferences.get("report_policy") or "manual")))
         self.report_policy.currentIndexChanged.connect(self._report_policy_changed)
-        report_actions.addWidget(self.report_policy)
-        report_actions.addStretch()
+        policy_row.addWidget(self.report_policy)
+        self.report_policy_hint = QLabel()
+        self.report_policy_hint.setObjectName("muted")
+        self.report_policy_hint.setWordWrap(True)
+        policy_row.addWidget(self.report_policy_hint, 1)
+        report_actions.addLayout(policy_row)
+        versions = QHBoxLayout()
+        versions.addWidget(QLabel("Report 版本"))
+        versions.addStretch()
         self.choose_reports = button("继续 Report 选择", "files", self.open_report_choices)
-        report_actions.addWidget(self.choose_reports)
-        mapping.layout().addWidget(self.report_actions)
-        self.report_table = QTableWidget(0, 5)
-        self.report_table.setMinimumHeight(220)
-        self.report_table.setHorizontalHeaderLabels(["基地/机组", "大修", "数据组", "分析人员", "最终报告"])
-        self.report_table.verticalHeader().hide()
-        self.report_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.report_table.horizontalHeader().setStretchLastSection(True)
-        self.report_table.cellDoubleClicked.connect(lambda row, _: self.open_report_choices(row))
-        mapping.layout().addWidget(self.report_table, 1)
+        versions.addWidget(self.choose_reports)
+        report_actions.addLayout(versions)
+        report_box.addWidget(self.report_actions)
+        self.report_summary = ReportSelectionSummary()
+        self.report_summary.groupActivated.connect(self.open_report_choices)
+        report_box.addWidget(self.report_summary)
+        export_row = QHBoxLayout()
         self.directory_export = QPushButton("仅生成并保存标准 Excel")
         self.directory_export.clicked.connect(self.export_directory)
         self.directory_export.setEnabled(self.can_export)
-        mapping.layout().addWidget(self.directory_export)
+        export_row.addWidget(self.directory_export)
+        export_row.addStretch()
+        report_box.addLayout(export_row)
         self.mapping_note = QLabel()
         self.mapping_note.setWordWrap(True)
         mapping.layout().addWidget(self.mapping_note)
@@ -286,6 +299,8 @@ class ImportWizard(QDialog):
         self.policy.addItem("空三字符按 WAR 填充", "fill_war")
         self.policy.addItem("仅预检，不写入记录", "check")
         mapping.layout().addWidget(self.policy)
+        mapping.layout().addStretch()
+        self._update_report_policy_hint()
         preview = self._page("预检与确认")
         self.preview_summary = QLabel()
         self.preview_summary.setWordWrap(True)
@@ -387,7 +402,8 @@ class ImportWizard(QDialog):
 
     def _update_navigation(self):
         page = self.currentId()
-        self.button(QWizard.WizardButton.BackButton).setVisible(page in (1, 2))
+        directory = self.mode.currentData() == "directory"
+        self.button(QWizard.WizardButton.BackButton).setVisible(page == 2 or (page == 1 and not directory))
         self.button(QWizard.WizardButton.BackButton).setEnabled(not self.busy and page in (1, 2))
         next_button = self.button(QWizard.WizardButton.NextButton)
         next_button.setVisible(page < 4)
@@ -409,7 +425,7 @@ class ImportWizard(QDialog):
 
     def _set_page(self, page):
         self._current_page = page
-        self.pages.setCurrentIndex(page)
+        self.pages.setCurrentIndex(0 if page == 1 and self.mode.currentData() == "directory" else page)
         self._update_navigation()
         self.currentIdChanged.emit(page)
 
@@ -447,6 +463,8 @@ class ImportWizard(QDialog):
         self.ready_source = self.ready_preview = False
         self.generation += 1
         self._clear_report_choices()
+        if self.currentId() == 1 and self.mode.currentData() == "directory":
+            self._set_page(0)
 
     def _clear_report_choices(self):
         if self.report_choice:
@@ -454,12 +472,19 @@ class ImportWizard(QDialog):
             self.report_choice.deleteLater()
             self.report_choice = None
         self.options = []
-        self.report_table.setRowCount(0)
+        self.report_summary.set_choice(None)
         self.directory_export.setEnabled(False)
-        self.choose_reports.setText("继续 Report 选择")
+        self.choose_reports.setText("扫描并确认")
+        self.mapping_note.clear()
+
+    def _update_report_policy_hint(self):
+        self.report_policy_hint.setText("按修改时间预选，仍需逐组确认"
+                                        if self.report_policy.currentData() == "latest"
+                                        else "为每个数据组手动选择一份")
 
     def _report_policy_changed(self, *_):
         value = self.report_policy.currentData()
+        self._update_report_policy_hint()
         self.preferences["report_policy"] = value
         parent = self.parentWidget()
         context = getattr(parent.window(), "context", None) if parent else None
@@ -473,7 +498,11 @@ class ImportWizard(QDialog):
             self._report_selection_changed()
 
     def open_report_choices(self, index=None):
-        if self.closed or self.busy or not self.report_choice:
+        if self.closed or self.busy:
+            return
+        if not self.report_choice:
+            if self.currentId() == 0 and self.mode.currentData() == "directory":
+                self.next()
             return
         self.report_choice.show_group(index if type(index) is int else 0)
         self.report_choice.open()
@@ -485,22 +514,7 @@ class ImportWizard(QDialog):
         choice = self.report_choice
         if not choice:
             return
-        self.report_table.setRowCount(len(choice.groups))
-        for index, (key, _) in enumerate(choice.groups):
-            report = choice.selected[index] or {}
-            confirmed = index in choice.confirmed
-            analysts = " · ".join(map(str, report.get("analysts") or [])) or "未列出"
-            values = (f"{key[0]}/{key[1]}", key[2], key[3], analysts if report else "未确认",
-                      (str(report.get("name") or report.get("path") or "尚未选择")
-                       + f" · {report.get('records', 0)} 条结果 · "
-                       + ("已确认" if confirmed else "未确认")))
-            for column, value in enumerate(values):
-                item = QTableWidgetItem(value)
-                item.setToolTip(str(report.get("path") or "") if column == 4 else value)
-                self.report_table.setItem(index, column, item)
-        for column, width in enumerate((85, 80, 160, 140)):
-            self.report_table.setColumnWidth(column, width)
-        self.report_table.resizeRowsToContents()
+        self.report_summary.set_choice(choice)
         failed = [row for row in self.options if row.get("error")]
         self.mapping_note.setText(
             f"已确认 {len(choice.confirmed)} / {len(choice.groups)} 个数据组。"
@@ -522,6 +536,13 @@ class ImportWizard(QDialog):
         self.path.setText(self._route_paths.get(self._active_source_mode, ""))
         self.route_title.setText("1  选择已有 Excel 文件" if excel else "1  原始 RPT → 标准 Excel → 数据库")
         self.rpt_note.setVisible(not excel)
+        self.report_settings.setVisible(not excel)
+        note_layout = self._pages[1].layout() if excel else self.report_settings.layout()
+        for control in (self.mapping_note, self.policy):
+            if excel:
+                note_layout.insertWidget(note_layout.count()-1, control)
+            else:
+                note_layout.addWidget(control)
         self.path.setPlaceholderText("尚未选择 Excel 文件" if excel else "请选择原始检测数据根目录")
         self.browse_source.setText("选择文件" if excel else "选择检测文件夹")
         for control in (self.add_files, self.add_folder, self.queue_heading, self.queue_table, self.file_choice):
@@ -624,7 +645,7 @@ class ImportWizard(QDialog):
         self._update_navigation()
         for widget in (self.path, self.mode, self.source_tabs, self.file_choice, self.add_files, self.add_folder,
                        self.browse_source,
-                       self.remove_file, self.sheet, self.manual, self.header, self.policy, self.report_table,
+                       self.remove_file, self.sheet, self.manual, self.header, self.policy, self.report_summary,
                        self.directory_export, self.report_actions):
             widget.setEnabled(not busy)
         self.remove_file.setEnabled(not busy and self.queue_table.currentRow() >= 0)
@@ -687,7 +708,7 @@ class ImportWizard(QDialog):
         for widget in (self.excel_settings, self.mapping_split):
             widget.setVisible(excel)
         self.mapping_heading.setText("2  识别与字段映射" if excel else "2  扫描并确认 Report")
-        self.report_table.setVisible(not excel)
+        self.report_summary.setVisible(not excel)
         self.report_actions.setVisible(not excel)
         self.directory_export.setVisible(not excel)
         if excel:
@@ -726,6 +747,7 @@ class ImportWizard(QDialog):
                 return
             self.report_choice.selectionChanged.connect(self._report_selection_changed)
             self._report_selection_changed()
+        self.source_status.clear()
         self.ready_source = True
         if advance:
             self.next()

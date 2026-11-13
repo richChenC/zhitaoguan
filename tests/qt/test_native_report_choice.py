@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QLabel, QWidget
 
 from qt_shell.native_components import Preferences, workspace_styles
 from qt_shell.native_import import ImportWizard
-from qt_shell.native_report_choice import ReportChoiceDialog
+from qt_shell.native_report_choice import ReportChoiceDialog, ReportSelectionSummary
 from qt_shell.native_windows import DataWorkbench, NativeMainWindow
 from test_native_workflows import Client
 
@@ -135,6 +135,84 @@ class ReportChoiceTests(unittest.TestCase):
         self.assertIsNone(wizard.report_choice)
         self.assertFalse(wizard.ready_source)
         self.assertFalse(wizard.prepare_payload())
+
+    def test_rpt_source_and_summary_share_the_original_source_panel(self):
+        wizard = ImportWizard(Client(), DataWorkbench.MAPPING_FIELDS, {}, mode="directory")
+        wizard.path.setText("D:/source")
+        wizard.source_loaded(wizard.generation, {"reports": self.reports()}, None)
+        self.assertEqual(wizard.currentId(), 1)
+        self.assertEqual(wizard.pages.currentIndex(), 0)
+        self.assertTrue(wizard.source_host.isAncestorOf(wizard.report_summary))
+        self.assertTrue(wizard.source_host.isAncestorOf(wizard.mapping_note))
+        self.assertFalse(wizard.source_status.text())
+        wizard.path.setText("D:/changed")
+        self.assertEqual(wizard.currentId(), 0)
+        self.assertFalse(wizard.report_summary.rows)
+
+    def test_summary_rows_preserve_plain_text_dates_filter_and_group_activation(self):
+        reports = self.reports()
+        reports[1]["modified_at"] = "2026-11-12T10:20:30"
+        reports[2]["analysts"] = ["OTHER"]
+        choice = ReportChoiceDialog(reports, latest=True)
+        summary = ReportSelectionSummary()
+        summary.setStyleSheet(workspace_styles("light"))
+        summary.resize(820, 280)
+        summary.set_choice(choice)
+        summary.show()
+        QTest.qWait(30)
+        self.assertEqual(len(summary.rows), 2)
+        first = summary.rows[0]
+        self.assertEqual(first["group"].text(), "N101 · TH1I1CAL1")
+        self.assertIn("修改于 2026-11-12 10:20:30", first["source"].text())
+        self.assertEqual(first["source"].toolTip(), reports[1]["path"])
+        self.assertEqual(first["widget"].layout().getItemPosition(2), (0, 2, 1, 1))
+        self.assertGreaterEqual(summary.scroll.height(), 96)
+        self.assertTrue(all(label.textFormat() == Qt.TextFormat.PlainText
+                            for label in summary.findChildren(QLabel)))
+        summary.search.setText("other")
+        self.assertTrue(first["widget"].isHidden())
+        self.assertFalse(summary.rows[1]["widget"].isHidden())
+        summary.search.setText("Report10")
+        self.assertFalse(first["widget"].isHidden())
+        self.assertTrue(summary.rows[1]["widget"].isHidden())
+        selected_before = list(choice.selected)
+        self.assertFalse(choice.complete)
+        summary.search.clear()
+        summary.resize(460, 280)
+        QTest.qWait(30)
+        self.assertEqual(first["widget"].layout().getItemPosition(2), (1, 0, 1, 2))
+        self.assertEqual(summary.scroll.horizontalScrollBar().maximum(), 0)
+        self.assertFalse(summary._layout_timer.isActive())
+        activated = []
+        summary.groupActivated.connect(activated.append)
+        QTest.mouseDClick(first["group"], Qt.MouseButton.LeftButton)
+        self.assertEqual(activated, [0])
+        self.assertEqual(choice.selected, selected_before)
+        summary.set_choice(None)
+        self.assertFalse(summary.rows)
+        self.assertTrue(summary.search.isHidden())
+
+    def test_summary_unselected_and_empty_analyst_states_follow_reference(self):
+        choice = ReportChoiceDialog(self.reports())
+        summary = ReportSelectionSummary()
+        summary.set_choice(choice)
+        self.assertEqual(summary.rows[0]["source"].text(), "尚未确认 · 0 条结果")
+        self.assertEqual(summary.rows[0]["analysts"].findChild(QLabel).text(), "未确认")
+        choice.selected[0] = {**self.reports()[0], "analysts": []}
+        summary.set_choice(choice)
+        self.assertEqual(summary.rows[0]["analysts"].findChild(QLabel).text(), "未标明分析人员")
+
+    def test_import_source_change_clears_summary_without_enabling_export(self):
+        wizard = ImportWizard(Client(), DataWorkbench.MAPPING_FIELDS, {}, mode="directory")
+        wizard.path.setText("D:/source")
+        wizard.source_loaded(wizard.generation, {"reports": self.reports()}, None, advance=False)
+        self.assertEqual(len(wizard.report_summary.rows), 2)
+        wizard.report_summary.search.setText("missing")
+        self.assertTrue(all(row["widget"].isHidden() for row in wizard.report_summary.rows))
+        self.assertFalse(wizard.directory_export.isEnabled())
+        wizard.path.setText("D:/changed")
+        self.assertFalse(wizard.report_summary.rows)
+        self.assertFalse(wizard.directory_export.isEnabled())
 
     def test_policy_save_does_not_mutate_shared_preferences_before_change_notification(self):
         parent = QWidget()

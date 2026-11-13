@@ -52,6 +52,11 @@ class NativeQtTests(unittest.TestCase):
         QTimer.singleShot(0, loop.quit)
         loop.exec()
 
+    def setUp(self):
+        self.panel_state = tempfile.TemporaryDirectory(prefix="panel-case-", dir=native_test_env.test_data.name)
+        self.panel_paths = patch("qt_shell.native_model_panel.USER_DATA", Path(self.panel_state.name))
+        self.panel_paths.start()
+
     def tearDown(self):
         for widget in self.app.topLevelWidgets():
             widget.close()
@@ -61,6 +66,8 @@ class NativeQtTests(unittest.TestCase):
         import gc
         gc.collect()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.panel_paths.stop()
+        self.panel_state.cleanup()
 
     def test_findings_model_has_stable_columns_and_rows(self):
         model = FindingsModel()
@@ -686,22 +693,27 @@ class NativeQtTests(unittest.TestCase):
         self.assertEqual(page.scene_settings_host.horizontalScrollBar().maximum(), 0)
         self.assertLessEqual(page.scene_settings_host.height(),
                              page.scene_host.height() - page.scene_footer.height() - 16)
-        self.assertEqual(page.scene_settings_host.height(),
-                         page.scene_host.height() - page.scene_footer.height() - 16)
-        heading, body = page.scene_sections["剖切与测距"]
+        self.assertEqual(list(page.scene_sections), ["整体布置", "显示", "剖切", "爆炸", "零件（点击查看）"])
+        self.assertTrue(page.scene_sections["整体布置"][0].isChecked())
+        self.assertTrue(all(not heading.isChecked() for name, (heading, _body) in page.scene_sections.items()
+                            if name != "整体布置"))
+        heading, body = page.scene_sections["剖切"]
+        heading.click()
         page.section_offset.setValue(-1250)
         heading.click()
         self.assertTrue(body.isHidden())
         heading.click()
         self.assertFalse(body.isHidden())
         self.assertEqual(page.section_offset.value(), -1250)
+        page.scene_sections["爆炸"][0].click()
+        self.app.processEvents()
         page.scene_settings_host.ensureWidgetVisible(page.image_export)
         self.app.processEvents()
         position = page.image_export.mapTo(page.scene_settings_host.viewport(), page.image_export.rect().center())
         self.assertTrue(page.scene_settings_host.viewport().rect().contains(position))
         expanded_height = page.scene_settings_host.height()
         for disclosure, _body in page.scene_sections.values():
-            disclosure.click()
+            disclosure.setChecked(False)
         self.app.processEvents()
         self.assertLess(page.scene_settings_host.height(), expanded_height)
         page.scene_settings_button.click()
@@ -766,6 +778,7 @@ class NativeQtTests(unittest.TestCase):
         page.resize(800, 650)
         page.show()
         page.scene_settings_button.setChecked(True)
+        page.scene_sections["零件（点击查看）"][0].setChecked(True)
         for theme, text, muted in (("dark", "#e5eeec", "#a8b8b5"),
                                    ("light", "#23465b", "#647c8c"),
                                    ("dark", "#e5eeec", "#a8b8b5")):
@@ -841,6 +854,7 @@ class NativeQtTests(unittest.TestCase):
         page.resize(800, 650)
         page.show()
         page.scene_settings_button.click()
+        page.scene_sections["零件（点击查看）"][0].click()
         self.app.processEvents()
         root = page.view.rootObject()
         self.assertEqual(root.property("partVisibility"),

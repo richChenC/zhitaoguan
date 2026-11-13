@@ -445,6 +445,10 @@ try {
             Start-Sleep -Milliseconds 200
             Capture 'frozen-three-d-floating-settings-filter'
             Activate-Control $typeLegend[0]
+            $partsHeading = Find-NamedControl $window '零件（点击查看）'
+            if ($partsHeading.Count -ne 1) { throw 'Native part disclosure missing' }
+            Activate-Control $partsHeading[0]
+            Start-Sleep -Milliseconds 250
             $result.three_d_parts = @()
             foreach ($partName in @('指套管本体', '螺纹管座', '配合螺栓（管段样件）',
                                       '调整螺母', '中子测量贯穿管', '空心二次支承柱')) {
@@ -467,12 +471,18 @@ try {
                     throw "Native part triangle/source metadata missing: $partName"
                 }
                 Capture ('frozen-three-d-part-' + $result.three_d_parts.Count)
+                # Opening detail changes mode and moves the tree when assembly controls disappear.
+                $partItems = @(Find-Control $window ([System.Windows.Automation.ControlType]::TreeItem) |
+                    Where-Object { $_.Current.Name.StartsWith($partName + '，') })
+                if ($partItems.Count -ne 1) { throw "Part tree item lost after opening detail: $partName" }
+                $bounds = $partItems[0].Current.BoundingRectangle
                 if (-not [NativeProbeWindow]::RightClickWindow([IntPtr]$window.Current.NativeWindowHandle,
                     [int]($bounds.X+40), [int]($bounds.Y+$bounds.Height/2))) { throw 'Part context click failed' }
                 Start-Sleep -Milliseconds 150
                 $hiddenItems = @(Find-Control $window ([System.Windows.Automation.ControlType]::TreeItem) |
                     Where-Object { $_.Current.Name.StartsWith($partName + '，隐藏') })
                 if ($hiddenItems.Count -ne 1) { throw "Part context click did not hide: $partName" }
+                $bounds = $hiddenItems[0].Current.BoundingRectangle
                 [NativeProbeWindow]::ClickWindow([IntPtr]$window.Current.NativeWindowHandle,
                     [int]($bounds.X+40), [int]($bounds.Y+$bounds.Height/2)) | Out-Null
                 Start-Sleep -Milliseconds 150
@@ -481,6 +491,10 @@ try {
                 if ($restoredItems.Count -ne 1) { throw "Part click did not restore: $partName" }
                 $result.three_d_parts += $partName
             }
+            $displayHeading = Find-NamedControl $window '显示'
+            if ($displayHeading.Count -ne 1) { throw 'Native display disclosure missing' }
+            Activate-Control $displayHeading[0]
+            Start-Sleep -Milliseconds 250
             foreach ($annotationName in @('尺寸标注','P1–P6 轴向标记')) {
                 $annotationControl = Find-NamedControl $window $annotationName
                 if ($annotationControl.Count -ne 1 -or -not $annotationControl[0].Current.IsEnabled) {
@@ -622,6 +636,22 @@ try {
         if (-not @($summaryLabels | Where-Object { $_.Current.Name -like '*可生成标准 Excel 或预检入库*' }).Count) {
             throw 'RPT confirmation summary did not become ready'
         }
+        $sourcePath = Find-Control $window ([System.Windows.Automation.ControlType]::Edit) '导入来源路径'
+        if ($sourcePath.Count -ne 1 -or $sourcePath[0].Current.IsOffscreen) {
+            throw 'RPT source path disappeared after confirmation'
+        }
+        $summarySearch = Find-Control $window ([System.Windows.Automation.ControlType]::Edit) '筛选已选分析人员或报告'
+        if ($summarySearch.Count -ne 1) { throw 'Native RPT summary analyst filter missing' }
+        $summarySources = @($summaryLabels | Where-Object { $_.Current.Name -like '*条结果*修改于*' })
+        if ($summarySources.Count -ne $confirmedGroups) { throw 'Native RPT summary dates or rows missing' }
+        $summarySearch[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('no-such-report-xyz')
+        Start-Sleep -Milliseconds 150
+        $filteredSources = @(Find-Control $window ([System.Windows.Automation.ControlType]::Text) |
+            Where-Object { $_.Current.Name -like '*条结果*修改于*' -and -not $_.Current.IsOffscreen })
+        if ($filteredSources.Count) { throw 'Native RPT summary filter did not hide nonmatching rows' }
+        $summarySearch[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('')
+        Start-Sleep -Milliseconds 150
+        $result.steps += 'native-rpt-source-panel-summary-dates-and-analyst-filter'
         $result.rpt_confirmed_groups = $confirmedGroups
         $result.steps += 'native-real-rpt-companion-explicit-confirmation'
         Capture 'frozen-rpt-confirmed-summary'

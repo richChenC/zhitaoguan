@@ -1003,6 +1003,20 @@ def workspace_styles(theme="light", density="comfortable"):
         QWidget#reportCandidate {{ background:{surface}; border-bottom:1px solid {line}; }}
         QWidget#reportCandidate[selected="true"] {{ background:{accent_soft}; border-left:3px solid {accent}; }}
         QLabel#reportAnalystHeading {{ color:{muted}; font-size:11px; font-weight:600; }}
+        QScrollArea#reportSelectionSummary {{ background:{surface}; border:1px solid {line}; border-radius:6px; }}
+        QWidget#reportSummaryBody {{ background:{surface}; }}
+        QWidget#reportSummaryRow {{ background:{surface}; border-bottom:1px solid {line}; }}
+        QLabel#reportSummaryGroup {{ font-size:11px; font-weight:600; }}
+        QLabel#reportSummaryAnalyst {{ padding:2px 7px; border:1px solid transparent;
+            border-radius:3px; font-size:10px; font-weight:700; }}
+        QLabel#reportSummaryAnalyst[tone="0"] {{ color:#075e58; background:#d9f0ec; border-color:#a7d8cf; }}
+        QLabel#reportSummaryAnalyst[tone="1"] {{ color:#245b91; background:#e1edf8; border-color:#bfd4eb; }}
+        QLabel#reportSummaryAnalyst[tone="2"] {{ color:#7a5700; background:#f9edc8; border-color:#ead797; }}
+        QLabel#reportSummaryAnalyst[tone="3"] {{ color:#9a4634; background:#fae5dc; border-color:#efc4b2; }}
+        QLabel#reportSummaryAnalyst[tone="4"] {{ color:#4d6631; background:#e7efd9; border-color:#ceddb7; }}
+        QLabel#reportSummaryAnalyst[tone="5"] {{ color:#556374; background:#e7edf2; border-color:#cfd8e0; }}
+        QLabel#reportSummaryAnalyst[tone="unlisted"] {{ color:#6c777d; background:#edf0f1; border-color:#d9dfe1; }}
+        QLabel#reportSummarySource {{ color:{muted}; font-size:10px; }}
         QLabel#reportCandidateName {{ font-size:13px; font-weight:600; }}
         QLabel#reportCandidateSource {{ color:{muted}; font-size:10px; }}
         QLabel#reportChoiceWarning {{ color:{"#e2bd75" if dark else "#926824"}; font-size:11px; }}

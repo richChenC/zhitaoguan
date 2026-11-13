@@ -29,6 +29,7 @@ def main():
         os.environ[key] = str(value)
     sys.path.insert(0, str(native))
     from PySide6.QtCore import Qt
+    from PySide6.QtGui import QColor, QPalette
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication, QFileDialog, QLabel, QWidget, QWizard
     from qt_shell.backend_service import BackendService
@@ -98,6 +99,56 @@ def main():
                                "analysts": [row.get("analysts") for row in choice.selected],
                                "records": sum(row.get("records", 0) for row in choice.selected),
                                "cancel_resume_preserved": True, "hashes_retained": True}
+        summary = wizard.report_summary
+        wait(app, 150)
+        reference_file = os.environ.get("THIMBLE_REFERENCE_RPT_SUMMARY")
+        if reference_file:
+            reference = json.loads(Path(reference_file).read_text(encoding="utf-8-sig"))
+            assert len(reference["rows"]) == len(summary.rows)
+            for expected, row in zip(reference["rows"], summary.rows, strict=True):
+                assert row["group"].text() == expected["group"]
+                assert row["source"].text() == expected["source"]
+                assert row["source"].toolTip() == expected["path"]
+                chips = row["analysts"].findChildren(QLabel)
+                assert [chip.text() for chip in chips] == [chip["text"] for chip in expected["analysts"]]
+                for chip, colors in zip(chips, expected["analysts"], strict=True):
+                    for role, name in ((QPalette.ColorRole.Window, "background"),
+                                       (QPalette.ColorRole.WindowText, "color")):
+                        components = [int(value) for value in colors[name].removeprefix("rgb(").removesuffix(")").split(",")]
+                        assert chip.palette().color(role) == QColor(*components), (name, chip.palette().color(role), colors)
+            result["summary_reference_match"] = {"rows": len(reference["rows"]), "text_dates_paths_and_chip_colors": True}
+        summary_checks = []
+        for width, height, theme in ((900, 820, "light"), (640, 600, "dark")):
+            host.setStyleSheet(workspace_styles(theme))
+            wizard.resize(width, height)
+            wait(app, 250)
+            assert len(summary.rows) == count
+            assert summary.scroll.horizontalScrollBar().maximum() == 0
+            assert summary.scroll.height() >= min(210, count*48)
+            assert not summary._layout_timer.isActive()
+            assert wizard.path.isVisible(), "RPT source path disappeared after choosing reports"
+            assert wizard.pages.currentIndex() == 0 and wizard.currentId() == 1
+            for row, report, (key, _) in zip(summary.rows, choice.selected, choice.groups, strict=True):
+                assert row["group"].text() == f"{key[2]} · {key[3]}"
+                assert row["source"].text().startswith(f"{report['name']} · {report['records']} 条结果")
+                assert row["source"].toolTip() == report["path"]
+                if report.get("modified_at"):
+                    assert report["modified_at"].replace("T", " ") in row["source"].text()
+                assert all(label.textFormat() == Qt.TextFormat.PlainText
+                           for label in row["widget"].findChildren(QLabel))
+            first = summary.rows[0]
+            visible_before = [row["widget"].isHidden() for row in summary.rows]
+            summary.search.setText("no-such-report-xyz")
+            assert all(row["widget"].isHidden() for row in summary.rows)
+            assert wizard.directory_export.isEnabled() and choice.complete
+            summary.search.clear()
+            assert [row["widget"].isHidden() for row in summary.rows] == visible_before
+            name = f"report-summary-{width}-{theme}.png"
+            assert wizard.grab().save(str(work / name))
+            result["screens"].append(name)
+            summary_checks.append({"width": width, "theme": theme, "rows": count,
+                                   "metadata_grid_position": first["widget"].layout().getItemPosition(2)})
+        result["summary_rows"] = summary_checks
         name = "report-choice-summary.png"
         assert wizard.grab().save(str(work / name))
         result["screens"].append(name)

@@ -5790,7 +5790,7 @@ class NativeThreeDPage(QWidget):
         self.opacity.valueChanged.connect(lambda v: self._set_scene_property("modelOpacity", v / 100))
         display_settings.addWidget(QLabel("管身透明度"))
         display_settings.addWidget(self.opacity)
-        cut_settings = section("剖切与测距")
+        cut_settings = section("剖切")
         self.explode = QSlider(Qt.Orientation.Horizontal)
         self.explode.setRange(0, 100)
         self.explode.valueChanged.connect(lambda v: self._set_scene_property("explode", v / 100))
@@ -5818,7 +5818,7 @@ class NativeThreeDPage(QWidget):
         self.measurement_value = QLabel()
         self.measurement_value.setWordWrap(True)
         cut_settings.addWidget(self.measurement_value)
-        explode_settings = section("装配展开")
+        explode_settings = section("爆炸")
         explode_settings.addWidget(self.explode)
         self.image_export = button("导出 PNG", "download",
                                    lambda: export_widget_image(self, self.client, self.view, "导出三维视图"))
@@ -5997,6 +5997,13 @@ class NativeThreeDPage(QWidget):
         self._camera_layout_timer = QTimer(self)
         self._camera_layout_timer.setSingleShot(True)
         self._camera_layout_timer.timeout.connect(self._sync_camera_space)
+        from .native_model_panel import ModelPanelGroups
+        keys = {"asm": "整体布置", "disp": "显示", "cut": "剖切", "explode": "爆炸", "parts": "零件（点击查看）"}
+        self.scene_sections = {title: self.scene_sections[title] for title in keys.values()}
+        self.model_groups = ModelPanelGroups(
+            self.scene_settings_host, {key: self.scene_sections[title] for key, title in keys.items()},
+            self._camera_layout_timer.start)
+        self.model_groups.saveFailed.connect(self.status.setText)
         self.detection_filter_button.toggled.connect(lambda _checked: self._camera_layout_timer.start())
         self.data_details_button.toggled.connect(lambda _checked: self._camera_layout_timer.start())
         self.visibility_checks["enlargeTubes"].toggled.connect(lambda _checked: self._update_model_annotations())
@@ -6020,10 +6027,11 @@ class NativeThreeDPage(QWidget):
         if self._view_shutdown:
             return
         settings = self.scene_settings_host
+        available_height = max(150, self.scene_host.height() - self.scene_footer.height() - 16)
+        self.model_groups.fit(available_height)
         content = settings.widget()
         content_height = (content.heightForWidth(settings.viewport().width()) if content.hasHeightForWidth()
                           else content.sizeHint().height())
-        available_height = max(150, self.scene_host.height() - self.scene_footer.height() - 16)
         expanded_detail = self.part_info_host.isVisible() or self.data_details_button.isChecked()
         margins = self.scene_detail_host.layout().contentsMargins()
         self.scene_detail_host.setFixedWidth(322 if expanded_detail else

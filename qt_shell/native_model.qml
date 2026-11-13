@@ -149,8 +149,10 @@ Rectangle {
         for (const hit of hits) {
             if (!hit.objectHit || !hit.objectHit.tubeNumber) continue
             const p = hit.scenePosition
+            const origin = hit.objectHit.partId ? hit.objectHit.scenePosition : Qt.vector3d(0,0,0)
+            const plane = clipOffset + (clipAxis === "x" ? origin.x : clipAxis === "y" ? origin.y : origin.z)
             if ((clipEnabled || displayMode === "socket") &&
-                (clipAxis === "x" ? p.x : clipAxis === "y" ? p.y : p.z) > clipOffset) continue
+                (clipAxis === "x" ? p.x : clipAxis === "y" ? p.y : p.z) > plane) continue
             return hit
         }
         return null
@@ -549,6 +551,7 @@ Rectangle {
             Repeater3D {
                 model: ["P01", "P02", "P03", "P04", "P05", "P06"]
                 delegate: Model {
+                    id: detailPart
                     required property string modelData
                     objectName: "detailPart-" + modelData
                     property string partId: modelData
@@ -570,6 +573,8 @@ Rectangle {
                                     root.detailLength/3000,
                                     root.enlargeTubes ? 4 : 1) : Qt.vector3d(1,1,1)
                     materials: SectionMaterial {
+                        clipDistance: root.clipOffset + (root.clipAxis === "x" ? detailPart.scenePosition.x :
+                            root.clipAxis === "y" ? detailPart.scenePosition.y : detailPart.scenePosition.z)
                         tint: modelData === "P01" ? "#667c8c" : root.partColors[modelData]
                         alphaValue: contextPart && root.ghostContext ? .22 : 1
                         metalnessValue: root.partMetalness[modelData] ?? .8

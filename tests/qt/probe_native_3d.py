@@ -26,6 +26,149 @@ def pixels(image, step=4):
     return [image.pixel(x, y) for y in range(0, image.height(), step)
             for x in range(0, image.width(), step)]
 
+def open_model_group(page, title):
+    heading = page.scene_sections[title][0]
+    if not heading.isChecked():
+        page.scene_settings_host.ensureWidgetVisible(heading)
+        wait(60)
+        QTest.mouseClick(heading, Qt.MouseButton.LeftButton)
+        wait(150)
+    assert heading.isChecked(), ("Opened model group collapsed again", title)
+
+def verify_model_panel(page, work):
+    from qt_shell.native_model_panel import DEFAULT_COLLAPSED, GROUPS
+    groups = page.model_groups
+    page.resize(1480, 920)
+    page.mode_tabs.setCurrentIndex(0)
+    page.scene_settings_button.setChecked(True)
+    page.data_details_button.setChecked(False)
+    page._hide_part_info()
+    wait(200)
+    assert list(page.scene_sections) == ["整体布置", "显示", "剖切", "爆炸", "零件（点击查看）"]
+    assert {key for key in GROUPS if not groups.sections[key][0].isChecked()} == set(DEFAULT_COLLAPSED)
+    page.grab().save(str(work / "model-panel-default.png"))
+    checks = []
+    for title in ("显示", "剖切", "爆炸", "零件（点击查看）"):
+        open_model_group(page, title)
+        wait(300)
+        assert page.scene_sections[title][0].isChecked(), ("Opening was undone by layout events", title)
+        assert not page._camera_layout_timer.isActive(), ("Layout timer did not settle", title)
+        heading, body = page.scene_sections[title]
+        heading_center = heading.mapTo(page.scene_settings_host.viewport(), heading.rect().center())
+        assert page.scene_settings_host.viewport().rect().contains(heading_center), (title, heading_center)
+        assert body.isVisible()
+        assert page.scene_sections["整体布置"][0].isChecked()
+        checks.append({"opened": title, "automatic": sorted(groups.auto_folded),
+                       "panel_height": page.scene_settings_host.height()})
+    page.grab().save(str(work / "model-panel-parts-open.png"))
+    page.resize(800, 650)
+    wait(300)
+    assert (page.width(), page.height()) == (800, 650)
+    assert page.scene_settings_host.horizontalScrollBar().maximum() == 0
+    assert page.scene_sections["整体布置"][0].isChecked()
+    open_model_group(page, "剖切")
+    page.section_offset.setValue(-1250)
+    heading = page.scene_sections["剖切"][0]
+    page.scene_settings_host.ensureWidgetVisible(heading)
+    wait(60)
+    QTest.mouseClick(heading, Qt.MouseButton.LeftButton)
+    wait(150)
+    assert not heading.isChecked()
+    page.resize(1480, 920)
+    wait(300)
+    assert not heading.isChecked(), "Enlarging the window undid a manual collapse"
+    assert page.section_offset.value() == -1250
+    page.section_offset.setValue(0)
+    page.grab().save(str(work / "model-panel-manual-choice-restored.png"))
+    # Normalize subsequent independent workflow checks.
+    for key in GROUPS:
+        groups._set_expanded(key, key not in DEFAULT_COLLAPSED)
+    groups.auto_folded.clear()
+    groups.keep = None
+    groups._last_layout = None
+    page._sync_camera_space()
+    page.scene_settings_button.setChecked(False)
+    wait(100)
+    return {"order": list(page.scene_sections), "initial_collapsed": list(DEFAULT_COLLAPSED),
+            "actual_clicks": checks, "manual_collapse_preserved": True,
+            "control_value_preserved": True, "layout_settled": True}
+
+def verify_detail_clipping(page, root, work):
+    from PySide6.QtCore import QObject
+    from qt_shell.native_geometry import geometry_data
+    keys = ["P01", "P02", "P03", "P04", "P05", "P06"]
+    states = [{"L": length, "explode": explode, "cut": on, "cutPos": offset}
+              for length in (2680, 3000, 3320) for explode in (0, 35, 100)
+              for on, offset in ((False, 0), (True, -3), (True, 0), (True, 8))]
+    reference = subprocess.run(
+        ["node", str(Path(__file__).with_name("reference_part_clipping.mjs")),
+         str(Path(__file__).resolve().parents[3] / "10_TRAEqt优化版"), json.dumps(states)],
+        capture_output=True, text=True, encoding="utf-8", check=True)
+    expected = json.loads(reference.stdout)
+    page.scene_settings_button.setChecked(False)
+    page.data_details_button.setChecked(False)
+    page._hide_part_info()
+    page.mode_tabs.setCurrentIndex(1)
+    length_before = root.property("detailLength")
+    for state, values in zip(states, expected, strict=True):
+        root.setProperty("detailLength", state["L"])
+        page.explode.setValue(state["explode"])
+        page.section_offset.setValue(state["cutPos"])
+        page.section.setChecked(state["cut"])
+        page.section_axis.setCurrentIndex(0)
+        wait(5)
+        for key in keys:
+            node = root.findChild(QObject, "detailPart-" + key)
+            material = root.findChild(QObject, "detailMaterial-" + key)
+            position = node.property("position")
+            actual_position = [position.x(), position.y(), position.z()]
+            assert all(abs(a-b) < .001 for a, b in zip(actual_position, values[key]["position"])), (
+                key, state, actual_position, values[key])
+            assert bool(material.property("clipActive")) == bool(values[key]["planes"])
+            if state["cut"]:
+                assert abs(material.property("clipDistance")-values[key]["planes"][0]["constant"]) < .001
+    root.setProperty("detailLength", length_before)
+    page.explode.setValue(0)
+    page.section_offset.setValue(0)
+    page.section.setChecked(True)
+    for key in keys:
+        page._part_visibility[key] = key == "P04"
+    page._sync_part_tree()
+    page._reset_three_d_view()
+    wait(120)
+    checks = []
+    node = root.findChild(QObject, "detailPart-P04")
+    material = root.findChild(QObject, "detailMaterial-P04")
+    for index, axis in enumerate(("x", "y", "z")):
+        page.section_axis.setCurrentIndex(index)
+        bounds = geometry_data("P04")[2]
+        page.section_offset.setValue(round((bounds[0][index]+bounds[1][index])/2))
+        wait(100)
+        origin = node.property("scenePosition")
+        origin_value = (origin.x(), origin.y(), origin.z())[index]
+        assert abs(material.property("clipDistance")-(page.section_offset.value()+origin_value)) < .001
+        half = page.view.grabWindow()
+        targets = [(x, y) for y in range(0, page.view.height(), 7)
+                   for x in range(0, page.view.width(), 7) if root.pickPart(x, y) == "P04"]
+        assert targets, ("Offset nut vanished from picking after clipping", axis)
+        page.section.setChecked(False)
+        wait(100)
+        whole = page.view.grabWindow()
+        changed = sum(a != b for a, b in zip(pixels(half, 1), pixels(whole, 1)))
+        assert changed > 100, ("Offset nut has no actual cut surface change", axis, changed)
+        page.section.setChecked(True)
+        page.grab().save(str(work / f"offset-nut-cut-{axis}.png"))
+        checks.append({"axis": axis, "distance": material.property("clipDistance"),
+                       "changed_pixels": changed, "pick_targets": len(targets)})
+    page.section.setChecked(False)
+    page.section_offset.setValue(0)
+    page.section_axis.setCurrentIndex(0)
+    for key in keys:
+        page._part_visibility[key] = page._parts[key]["visible"]
+    page._sync_part_tree()
+    return {"reference_states": len(states), "parts_per_state": len(keys),
+            "matches_actual_reference_planes_and_offsets": True, "offset_nut": checks}
+
 
 def verify_column_groups(page, root, work):
     from PySide6.QtCore import QObject
@@ -50,6 +193,7 @@ def verify_column_groups(page, root, work):
     page._reset_three_d_view()
     page.resize(1480, 920)
     wait(150)
+    open_model_group(page, "整体布置")
     original_nodes = {column["meshId"]: root.findChild(QObject, "support-" + column["meshId"])
                       for column in root.property("columns")}
     assert len(original_nodes) == 72 and all(original_nodes.values())
@@ -149,6 +293,7 @@ def verify_camera_views(page, root, work):
             assert body.isHidden(), "Actual disclosure click did not collapse the section"
             QTest.mouseClick(heading, Qt.MouseButton.LeftButton)
             assert not body.isHidden(), "Actual disclosure click did not expand the section"
+            open_model_group(page, "爆炸")
             page.scene_settings_host.ensureWidgetVisible(page.image_export)
             wait(50)
             export_center = page.image_export.mapTo(
@@ -546,6 +691,9 @@ def verify_parts(page, root, work):
         page.set_theme(theme)
         page.resize(width, height)
         wait(200)
+        open_model_group(page, "零件（点击查看）")
+        page.scene_settings_host.ensureWidgetVisible(page.part_tree)
+        wait(80)
         from PySide6.QtGui import QColor
         tree_image = page.part_tree.viewport().grab().toImage()
         for key in ("P01", "P03"):
@@ -997,10 +1145,12 @@ def real_data_probe(database):
         output["reference_materials"] = verify_render_materials(
             page, root, work, reference_lighting, wait, pixels)
     if "--annotations-only" not in sys.argv and "--axes-only" not in sys.argv:
+        output["model_panel"] = verify_model_panel(page, work)
         output["column_groups"] = verify_column_groups(page, root, work)
         output["cameras"] = verify_camera_views(page, root, work)
         output["coloring"] = verify_tube_colors(page, root, work, data)
         output["parts"] = verify_parts(page, root, work)
+        output["detail_clipping"] = verify_detail_clipping(page, root, work)
     if "--axes-only" not in sys.argv:
         output["annotations"] = verify_annotations(page, root, work)
     output["axes"] = verify_axes(page, root, work)
