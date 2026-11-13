@@ -8,10 +8,11 @@
 """
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
-from src.backend import analysis_reporting, server
+from src.backend import analysis_reporting, schema_migrations, server
 
 
 class AnalysisRulesTests(unittest.TestCase):
@@ -48,9 +49,52 @@ class AnalysisRulesTests(unittest.TestCase):
             server.create_analysis_rule("", 0.5)
 
     def test_create_rule_rejects_out_of_range_tolerance(self):
-        for bad in (0, -1, 5.0001, "x"):
+        for bad in (0, -1, 5.0001, "x", float("nan"), float("inf")):
             with self.assertRaises(ValueError):
                 server.create_analysis_rule("bad", bad)
+
+    def test_parent_is_preserved_and_invalid_parent_does_not_deactivate_rule(self):
+        parent = server.active_analysis_rules()["version"]
+        created = server.create_analysis_rule("基于初始规则", .025, "复核", parent)
+        self.assertEqual(created["parent_version"], parent)
+        for invalid in (-1, "x", 1.5, True, 99999):
+            with self.subTest(parent=invalid), self.assertRaises(ValueError):
+                server.create_analysis_rule("无效基础", .01, "", invalid)
+            self.assertEqual(server.active_analysis_rules()["version"], created["version"])
+        self.assertEqual(len(server.list_analysis_rules()), 2)
+
+    def test_concurrent_creations_have_unique_versions_and_one_active_rule(self):
+        parent = server.active_analysis_rules()["version"]
+        with ThreadPoolExecutor(max_workers=4) as workers:
+            created = list(workers.map(lambda number: server.create_analysis_rule(
+                f"并发规则{number}", .02, "", parent), range(8)))
+        self.assertEqual(len({row["version"] for row in created}), 8)
+        self.assertTrue(all(row["parent_version"] == parent for row in created))
+        self.assertEqual(sum(row["is_active"] for row in server.list_analysis_rules()), 1)
+
+    def test_version_five_upgrade_preserves_old_rows_and_makes_safety_backup(self):
+        with server.connect() as db:
+            db.execute("ALTER TABLE analysis_rules DROP COLUMN parent_version")
+            db.execute("DELETE FROM schema_migrations WHERE version=6")
+            db.execute("PRAGMA user_version=5")
+            before = [tuple(row) for row in db.execute("SELECT * FROM analysis_rules")]
+        server.init_db()
+        with server.connect() as db:
+            after = [tuple(row) for row in db.execute("SELECT * FROM analysis_rules")]
+        self.assertEqual([row[:-1] for row in after], before)
+        self.assertTrue(all(row[-1] == 0 for row in after))
+        self.assertEqual(schema_migrations.validate(self.db, True), 6)
+        self.assertEqual(len(list((self.db.parent / "backups").glob("migration-*.db"))), 1)
+        server.init_db()
+        self.assertEqual(len(list((self.db.parent / "backups").glob("migration-*.db"))), 1)
+
+    def test_compatible_trae_lineage_column_survives_legacy_upgrade(self):
+        from enterprise_fixtures import mark_legacy
+        rule = server.create_analysis_rule("兼容来源", .03, "", 1)
+        mark_legacy(server)
+        server.init_db()
+        self.assertEqual(server.active_analysis_rules()["parent_version"], 1)
+        self.assertEqual(server.active_analysis_rules()["version"], rule["version"])
 
     def test_rule_tolerance_helper_falls_back_to_default(self):
         self.assertAlmostEqual(analysis_reporting.rule_tolerance(None),

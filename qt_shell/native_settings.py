@@ -3,21 +3,25 @@ from __future__ import annotations
 
 from PySide6.QtCore import QSignalBlocker, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
-    QCheckBox, QColorDialog, QComboBox, QDialog, QFileDialog, QFormLayout,
+    QCheckBox, QColorDialog, QComboBox, QDialog, QFileDialog,
     QHBoxLayout, QLabel, QMessageBox, QPushButton, QSpinBox,
-    QStackedWidget, QVBoxLayout, QWidget, QLineEdit, QGroupBox, QScrollArea, QTableWidget, QTableWidgetItem,
-    QListWidgetItem, QTabWidget,
+    QStackedWidget, QVBoxLayout, QWidget, QLineEdit, QScrollArea,
+    QListWidgetItem, QTabWidget, QLayout, QGridLayout,
 )
 
 from .native_components import button
 from .native_settings_layout import (
     SettingsNavigation, SettingsNavigationDelegate, SettingsPreferencePanel,
-    SettingsQuickActions, SettingsToggle, settings_styles,
+    SettingsQuickActions, SettingsToggle, SettingsPreferenceRow, settings_styles,
+)
+from .native_settings_business import (
+    ColorSwatch, RulesSettingsPanel, SettingsBusinessPanel, SourceResults, business_styles, label,
 )
 
 
 class SettingsDialog(QDialog):
     preferencesChanged = Signal()
+    sourceImportRequested = Signal(str)
 
     def __init__(self, client, preferences, account_page, maintenance_page, rules_action, parent=None):
         super().__init__(parent)
@@ -182,88 +186,177 @@ class SettingsDialog(QDialog):
         client.get("/api/settings/state-direction", lambda data, error: self._direction_loaded(data, error, 0))
         display = QWidget()
         display_layout = QVBoxLayout(display)
-        source_group = QGroupBox("导入来源")
-        form = QFormLayout(source_group)
+        display_layout.setContentsMargins(0, 0, 0, 0)
+        display_layout.setSpacing(16)
+        source_group = self.source_panel = SettingsBusinessPanel("检测文件来源", badge=label("导入目录"))
+        form = source_group.content
+        form.setContentsMargins(20, 4, 20, 20)
         display_layout.addWidget(source_group)
-        self.source_path = QLineEdit(str(preferences.values["source_path"]))
-        select = button("选择目录", "funnel", self.choose_source)
+        self._source_baseline = None
+        self._source_saving, self._source_scanning, self._source_revision = False, False, 0
+        self._scan_serial = 0
+        self.source_path = QLineEdit()
+        self.source_path.setObjectName("settingsSourcePath")
+        self.source_path.setPlaceholderText("选择检测数据所在文件夹，可使用共享目录")
+        self.source_path.setAccessibleName("本地或共享文件夹")
+        self.source_path.setFixedHeight(38)
+        self.source_browse = button("浏览…", None, self.choose_source)
+        self.source_browse.setObjectName("settingsSourceBrowse")
+        self.source_browse.setFixedSize(62, 38)
+        source_caption = label("本地或共享文件夹")
+        source_caption.setFixedHeight(19)
+        form.addWidget(source_caption)
+        form.addSpacing(8)
         row = QHBoxLayout()
+        row.setSpacing(8)
         row.addWidget(self.source_path, 1)
-        row.addWidget(select)
-        form.addRow("默认导入目录", row)
-        self.scan_source = button("扫描来源目录", "search", self.scan_sources)
-        form.addRow(self.scan_source)
-        self.source_results = QTableWidget(0, 3)
-        self.source_results.setHorizontalHeaderLabels(["目录", "基地/机组", "大修"])
-        self.source_results.horizontalHeader().setStretchLastSection(True)
-        self.source_results.setMaximumHeight(180)
+        row.addWidget(self.source_browse)
+        form.addLayout(row)
+        form.addSpacing(19)
+        actions = QHBoxLayout()
+        actions.setSpacing(9)
+        self.source_save_status = label("正在读取文件来源…", "settingsBusinessHint")
+        self.source_save_status.setFixedHeight(18)
+        actions.addWidget(self.source_save_status, 1, Qt.AlignmentFlag.AlignVCenter)
+        self.save_source = QPushButton("保存来源")
+        self.save_source.setObjectName("settingsSourceSave")
+        self.save_source.clicked.connect(self.persist_source)
+        self.save_source.setFixedSize(75, 36)
+        actions.addWidget(self.save_source)
+        self.scan_source = button("扫描指套管目录", None, self.scan_sources)
+        self.scan_source.setObjectName("settingsSourceScan")
+        self.scan_source.setProperty("primary", True)
+        self.scan_source.setFixedSize(118, 36)
+        actions.addWidget(self.scan_source)
+        form.addLayout(actions)
+        form.addSpacing(10)
+        self.scan_status = label("尚未扫描", "settingsBusinessHint")
+        self.scan_status.setMinimumHeight(18)
+        form.addWidget(self.scan_status)
+        form.addSpacing(10)
+        self.source_empty = label("选择文件夹后扫描可用大修目录", "settingsSourceEmpty")
+        self.source_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.source_empty.setMinimumHeight(55)
+        form.addWidget(self.source_empty)
+        self.source_results = SourceResults(self._open_source)
         self.source_results.hide()
-        form.addRow(self.source_results)
-        self.scan_status = QLabel()
-        self.scan_status.setWordWrap(True)
-        form.addRow(self.scan_status)
-        parsing_group = QGroupBox("文件解析")
-        parsing_form = QFormLayout(parsing_group)
+        form.addWidget(self.source_results)
+        parsing_group = self.parsing_panel = SettingsBusinessPanel("文件解析", badge=label("自动保存"))
+        parsing_group.resized.connect(self._layout_sidebar)
         self.display_policy = QComboBox()
         for index in range(self.policy.count()):
             self.display_policy.addItem(self.policy.itemText(index), self.policy.itemData(index))
         self.display_policy.setCurrentIndex(self.policy.currentIndex())
-        parsing_form.addRow("RPT 选择策略", self.display_policy)
+        self.parsing_row = SettingsPreferenceRow("RPT 选择策略",
+                                                "手动逐组选择，或预选修改时间最新版本后逐组确认",
+                                                self.display_policy, parsing_group.body)
+        self.parsing_row.setObjectName("settingsParsingRow")
+        parsing_group.content.addWidget(self.parsing_row)
+        self.policy_note = label("", "settingsPolicyNote")
+        self.policy_note.setMinimumHeight(40)
+        parsing_group.content.addSpacing(12)
+        parsing_group.content.addWidget(self.policy_note)
+        self._report_policy_note()
         display_layout.addWidget(parsing_group)
-        depth_group = QGroupBox("磨损显示分级")
-        form = QFormLayout(depth_group)
+        depth_group = self.severity_panel = SettingsBusinessPanel(
+            "二维管板严重度", "按同一管的最大磨损比例显示单一颜色，不改变原始数据")
+        form = depth_group.content
         display_layout.addWidget(depth_group)
+        self.color_values = list(preferences.values["depth_colors"])
+        self.none_color = preferences.values["ndd_color"]
+        self.swatches, self.severity_labels = [], []
+        form.addSpacing(8)
+        legend = label("颜色分级", "settingsSeverityLegend")
+        legend.setMinimumHeight(27)
+        form.addWidget(legend)
+        form.addSpacing(2)
+        self.none_swatch = ColorSwatch(self.none_color)
+        self.none_swatch.setAccessibleName("NDD 颜色")
+        self.none_swatch.setToolTip("NDD 颜色")
+        self.none_swatch.clicked.connect(lambda: self.choose_color(-1))
+        color_rows = [("NDD", self.none_swatch)]
+        for i, value in enumerate(self.color_values):
+            swatch = ColorSwatch(value)
+            swatch.setAccessibleName(f"第 {i + 1} 档磨损颜色")
+            swatch.setToolTip(f"第 {i + 1} 档磨损颜色")
+            swatch.clicked.connect(lambda _, index=i: self.choose_color(index))
+            self.swatches.append(swatch)
+            color_rows.append(("", swatch))
+        for title, control in color_rows:
+            text = label(title)
+            self.severity_labels.append(text)
+            self._severity_row(form, text, control)
+        form.addSpacing(8)
+        legend = label("关注与极限阈值", "settingsSeverityLegend")
+        legend.setMinimumHeight(27)
+        form.addWidget(legend)
+        form.addSpacing(2)
         self.levels = []
         for i, value in enumerate(preferences.values["depth_levels"]):
             level = QSpinBox()
-            level.setRange(1, 100)
+            level.setRange(0, 100)
+            level.setFixedSize(120, 34)
             level.setValue(value)
             self.levels.append(level)
-            form.addRow(f"磨损深度分界 {i + 1}（%）", level)
-        self.color_values = list(preferences.values["depth_colors"])
-        self.swatches = []
-        colors = QHBoxLayout()
-        for i, value in enumerate(self.color_values):
-            swatch = QPushButton()
-            swatch.setFixedSize(46, 30)
-            swatch.setToolTip(f"第 {i + 1} 档磨损颜色")
-            swatch.setStyleSheet(f"background:{value}")
-            swatch.clicked.connect(lambda _, index=i: self.choose_color(index))
-            self.swatches.append(swatch)
-            colors.addWidget(swatch)
-        colors.addStretch()
-        form.addRow("深度色阶", colors)
-        self.point_labels = QCheckBox("在趋势与分布图数据点旁显示数值")
+            title = ("关注起始比例 (%)", "极限起始比例 (%)")[i] if len(
+                preferences.values["depth_levels"]) == 2 else f"磨损深度分界 {i + 1} (%)"
+            level.setAccessibleName(title)
+            self._severity_row(form, label(title), level)
+        self.point_labels = QCheckBox()
         self.point_labels.setChecked(preferences.values["point_labels"])
-        self.ndd_zero = QCheckBox("NDD 记 0 深度")
-        self.ndd_zero.setToolTip("前次明确 NDD 按 0 基线计算匹配增量；关闭后留空。判定值，非实测。")
+        self.ndd_zero = QCheckBox()
         self.ndd_zero.setChecked(preferences.values["ndd_zero"])
-        form.addRow("图表数值标注", self.point_labels)
-        form.addRow("检测结论", self.auto_ndd)
-        form.addRow("NDD 深度基线", self.ndd_zero)
-        self.display_status = QLabel("导入与显示设置已保存")
-        self.display_status.setObjectName("muted")
-        display_layout.addWidget(self.display_status)
+        self.auto_ndd.setText("")
+        for title, control, hint in (
+            ("图表数值标注", self.point_labels, "在趋势与分布图数据点旁显示数值"),
+            ("自动识别 NDD", self.auto_ndd,
+             "开启：空白结论且无磨损信息时按 NDD 统计（会在检测结论徽章标注“自动”）；关闭：仅原始 NDD 类代码才算 NDD，空白保持“无结论”"),
+            ("NDD 记 0 深度", self.ndd_zero,
+             "开启：前次结论为明确 NDD 时按 0 深度起算匹配增量，趋势图与明细会标注“NDD 0 基线”（判定值，非实测）；关闭：NDD 不参与零基线，相关增量保持留空"),
+        ):
+            control.setAccessibleName(title)
+            control.setToolTip(hint)
+            row = QWidget()
+            row.setObjectName("settingsSeverityRow")
+            grid = QGridLayout(row)
+            grid.setContentsMargins(0, 10, 0, 10)
+            grid.setHorizontalSpacing(12)
+            grid.setVerticalSpacing(12)
+            control.setFixedSize(25, 25)
+            grid.addWidget(label(title), 0, 0)
+            grid.addWidget(control, 0, 1)
+            hint_label = label(hint, "settingsBusinessHint")
+            hint_label.setMinimumHeight(18)
+            grid.addWidget(hint_label, 1, 0, 1, 2)
+            grid.setColumnStretch(0, 1)
+            row.setMinimumHeight(77)
+            form.addWidget(row)
+        form.addSpacing(12)
+        self.severity_note = label("", "settingsRulesNote")
+        form.addWidget(self.severity_note)
+        self.display_status = label("导入与显示设置已保存", "settingsBusinessHint")
+        form.addWidget(self.display_status)
         display_layout.addStretch()
-        self.source_path.editingFinished.connect(self.save_display)
+        self.source_path.textChanged.connect(self._source_edited)
         self.policy.currentIndexChanged.connect(self._preference_policy_selected)
         self.display_policy.currentIndexChanged.connect(self._display_policy_selected)
         self.point_labels.toggled.connect(self._queue_display)
         self.ndd_zero.toggled.connect(self._queue_display)
         for control in self.levels:
             control.valueChanged.connect(self._queue_display)
-        self.add_page("导入与显示", display, subtitle="来源与可视化", scroll=True)
-        rules = QWidget()
-        rules_layout = QVBoxLayout(rules)
-        self.rules_text = QLabel()
-        self.rules_text.setWordWrap(True)
-        rules_layout.addWidget(self.rules_text)
-        self.create_rule = button("建立并激活规则版本", "settings", rules_action)
-        self.create_rule.setEnabled("settings.manage" in self.permissions)
-        rules_layout.addWidget(self.create_rule)
+        self._severity_labels()
+        self.add_page("导入与显示", display, subtitle="来源与可视化", scroll=True, framed=False)
+        rules = self.rules_panel = RulesSettingsPanel(client, self.permissions)
+        self.rules_text, self.create_rule = rules.active, rules.create
+        rules_page = QWidget()
+        rules_layout = QVBoxLayout(rules_page)
+        rules_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
+        rules_layout.setContentsMargins(0, 0, 0, 0)
+        rules_layout.addWidget(rules)
         rules_layout.addStretch()
-        self.add_page("对比规则", rules, subtitle="历次结果匹配")
-        client.get("/api/analysis-rules", self._rules_loaded)
+        self.add_page("对比规则", rules_page, subtitle="历次结果匹配", scroll=True, framed=False)
+        self._source_actions()
+        client.get("/api/settings/data-source", self._source_profile_loaded)
         self.add_page("账户与权限", account_page, subtitle="个人账户、角色与密码")
         maintenance = QWidget()
         maintenance_layout = QVBoxLayout(maintenance)
@@ -325,15 +418,31 @@ class SettingsDialog(QDialog):
             self.preference_panel.narrow = narrow
             self.preference_panel.window_width = self.width()
             self.preference_panel.relayout()
+        if hasattr(self, "parsing_row"):
+            width = max(1, self.parsing_panel.width() - 42)
+            height = self.parsing_row.layout_for_width(width, narrow,
+                                                      9 if self.width() <= 1000 else 14, True)
+            for child in (self.parsing_row.title, self.parsing_row.hint, self.display_policy):
+                child.move(child.x() - 12, child.y())
+            self.parsing_row.setFixedHeight(round(height))
+        if hasattr(self, "rules_panel"):
+            self.rules_panel.relayout()
 
     def set_theme(self, theme):
         dark = theme == "dark"
-        self.setStyleSheet(settings_styles(theme))
+        self.setStyleSheet(settings_styles(theme) + business_styles(dark))
+        self.rules_panel.setProperty("dark", dark)
+        for control in self.rules_panel.group.buttons():
+            control.setProperty("dark", dark)
+            control.update()
         self.nav.setProperty("dark", dark)
         self.nav.viewport().update()
         for control in self.quick_actions.values():
             control.set_theme(dark)
         self.preference_panel.set_theme(dark)
+        for row in (self.parsing_row, *self.rules_panel.rows):
+            row.dark = dark
+            row.update()
         self.preference_panel.relayout()
 
     def _sync_report_policy(self):
@@ -344,16 +453,50 @@ class SettingsDialog(QDialog):
         for control in (self.policy, self.display_policy):
             with QSignalBlocker(control):
                 control.setCurrentIndex(control.findData(value))
+        self._report_policy_note()
 
     def _preference_policy_selected(self, *_):
         with QSignalBlocker(self.display_policy):
             self.display_policy.setCurrentIndex(self.display_policy.findData(self.policy.currentData()))
         self._queue_preferences()
+        self._report_policy_note()
 
     def _display_policy_selected(self, *_):
         with QSignalBlocker(self.policy):
             self.policy.setCurrentIndex(self.policy.findData(self.display_policy.currentData()))
         self._queue_display()
+        self._report_policy_note()
+
+    def _report_policy_note(self):
+        if hasattr(self, "policy_note"):
+            self.policy_note.setText("扫描后按修改时间预选最新 RPT，仍需逐组确认。"
+                                     if self.display_policy.currentData() == "latest" else
+                                     "扫描后由你为每个数据组手动选择一份 RPT，并逐组确认。")
+
+    @staticmethod
+    def _severity_row(layout, title, control):
+        row = QWidget()
+        row.setObjectName("settingsSeverityRow")
+        line = QHBoxLayout(row)
+        line.setContentsMargins(0, 10, 0, 10)
+        line.setSpacing(12)
+        line.addWidget(title, 1)
+        line.addWidget(control)
+        row.setMinimumHeight(59 if isinstance(control, QSpinBox) else 56)
+        layout.addWidget(row)
+
+    def _severity_labels(self):
+        levels = [control.value() for control in self.levels]
+        for index, control in enumerate(self.severity_labels[1:]):
+            lower = 0 if index == 0 else levels[index - 1]
+            grade = ("一", "二", "三", "四")[index] + "级"
+            text = f"{grade} · {lower} 至 {levels[index]}%" if index < len(levels) else f"{grade} · {lower}% 以上"
+            if len(levels) == 2:
+                text = text.replace("1级", "一级").replace("2级", "二级").replace("3级", "三级")
+            control.setText(text)
+        self.severity_note.setText(
+            f"当前关注阈值 {levels[0]}% / 极限阈值 {levels[-1]}%；管板颜色、严重度统计和分析参考线会立即更新。"
+            "它们仅用于显示和分析，不是维修或验收判据。图表悬浮提示保留通道、位置、轮次、深度和状态。")
 
     def add_page(self, text, widget, *, subtitle="", title=None, scroll=False, framed=True):
         widget.setObjectName(widget.objectName() or "settingsPage")
@@ -409,17 +552,95 @@ class SettingsDialog(QDialog):
         self.preference_panel.relayout()
 
     def choose_source(self):
+        if self._source_scanning:
+            return
         path = QFileDialog.getExistingDirectory(self, "选择默认导入目录", self.source_path.text())
         if path:
             self.source_path.setText(path)
-            self.save_display()
+            self.scan_status.setText("已选择来源文件夹，可保存配置或扫描目录")
+
+    def _source_edited(self, *_):
+        self._source_revision += 1
+        if not self._source_saving and self._source_baseline is not None:
+            self.source_save_status.setText("来源路径尚未保存" if self._source_dirty() else "文件来源已保存。")
+        self._source_actions()
+
+    def _source_dirty(self):
+        return self._source_baseline is not None and self.source_path.text().strip() != self._source_baseline.get("source_directory", "")
+
+    def _source_actions(self):
+        self.save_source.setEnabled("settings.manage" in self.permissions and
+                                    not self._source_saving and self._source_dirty())
+        self.scan_source.setEnabled("data.import" in self.permissions and not self._source_scanning)
+        self.source_browse.setEnabled(not self._source_scanning)
+
+    def _source_profile_loaded(self, data, error):
+        if error or not data or not isinstance(data.get("profile"), dict):
+            self.source_save_status.setText("配置未读取，仍可临时选择文件夹扫描。")
+        else:
+            self._source_baseline = dict(data["profile"])
+            if self._source_revision == 0:
+                with QSignalBlocker(self.source_path):
+                    self.source_path.setText(str(self._source_baseline.get("source_directory") or ""))
+            self.source_save_status.setText("来源路径尚未保存" if self._source_dirty() else
+                                            ("已保存文件来源。" if self.source_path.text() else "文件来源与数据库存储相互独立"))
+            if data.get("warnings"):
+                self.source_save_status.setText(" ".join(data["warnings"]))
+        self._source_actions()
+
+    def persist_source(self):
+        if self._source_saving or not self._source_dirty() or "settings.manage" not in self.permissions:
+            return
+        self._source_saving = True
+        revision, path = self._source_revision, self.source_path.text().strip()
+        self.source_save_status.setText("正在保存到本地配置…")
+        self.save_source.setText("保存中…")
+        self._source_actions()
+
+        def refreshed(data, error):
+            if error or not data or not isinstance(data.get("profile"), dict):
+                saved(None, error or "服务未返回有效来源配置")
+                return
+            payload = {**data["profile"], "source_directory": path}
+            self.client.post("/api/settings/data-source", {"profile": payload}, saved)
+
+        def saved(data, error):
+            self._source_saving = False
+            self.save_source.setText("保存来源")
+            if error or not data or not isinstance(data.get("profile"), dict):
+                self.source_save_status.setText(f"保存失败：{error or '服务未返回有效来源配置'}")
+            else:
+                self._source_baseline = dict(data["profile"])
+                if revision == self._source_revision:
+                    with QSignalBlocker(self.source_path):
+                        self.source_path.setText(str(self._source_baseline.get("source_directory") or ""))
+                self.source_save_status.setText("来源路径尚未保存" if self._source_dirty() else "文件来源已保存。")
+                try:
+                    self.preferences.save(source_path=str(self._source_baseline.get("source_directory") or ""))
+                except OSError as exc:
+                    self.source_save_status.setText(f"来源已保存，本机目录偏好未更新：{exc}")
+            self._source_actions()
+        self.client.get("/api/settings/data-source", refreshed)
+
+    def _open_source(self, item):
+        path = str(item.get("path") or "")
+        if path and "data.import" in self.permissions:
+            self.sourceImportRequested.emit(path)
+        elif path:
+            self.scan_status.setText("当前账户没有导入权限")
 
     def choose_color(self, index):
         from PySide6.QtGui import QColor
-        color = QColorDialog.getColor(QColor(self.color_values[index]), self)
+        color = QColorDialog.getColor(QColor(self.none_color if index == -1 else self.color_values[index]), self)
         if color.isValid():
-            self.color_values[index] = color.name()
-            self.swatches[index].setStyleSheet(f"background:{color.name()}")
+            if index == -1:
+                self.none_color = color.name()
+                self.none_swatch.color = color.name()
+                self.none_swatch.update()
+            else:
+                self.color_values[index] = color.name()
+                self.swatches[index].color = color.name()
+                self.swatches[index].update()
             self.save_display()
 
     def _queue_preferences(self, *_):
@@ -469,25 +690,37 @@ class SettingsDialog(QDialog):
         self._preference_saved("已恢复本页默认设置")
 
     def scan_sources(self):
+        if self._source_scanning or "data.import" not in self.permissions:
+            return
         path = self.source_path.text().strip()
         if not path:
             self.scan_status.setText("请选择来源目录")
             return
-        self.scan_source.setEnabled(False)
-        self.scan_status.setText("正在扫描...")
-        self.client.post("/api/discover-server", {"path": path}, self._sources_loaded)
+        self._source_scanning = True
+        self._scan_serial += 1
+        serial = self._scan_serial
+        self._source_actions()
+        self.scan_source.setText("正在扫描...")
+        self.scan_status.setText("正在识别检测来源目录...")
+        self.source_results.hide()
+        self.source_empty.setText("正在扫描本地或共享文件夹...")
+        self.source_empty.show()
+        self.client.post("/api/discover-server", {"path": path},
+                         lambda data, error: self._sources_loaded(data, error, serial))
 
-    def _sources_loaded(self, data, error):
-        self.scan_source.setEnabled(True)
+    def _sources_loaded(self, data, error, serial=None):
+        if serial is not None and serial != self._scan_serial:
+            return
+        self._source_scanning = False
+        self.scan_source.setText("扫描指套管目录")
+        self._source_actions()
         items = (data or {}).get("items") or []
-        self.source_results.setRowCount(len(items))
-        for row, item in enumerate(items):
-            for col, value in enumerate((item.get("path", ""),
-                                         f"{item.get('station') or item.get('site', '')} / {item.get('unit_id', '')}号机组",
-                                         item.get("outage", ""))):
-                self.source_results.setItem(row, col, QTableWidgetItem(str(value)))
-        self.source_results.setVisible(bool(items))
-        self.scan_status.setText(error or f"发现 {len(items)} 个来源；扫描 {(data or {}).get('scanned_directories', 0)} 个目录"
+        self.source_results.set_items(items if not error else [])
+        self.source_results.setVisible(bool(items) and not error)
+        self.source_empty.setVisible(not items or bool(error))
+        self.source_empty.setText(error or "未发现包含 TH 数据组的指套管目录")
+        self.scan_status.setText("扫描失败，可修改路径后重试" if error else
+                                 f"已扫描 {(data or {}).get('scanned_directories', 0)} 个目录，发现 {len(items)} 个指套管大修"
                                  + ("，目录较多，请缩小范围继续扫描" if (data or {}).get("truncated") else ""))
 
     def save_preferences(self):
@@ -514,13 +747,15 @@ class SettingsDialog(QDialog):
 
     def save_display(self):
         levels = [control.value() for control in self.levels]
-        if levels != sorted(set(levels)):
-            self.display_status.setText("分界值必须严格递增，尚未保存")
+        if levels != sorted(levels):
+            self.display_status.setText("关注阈值不能大于极限阈值，尚未保存")
             return
         try:
-            self.preferences.save(source_path=self.source_path.text(), report_policy=self.policy.currentData(),
+            self.preferences.save(report_policy=self.policy.currentData(),
                                   depth_levels=levels, depth_colors=self.color_values,
+                                  ndd_color=self.none_color,
                                   point_labels=self.point_labels.isChecked(), ndd_zero=self.ndd_zero.isChecked())
+            self._severity_labels()
             self.preferencesChanged.emit()
             self.display_status.setText("导入与显示设置已保存")
         except OSError as exc:
@@ -570,11 +805,7 @@ class SettingsDialog(QDialog):
         self.client.post("/api/backup-policy", {"automatic_keep": self.keep.value()}, self._policy_loaded)
 
     def _rules_loaded(self, data, error):
-        active = (data or {}).get("active") or {}
-        self.rules_text.setText(error or f"当前规则：{active.get('name', '')}\n"
-                                f"版本：{active.get('version', 0)}\n"
-                                f"轴向匹配容差：±{active.get('match_tolerance_mm', 0.01)} mm\n"
-                                f"{active.get('note', '')}")
+        self.rules_panel._loaded(self.rules_panel.serial, data, error)
 
     def select_backup(self, page):
         path, _ = QFileDialog.getOpenFileName(self, "选择数据库备份", "", "数据库备份 (*.db)")

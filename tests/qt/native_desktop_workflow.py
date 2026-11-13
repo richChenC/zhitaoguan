@@ -76,11 +76,14 @@ def main() -> int:
     db = work / "thimble.db"
     with sqlite3.connect(source.resolve().as_uri() + "?mode=ro", uri=True) as src, sqlite3.connect(db) as dest:
         src.backup(dest)
+    src.close()
+    dest.close()
     with sqlite3.connect(db) as conn:
         conn.executescript(
             "DELETE FROM login_sessions; DELETE FROM user_roles; DELETE FROM users;"
         )
         conn.commit()
+    conn.close()
 
     os.environ["THIMBLE_QT_TEST_DATA_ROOT"] = str(work)
     os.environ["THIMBLE_ALLOW_MULTI_INSTANCE"] = "1"

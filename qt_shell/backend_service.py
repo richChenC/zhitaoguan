@@ -80,7 +80,8 @@ class BackendService:
         candidates: list[tuple[str, list[str]]] = []
         source = (sys.executable, [str(BACKEND_SOURCE)])
         if not getattr(sys, "frozen", False) and BACKEND_SOURCE.is_file():
-            candidates.append(source)
+            # A source failure must not silently run an older frozen schema/API.
+            return [source]
         if BACKEND_EXE.is_file():
             candidates.append((str(BACKEND_EXE), []))
         return candidates

@@ -373,6 +373,7 @@ class Preferences(QObject):
                 "auto_ndd": True, "notification_duration": 3000, "notification_sound": True,
                 "ndd_zero": True, "point_labels": False,
                 "report_policy": "manual", "source_path": "", "login_username": "",
+                "ndd_color": "#ffffff",
                 "depth_levels": [30, 50], "depth_colors": ["#79b98c", "#e5a83b", "#df4b45"]}
 
     def __init__(self, parent=None):
@@ -421,9 +422,11 @@ class Preferences(QObject):
         if isinstance(data.get("login_username"), str) and re.fullmatch(r"[A-Za-z0-9_.-]{0,64}", data["login_username"]):
             values["login_username"] = data["login_username"]
         levels, colors = data.get("depth_levels"), data.get("depth_colors")
+        if isinstance(data.get("ndd_color"), str) and re.fullmatch(r"#[0-9a-fA-F]{6}", data["ndd_color"]):
+            values["ndd_color"] = data["ndd_color"]
         if (isinstance(levels, list) and len(levels) in (2, 3)
-                and all(type(value) is int and 0 < value <= 100 for value in levels)
-                and sorted(set(levels)) == levels
+                and all(type(value) is int and 0 <= value <= 100 for value in levels)
+                and sorted(levels) == levels
                 and isinstance(colors, list) and len(colors) == len(levels) + 1
                 and all(isinstance(value, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", value) for value in colors)):
             values.update(depth_levels=list(levels), depth_colors=list(colors))
@@ -707,6 +710,7 @@ class PlateMap(QWidget):
         self.hit_regions = {}
         self.levels = [20, 40, 60]
         self.colors = ["#39a78e", "#edbd50", "#df8252", "#c64e53"]
+        self.none_color = "#ffffff"
         self.setMinimumSize(280, 280)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMouseTracking(True)
@@ -734,7 +738,7 @@ class PlateMap(QWidget):
             return QColor({"plugged": "#c64e53", "shifted": "#e0ad36", "replaced": "#5c91ce",
                            "normal": "#39a78e"}.get(row.get("state"), "#e1e7eb"))
         if self.mode == "coverage":
-            return QColor({"defect": "#c64e53", "NDD": "#39a78e", "ndd": "#39a78e",
+            return QColor({"defect": "#c64e53", "NDD": self.none_color, "ndd": self.none_color,
                            "incomplete": "#e0ad36", "missing": "#e1e7eb"}.get(
                 row.get("coverage") or row.get("category"), "#39a78e"))
         depth = row.get("max_percent", row.get("percent"))
@@ -967,6 +971,7 @@ class ReferencePlateMap(PlateMap):
         super().__init__(parent)
         self.parity = "both"
         self.parity_rows = {1: {}, 0: {}}
+        self.ndd_tubes = {1: set(), 0: set()}
         self.theme = "light"
         self.selection_ready = True
         self.allow_parity_switch = True
@@ -985,18 +990,22 @@ class ReferencePlateMap(PlateMap):
         self.unit = int(unit or 1)
         self.selected = set(selected)
         self.parity_rows = {1: {}, 0: {}}
+        self.ndd_tubes = {1: set(), 0: set()}
         for row in rows:
             parity = int(row.get("unit_id") or self.unit) % 2
             tube = int(row.get("thimble_id") or 0)
             previous = self.parity_rows[parity].get(tube)
             effective = str(row.get("display_conclusion") or row.get("indication") or "").upper() != "NDD" and row.get("detection_status") != "ndd"
+            if not effective:
+                self.ndd_tubes[parity].add(tube)
             if effective and (previous is None or (row.get("percent") or 0) > (previous.get("percent") or 0)):
                 self.parity_rows[parity][tube] = row
         self.update()
 
     def _record_color(self, parity, tube):
         row = self.parity_rows[parity].get(tube)
-        return self._color(row) if row and (row.get("percent") or 0) > 0 else QColor("#ffffff")
+        return self._color(row) if row and (row.get("percent") or 0) > 0 else QColor(
+            self.none_color if tube in self.ndd_tubes[parity] else "#ffffff")
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -1046,7 +1055,7 @@ class ReferencePlateMap(PlateMap):
                                for p, tube in ((1, odd), (0, even))
                                if self.parity == "both" or p == (1 if self.parity == "odd" else 0))
             def color(parity, tube):
-                return QColor("#334446") if dark and not has_severity else self._record_color(parity, tube)
+                return QColor("#334446") if dark and not has_severity and tube not in self.ndd_tubes[parity] else self._record_color(parity, tube)
             painter.setPen(Qt.PenStyle.NoPen)
             if self.parity == "both":
                 painter.setBrush(color(1, odd))

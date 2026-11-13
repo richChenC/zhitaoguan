@@ -2916,7 +2916,7 @@ def list_analysis_rules() -> list[dict]:
         return [dict(row) for row in db.execute("SELECT * FROM analysis_rules ORDER BY version DESC")]
 
 
-def create_analysis_rule(name: str, match_tolerance_mm, note: str = "") -> dict:
+def create_analysis_rule(name: str, match_tolerance_mm, note: str = "", parent_version=0) -> dict:
     """建立并激活新的对比规则版本；旧版本保留为历史，不删除。"""
     label = str(name or "").strip()
     if not label:
@@ -2927,15 +2927,28 @@ def create_analysis_rule(name: str, match_tolerance_mm, note: str = "") -> dict:
         raise ValueError("匹配容差必须是数字")
     if not 0 < tolerance <= 5:
         raise ValueError("匹配容差需大于 0 且不超过 5 mm")
+    if isinstance(parent_version, bool):
+        raise ValueError("来源版本必须是非负整数")
+    try:
+        parent = int(parent_version or 0)
+        if parent < 0 or str(parent_version or 0).strip() != str(parent):
+            raise ValueError
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError("来源版本必须是非负整数") from None
     with connect() as db:
+        db.execute("BEGIN IMMEDIATE")
+        if parent and not db.execute("SELECT 1 FROM analysis_rules WHERE version=?", (parent,)).fetchone():
+            raise ValueError(f"来源版本 v{parent} 不存在，请刷新后重新选择")
         version = db.execute("SELECT COALESCE(MAX(version),0)+1 FROM analysis_rules").fetchone()[0]
         db.execute("UPDATE analysis_rules SET is_active=0")
-        cursor = db.execute("""INSERT INTO analysis_rules(version,name,match_tolerance_mm,note,created_by,created_at,is_active)
-                               VALUES(?,?,?,?,?,?,1)""",
+        cursor = db.execute("""INSERT INTO analysis_rules(version,name,match_tolerance_mm,note,created_by,created_at,is_active,parent_version)
+                               VALUES(?,?,?,?,?,?,1,?)""",
                             (version, label, tolerance, str(note or "").strip(),
-                             local_security.actor(), datetime.now().isoformat(timespec="seconds")))
+                             local_security.actor(), datetime.now().isoformat(timespec="seconds"), parent))
         rule = dict(db.execute("SELECT * FROM analysis_rules WHERE id=?", (cursor.lastrowid,)).fetchone())
-    _log_operation("analysis_rule", "analysis_rules", f"建立并激活规则 v{version}：{label}，容差 {tolerance:g} mm", 1, note=str(note or ""))
+    basis = f"（基于 v{parent}）" if parent else ""
+    _log_operation("analysis_rule", "analysis_rules", f"建立并激活规则 v{version}：{label}，容差 {tolerance:g} mm{basis}", 1,
+                   note=str(note or "") + (f"；来源版本 v{parent}" if parent else ""))
     return rule
 
 
@@ -5310,7 +5323,8 @@ class Handler(SimpleHTTPRequestHandler):
             if path == "/api/export-indication-warnings": return self.json_response(export_indication_warnings(data.get("items") or []))
             if path == "/api/deduplicate": return self.json_response(deduplicate_database())
             if path == "/api/analysis-rules":
-                return self.json_response(create_analysis_rule(data.get("name", ""), data.get("match_tolerance_mm"), data.get("note", "")))
+                return self.json_response(create_analysis_rule(data.get("name", ""), data.get("match_tolerance_mm"),
+                                                               data.get("note", ""), data.get("parent_version", 0)))
             if path == "/api/backup-policy":
                 return self.json_response(backup_service.policy(sys.modules[__name__], data))
             if path == "/api/backup":

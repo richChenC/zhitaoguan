@@ -397,7 +397,8 @@ class SettingsPreferenceRow(QWidget):
 
     def layout_for_width(self, inner, narrow, gap, last):
         control_height = 24 if isinstance(self.control, SettingsToggle) else (
-            40 if self.control.objectName() == "settingsThemeSwitch" else 34)
+            40 if self.control.objectName() == "settingsThemeSwitch" else
+            self.control.property("settingsControlHeight") or 34)
         label_width = inner if narrow else inner - 340 - gap
         _layout, hint_height = self.hint.text_layout(label_width)
         label_height = 20.8 + 4 + hint_height

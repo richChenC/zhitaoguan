@@ -57,9 +57,10 @@ class Disclosure(QWidget):
 class CompositionStrip(QWidget):
     colors = {"defect": "#d38794", "NDD": "#ffffff", "incomplete": "#e2bd75", "missing": "#9aaeb7"}
 
-    def __init__(self, counts, parent=None):
+    def __init__(self, counts, parent=None, *, none_color="#ffffff"):
         super().__init__(parent)
         self.counts = counts
+        self.colors = {**self.colors, "NDD": none_color}
         self.setFixedHeight(11)
         self.setMinimumWidth(145)
         self.setToolTip(" · ".join(f"{label} {counts[key]} 根" for key, label in
@@ -101,6 +102,7 @@ class UnitOverview(QWidget):
         self.groups, self.rows, self.disclosures, self.history = {}, {}, {}, {}
         self.collapsed_sites = set()
         self.levels, self.colors = [30, 50], ["#79b98c", "#e5a83b", "#df4b45"]
+        self.none_color = "#ffffff"
         self._data = None
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
@@ -225,7 +227,7 @@ class UnitOverview(QWidget):
         missing.clicked.connect(lambda: self.tubesRequested.emit(unit, outage, numbers, "detection"))
         composition_heading.addWidget(missing)
         composition_box.addLayout(composition_heading)
-        composition_box.addWidget(CompositionStrip(counts))
+        composition_box.addWidget(CompositionStrip(counts, none_color=self.none_color))
         grid.addWidget(composition, 0, 3)
         view = button("查看管板", "search", lambda: self.plateRequested.emit(unit, outage))
         view.setMinimumWidth(0)

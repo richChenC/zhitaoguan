@@ -1105,13 +1105,18 @@ class DataWorkbench(QWidget):
     def import_excel(self) -> None:
         self._open_import_wizard("excel")
 
-    def _open_import_wizard(self, mode):
+    def _open_import_wizard(self, mode, source_path=None):
+        if self.permissions is not None and "data.import" not in self.permissions:
+            return
         from .native_import import ImportWizard
         from .native_components import Preferences
         context = getattr(self.window(), "context", None)
         preferences = context.preferences.values if context else Preferences().values
         wizard = ImportWizard(self.client, self.MAPPING_FIELDS, preferences, self, mode=mode)
         wizard.imported.connect(self._wizard_imported)
+        if source_path:
+            wizard.path.setText(source_path)
+            QTimer.singleShot(0, wizard.next)
         wizard.exec()
         wizard.deleteLater()
 
@@ -3958,6 +3963,10 @@ class NativeAnalyticsPage(QWidget):
         self.complex_tabs.setVisible(self.analysis_details.isChecked())
 
     def manage_analysis_rules(self) -> None:
+        host = self.window()
+        if hasattr(host, "open_settings"):
+            host.open_settings(3)
+            return
         self.client.get("/api/analysis-rules", self._rules_loaded)
 
     def _rules_loaded(self, data: dict[str, Any] | None, error: str | None) -> None:
@@ -4065,7 +4074,7 @@ class NativeChartWindow(QDialog):
         source = self.analytics_owner.visualization
         theme, animations = source.total.theme, source.total.animations
         self.page.visualization.set_theme(theme, animations)
-        self.page.visualization.set_severity(source.severity_levels, source.severity_colors)
+        self.page.visualization.set_severity(source.severity_levels, source.severity_colors, source.severity_none)
         changed = self.page.visualization.set_analysis_options(source.ndd_zero, source.total.point_labels)
         for control in self.findChildren(QPushButton):
             if control.property("iconName"):
@@ -7006,6 +7015,8 @@ class NativeMainWindow(QMainWindow):
         self.settings_dialog = SettingsDialog(client, self.context.preferences, settings,
                                               self.maintenance, self.stack.widget(3).manage_analysis_rules, self)
         self.settings_dialog.preferencesChanged.connect(self.apply_preferences)
+        self.settings_dialog.sourceImportRequested.connect(
+            lambda path: self.workbench._open_import_wizard("directory", path))
         self.workbench.recycleRequested.connect(self._open_recycle)
         for page in self.maintenance.findChildren(JsonTablePage):
             page.contextRequested.connect(self._open_record_context)
@@ -7125,6 +7136,7 @@ class NativeMainWindow(QMainWindow):
         self.stack.widget(1).load()
         self.client.get("/api/settings/state-direction", self.stack.widget(1)._direction_loaded)
         self.client.get("/api/settings/state-direction", self.settings_dialog._direction_loaded)
+        self.settings_dialog.rules_panel.load()
         analytics = self.stack.widget(3)
         analytics.load()
         analytics.load_complex_analysis()
@@ -7144,6 +7156,7 @@ class NativeMainWindow(QMainWindow):
         theme_changed = previous.get("theme") != theme
         density_changed = previous.get("density") != prefs["density"]
         severity_changed = any(previous.get(key) != prefs[key] for key in ("depth_levels", "depth_colors"))
+        none_changed = previous.get("ndd_color") != prefs["ndd_color"]
         motion_changed = previous.get("animations") != prefs["animations"]
         analysis_changed = any(previous.get(key) != prefs[key] for key in ("ndd_zero", "point_labels"))
         if theme_changed or density_changed:
@@ -7160,21 +7173,23 @@ class NativeMainWindow(QMainWindow):
             self.workbench.model.dark = theme == "dark"
             self.workbench.table.viewport().update()
             self.stack.widget(2).set_theme(theme)
-        if severity_changed:
+        if severity_changed or none_changed:
             for plate in (self.workbench.plate, self.stack.widget(1).plate, self.stack.widget(3).visualization.plate):
                 plate.levels = list(prefs["depth_levels"])
                 plate.colors = list(prefs["depth_colors"])
+                plate.none_color = prefs["ndd_color"]
                 plate.update()
-            self.stack.widget(2).set_severity(prefs["depth_levels"], prefs["depth_colors"])
+            if severity_changed:
+                self.stack.widget(2).set_severity(prefs["depth_levels"], prefs["depth_colors"])
         visualization = self.stack.widget(3).visualization
         if theme_changed or motion_changed:
             visualization.set_theme(theme, prefs["animations"])
-        if severity_changed:
-            visualization.set_severity(prefs["depth_levels"], prefs["depth_colors"])
+        if severity_changed or none_changed:
+            visualization.set_severity(prefs["depth_levels"], prefs["depth_colors"], prefs["ndd_color"])
         if analysis_changed and visualization.set_analysis_options(prefs["ndd_zero"], prefs["point_labels"]):
             self.stack.widget(3).load()
             self.stack.widget(3).load_complex_analysis()
-        if theme_changed or motion_changed or severity_changed or analysis_changed:
+        if theme_changed or motion_changed or severity_changed or none_changed or analysis_changed:
             for dialog in self.stack.widget(3)._chart_windows:
                 dialog.apply_preferences()
         if density_changed:

@@ -10,7 +10,7 @@ try:
 except ImportError:
     from database_runtime import GATE
 
-VERSION = 5
+VERSION = 6
 class ClosingConnection(sqlite3.Connection):
     def close(self):
         try:
@@ -49,6 +49,9 @@ VERSIONS = ((1, '001_legacy_business_baseline', ()),
             (4, '004_state_direction_preference', STATE_PREFERENCES_SQL),
             (5, '005_cross_group_exclusion_lookup', (
                 "CREATE INDEX IF NOT EXISTS idx_cross_group_exclusions_finding ON cross_group_exclusions(finding_id)",
+            )),
+            (6, '006_analysis_rule_lineage', (
+                "ALTER TABLE analysis_rules ADD COLUMN parent_version INTEGER NOT NULL DEFAULT 0",
             )))
 
 
@@ -111,6 +114,7 @@ def validate(path, current=False):
                     'analysis_rules': {'id','version','match_tolerance_mm'},
                     'report_exports': {'id','path','created_at'}}
         if current:
+            required['analysis_rules'].add('parent_version')
             required['findings'].update({'maintenance_text','business_key','is_deleted','import_batch_id','deleted_by'})
             required['tube_states'].update({'events_json','replacement_stage','offset_confirmed','unsigned_offset_mm','is_deleted'})
             required.update({'users': {'id','username','display_name','password_hash','active','failures','locked_until','created_at','updated_at'},
@@ -161,6 +165,10 @@ def upgrade(path, legacy_upgrade):
                     if version <= old_version:
                         continue
                     for statement in statements:
+                        # TRAE databases may already contain this compatible column.
+                        if version == 6 and any(row[1] == 'parent_version' for row in
+                                                db.execute('PRAGMA table_info(analysis_rules)')):
+                            continue
                         db.execute(statement)
                     db.execute('INSERT INTO schema_migrations VALUES(?,?,?,?)',
                                (version, name, checksum(name, statements), utcnow()))

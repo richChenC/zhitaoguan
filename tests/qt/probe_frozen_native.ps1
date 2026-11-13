@@ -542,6 +542,91 @@ try {
             $savedPreferences = Get-Content -LiteralPath (Join-Path $work 'native-preferences.json') -Raw | ConvertFrom-Json
             if ($savedPreferences.animations -ne $false) { throw 'Frozen native motion choice did not persist' }
             $result.steps += 'native-settings-quick-keyboard-and-saved-motion-mode'
+            $importCategory = Find-Control $window ([System.Windows.Automation.ControlType]::ListItem) '导入与显示'
+            if ($importCategory.Count -ne 1) { throw 'Native import settings category missing' }
+            $categoryBounds = $importCategory[0].Current.BoundingRectangle
+            if (-not [NativeProbeWindow]::ClickWindow($settingsHandle,
+                [int]($categoryBounds.X+$categoryBounds.Width/2), [int]($categoryBounds.Y+$categoryBounds.Height/2))) {
+                throw 'Could not click native import settings category'
+            }
+            Start-Sleep -Milliseconds 150
+            $sourceEdit = @(Find-Control $window ([System.Windows.Automation.ControlType]::Edit) '本地或共享文件夹' |
+                Where-Object { -not $_.Current.IsOffscreen })
+            if ($sourceEdit.Count -ne 1) {
+                $result.source_edit_controls = @(Find-Control $window ([System.Windows.Automation.ControlType]::Edit) |
+                    ForEach-Object { @{name=$_.Current.Name;offscreen=$_.Current.IsOffscreen;
+                                       bounds=$_.Current.BoundingRectangle.ToString()} })
+                Capture 'frozen-source-edit-missing'
+                throw 'Native import source edit missing'
+            }
+            $sourceValue = if ($RptDirectory) { $RptDirectory } else { Join-Path $work 'source' }
+            $sourceEdit[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($sourceValue)
+            $sourceSave = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '保存来源'
+            if ($sourceSave.Count -ne 1 -or -not $sourceSave[0].Current.IsEnabled) {
+                throw 'Native explicit source save missing or disabled'
+            }
+            Activate-Control $sourceSave[0]
+            $sourceConfig = Join-Path $work 'data/data-source.json'
+            $sourceSaved = $false
+            for ($attempt=0; $attempt -lt 100; $attempt++) {
+                Start-Sleep -Milliseconds 100
+                if (Test-Path -LiteralPath $sourceConfig) {
+                    $profile = Get-Content -LiteralPath $sourceConfig -Raw | ConvertFrom-Json
+                    if ($profile.profile.source_directory -eq $sourceValue) { $sourceSaved=$true; break }
+                }
+            }
+            if (-not $sourceSaved) { throw 'Frozen explicit source profile did not persist' }
+            $result.steps += 'native-import-source-explicit-save-and-profile-file'
+            $ruleCategory = Find-Control $window ([System.Windows.Automation.ControlType]::ListItem) '对比规则'
+            if ($ruleCategory.Count -ne 1) { throw 'Native rule category missing' }
+            $categoryBounds = $ruleCategory[0].Current.BoundingRectangle
+            if (-not [NativeProbeWindow]::ClickWindow($settingsHandle,
+                [int]($categoryBounds.X+$categoryBounds.Width/2), [int]($categoryBounds.Y+$categoryBounds.Height/2))) {
+                throw 'Could not click native rule category'
+            }
+            Start-Sleep -Milliseconds 200
+            foreach ($field in @(
+                @{Name='新规则名称';Value='Frozen lineage verification'},
+                @{Name='匹配容差 (mm)';Value='0.025'},
+                @{Name='备注';Value='Native UI and SQLite regression'}
+            )) {
+                $edit = @(Find-Control $window ([System.Windows.Automation.ControlType]::Edit) $field.Name |
+                    Where-Object { -not $_.Current.IsOffscreen })
+                if ($edit.Count -ne 1) { throw "Native rule field missing: $($field.Name)" }
+                $edit[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($field.Value)
+            }
+            $createRule = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) '建立并激活新版本' |
+                Where-Object { -not $_.Current.IsOffscreen })
+            if ($createRule.Count -ne 1 -or -not $createRule[0].Current.IsEnabled) {
+                throw 'Native rule creation control missing or not visible'
+            }
+            Activate-Control $createRule[0]
+            $ruleSaved = $false
+            for ($attempt=0; $attempt -lt 100; $attempt++) {
+                Start-Sleep -Milliseconds 100
+                $ruleJson = & $python -c "import json,sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.row_factory=sqlite3.Row; r=c.execute('SELECT * FROM analysis_rules WHERE is_active=1').fetchone(); print(json.dumps(dict(r))); c.close()" (Join-Path $work 'data/thimble.db')
+                if ($LASTEXITCODE -eq 0) {
+                    $savedRule = $ruleJson | ConvertFrom-Json
+                    if ($savedRule.name -eq 'Frozen lineage verification' -and $savedRule.parent_version -gt 0) {
+                        $ruleSaved=$true; break
+                    }
+                }
+            }
+            if (-not $ruleSaved) { throw 'Frozen rule version did not persist its parent' }
+            $visibleRule = @()
+            for ($attempt=0; $attempt -lt 50; $attempt++) {
+                Start-Sleep -Milliseconds 100
+                $visibleRule = @(Find-Control $window ([System.Windows.Automation.ControlType]::RadioButton) "以 v$($savedRule.version) 作为新版本基础" |
+                    Where-Object { -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Height -ge 90 })
+                if ($visibleRule.Count -eq 1) { break }
+            }
+            if ($visibleRule.Count -ne 1) {
+                Capture 'frozen-rule-history-missing'
+                throw 'New native rule disappeared from visible history after creation'
+            }
+            $result.rule_lineage = @{version=$savedRule.version; parent_version=$savedRule.parent_version;
+                                    tolerance=$savedRule.match_tolerance_mm}
+            $result.steps += 'native-rule-history-form-create-and-sqlite-parent-version'
         }
         Capture ('frozen-navigation-utility-' + $result.steps.Count)
         [NativeProbeWindow]::PostMessage($settingsHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null

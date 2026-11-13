@@ -39,7 +39,7 @@ class BackendEnvironmentTests(unittest.TestCase):
              patch.object(backend_module.sys, "frozen", False, create=True):
             candidates = BackendService()._candidates()
             self.assertEqual(candidates[0][1], [str(backend_module.BACKEND_SOURCE)])
-            self.assertEqual(candidates[1][0], str(backend_module.BACKEND_EXE))
+            self.assertEqual(len(candidates), 1)
         with patch("pathlib.Path.is_file", return_value=True), \
              patch.object(backend_module.sys, "frozen", True, create=True):
             self.assertEqual(BackendService()._candidates(), [(str(backend_module.BACKEND_EXE), [])])

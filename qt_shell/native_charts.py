@@ -343,6 +343,7 @@ class VisualizationWorkspace(QTabWidget):
         self._unit_history_rows = {}
         self.severity_levels = [30, 50]
         self.severity_colors = ["#79b98c", "#e5a83b", "#df4b45"]
+        self.severity_none = "#ffffff"
         self._longitudinal_cache = {}
         self._longitudinal_pending = set()
         self._longitudinal_request = 0
@@ -806,7 +807,7 @@ class VisualizationWorkspace(QTabWidget):
             value = len(latest) if key == "units" else f"{coverage:g}%" if key == "coverage" else counts[key]
             control.setText(str(value))
         bands = [
-            ("NDD", counts["ndd"], "#ffffff"), ("原记录 0%", counts["zero"], "#818d96"),
+            ("NDD", counts["ndd"], self.severity_none), ("原记录 0%", counts["zero"], "#818d96"),
             (f">0 且 <{mid}%", counts["low"], self.severity_colors[0]),
             (f"{mid}%-<{high}%", counts["mid"], self.severity_colors[1]),
             (f">={high}%", counts["high"], self.severity_colors[-1]),
@@ -1188,10 +1189,14 @@ class VisualizationWorkspace(QTabWidget):
             self._longitudinal_pending.clear()
         return changed
 
-    def set_severity(self, levels, colors):
-        if self.severity_levels != levels or self.severity_colors != colors:
+    def set_severity(self, levels, colors, none_color="#ffffff"):
+        if self.severity_levels != levels or self.severity_colors != colors or self.severity_none != none_color:
             self.severity_levels, self.severity_colors = list(levels), list(colors)
+            self.severity_none = none_color
             self.unit_overview.levels, self.unit_overview.colors = list(levels), list(colors)
+            self.unit_overview.none_color = none_color
+            self.plate.none_color = none_color
+            self.plate.update()
             self.unit_overview._data = None
             self.refresh_overview()
 
