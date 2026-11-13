@@ -37,7 +37,7 @@ def verify(executable, root):
                 "qt_shell.native_plate_texture", "qt_shell.native_unit_overview",
                 "qt_shell.native_tube_history", "qt_shell.native_report_choice",
                 "qt_shell.native_model_panel", "qt_shell.native_sections",
-                "qt_shell.native_section_worker"}
+                "qt_shell.native_section_worker", "qt_shell.native_workbench_filters"}
     errors.extend(f"missing module: {name}" for name in sorted(required - set(modules)))
     internal = executable.parent / "_internal"
     pairs = [(root / "qt_shell/native_model.qml", internal / "qt_shell/native_model.qml")]

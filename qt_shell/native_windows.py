@@ -205,37 +205,58 @@ class DataWorkbench(QWidget):
         self.model.editRequested.connect(self._edit_cell)
         self.model.selectionChanged.connect(self._selection_changed)
         self._query_number = 0
+        self._filter_busy = False
+        self._filter_timer = QTimer(self)
+        self._filter_timer.setSingleShot(True)
+        self._filter_timer.setInterval(350)
+        self._filter_timer.timeout.connect(self.apply_filters)
         self.sort_field, self.sort_order = "", "asc"
         self.column_filters = {}
         self.auto_ndd = True
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         self.scroll = QScrollArea()
+        self.scroll.setObjectName("workbenchScroll")
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         content = QWidget()
         self.scroll.setWidget(content)
         outer.addWidget(self.scroll)
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(18, 14, 18, 18)
+        layout.setContentsMargins(18, 12, 18, 18)
         layout.setSpacing(12)
-        self.summary = QLabel("正在读取数据概况...")
-        self.summary.setObjectName("muted")
-
         band = QWidget()
-        band.setObjectName("filterBand")
+        band.setObjectName("workbenchFilterBand")
+        band.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         band_layout = QVBoxLayout(band)
-        band_layout.setContentsMargins(14, 12, 14, 8)
-        band_layout.setSpacing(10)
-        self.filter_flow = ToolFlowLayout()
-        self.filter_flow.bottom_aligned = True
+        band_layout.setContentsMargins(1, 1, 1, 1)
+        band_layout.setSpacing(0)
+        filters_host = QWidget()
+        filters_layout = QVBoxLayout(filters_host)
+        filters_layout.setContentsMargins(14, 12, 14, 12)
+        filters_layout.setSpacing(12)
+        self.filter_flow = QGridLayout()
+        self.filter_flow.setHorizontalSpacing(12)
+        self.filter_flow.setVerticalSpacing(10)
         self.filter_fields = []
-        band_layout.addLayout(self.filter_flow)
-        band_layout.addWidget(self.summary)
-        actions = ToolFlowLayout()
-        self.ledger = button("导出综合台账", "file-down", self.export_ledger)
+        filters_layout.addLayout(self.filter_flow)
+        from .native_workbench_filters import FilterSummary
+        self.filter_summary = FilterSummary()
+        self.filter_summary.removed.connect(self.clear_filter)
+        self.filter_summary.cleared.connect(self.reset_query)
+        self.summary = self.filter_summary.lead
+        filters_layout.addWidget(self.filter_summary)
+        band_layout.addWidget(filters_host)
+        commands = QWidget()
+        commands.setObjectName("workbenchCommands")
+        commands.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        actions = ToolFlowLayout(commands)
+        actions.setContentsMargins(14, 8, 14, 8)
+        actions.setSpacing(8)
+        self.ledger = button("导出综合台账", "upload", self.export_ledger)
         self.delete = button("删除所选", "trash-2", self.delete_selected)
-        self.clear = button("清空业务数据", "trash-2", self.clear_records)
+        self.clear = button("清空业务数据", None, self.clear_records)
         self.clear.setProperty("danger", True)
         self.scope_bar = ScopeBar(client, self)
         self.site, self.unit, self.outage = self.scope_bar.site, self.scope_bar.unit, self.scope_bar.outage
@@ -275,20 +296,27 @@ class DataWorkbench(QWidget):
                                ("检测结论", self.detection_status), ("维护状态", self.maintenance_status),
                                ("分析人员", self.analyst), ("通道编号", self.channel)):
             field = QWidget()
-            field.setFixedWidth(164)
+            field.setObjectName("workbenchFilterField")
+            field.setMinimumWidth(0)
+            field.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            field.setFixedHeight(56)
             self.filter_fields.append(field)
             field_layout = QVBoxLayout(field)
             field_layout.setContentsMargins(0, 0, 0, 0)
-            field_layout.setSpacing(4)
+            field_layout.setSpacing(5)
             caption = QLabel(label)
             caption.setObjectName("filterLabel")
+            caption.setFixedHeight(17)
             field_layout.addWidget(caption)
             control.setMinimumWidth(0)
+            control.setFixedHeight(34)
+            control.setAccessibleName(label)
             field_layout.addWidget(control)
-            self.filter_flow.addWidget(field)
         self.reset_filters = button("清除条件", "rotate-ccw", self.reset_query)
-        self.filter_flow.addWidget(self.search)
-        self.filter_flow.addWidget(self.reset_filters)
+        self.search.setFixedHeight(34)
+        self.reset_filters.setFixedHeight(34)
+        self._filter_columns = 0
+        self._arrange_filters(1480)
         self.analyst.returnPressed.connect(self.apply_filters)
         self.channel.returnPressed.connect(self.apply_filters)
         self.recycle_button = button("回收站", "archive-restore", self.recycleRequested.emit)
@@ -298,16 +326,25 @@ class DataWorkbench(QWidget):
             group = QWidget()
             group.setObjectName("workbenchActionGroup")
             group_layout = QHBoxLayout(group)
-            group_layout.setContentsMargins(0, 0, 8, 0)
+            group_layout.setContentsMargins(0 if title == "数据文件" else 13, 0, 0, 0)
             group_layout.setSpacing(6)
-            group_layout.addWidget(QLabel(title))
+            caption = QLabel(title)
+            caption.setObjectName("workbenchCommandCaption")
+            group_layout.addWidget(caption)
             for control in controls:
+                control.setFixedHeight(34 if control in (self.import_button, self.clear) else 30)
+                control.setProperty("commandHeight", 34 if control in (self.import_button, self.clear) else 30)
                 group_layout.addWidget(control)
+            group.setProperty("separated", title != "数据文件")
+            group.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
             actions.addWidget(group)
-        refresh = button("", "refresh-cw", self.load_findings)
-        refresh.setToolTip("刷新检测记录")
-        actions.addWidget(refresh)
-        band_layout.addLayout(actions)
+        self.refresh_button = button("", "refresh-cw", self.load_findings)
+        self.refresh_button.setFixedSize(30, 30)
+        self.refresh_button.setObjectName("workbenchRefresh")
+        self.refresh_button.setToolTip("刷新检测记录")
+        self.refresh_button.setAccessibleName("刷新检测记录")
+        actions.addWidget(self.refresh_button)
+        band_layout.addWidget(commands)
         layout.addWidget(band)
         for control, permission in ((self.ledger, "export.create"), (self.delete, "data.delete"),
                                     (self.clear, "data.purge")):
@@ -344,8 +381,10 @@ class DataWorkbench(QWidget):
         table_heading.addStretch()
         self.selection_info = QLabel("已勾选 0 条")
         table_heading.addWidget(self.selection_info)
-        table_heading.addWidget(button("全选本页", "check-check", self.toggle_page))
-        table_heading.addWidget(button("清除勾选", "x", self.clear_selection))
+        self.select_page_button = button("全选本页", "check-check", self.toggle_page)
+        self.clear_selection_button = button("清除勾选", "x", self.clear_selection)
+        table_heading.addWidget(self.select_page_button)
+        table_heading.addWidget(self.clear_selection_button)
         self.field_mode = QTabBar()
         self.field_mode.setExpanding(False)
         for text, mode in (("重点字段", "key"), ("全部字段", "all")):
@@ -433,6 +472,16 @@ class DataWorkbench(QWidget):
         self._progress_timer.timeout.connect(self._poll_import_progress)
         self._set_field_mode()
         self.page_size.valueChanged.connect(self.apply_filters)
+        for control in (self.site, self.unit, self.outage, self.detection_status, self.maintenance_status):
+            control.currentIndexChanged.connect(self._sync_filter_summary)
+        for control in (self.detection_status, self.maintenance_status):
+            control.currentIndexChanged.connect(self.apply_filters)
+        for control in (self.analyst, self.channel):
+            control.textChanged.connect(self._sync_filter_summary)
+            control.textEdited.connect(lambda _text: self._filter_timer.start())
+            control.installEventFilter(self)
+        self.scope_bar.loaded.connect(self._sync_filter_summary)
+        self._sync_filter_summary()
         self.load_overview()
         self.load_findings()
 
@@ -449,14 +498,126 @@ class DataWorkbench(QWidget):
         self.plate.update()
 
     def reset_query(self):
-        self.analyst.clear()
-        self.channel.clear()
-        self.detection_status.setCurrentIndex(0)
-        self.maintenance_status.setCurrentIndex(0)
+        self._filter_timer.stop()
+        for control in (self.analyst, self.channel, self.detection_status, self.maintenance_status):
+            control.blockSignals(True)
+        try:
+            self.analyst.clear()
+            self.channel.clear()
+            self.detection_status.setCurrentIndex(0)
+            self.maintenance_status.setCurrentIndex(0)
+        finally:
+            for control in (self.analyst, self.channel, self.detection_status, self.maintenance_status):
+                control.blockSignals(False)
         self.column_filters.clear()
         self.sort_field = ""
         self.table.horizontalHeader().setSortIndicatorShown(False)
         self.scope_bar.clear()
+
+    def _arrange_filters(self, width):
+        columns = 6 if width <= 1279 else 9
+        if self._filter_columns == columns:
+            return
+        self._filter_columns = columns
+        while self.filter_flow.count():
+            self.filter_flow.takeAt(0)
+        for column in range(9):
+            self.filter_flow.setColumnMinimumWidth(column, 0)
+            self.filter_flow.setColumnStretch(column, 0)
+        if columns == 9:
+            for column in range(7):
+                self.filter_flow.setColumnStretch(column, 1)
+            for column in (7, 8):
+                self.filter_flow.setColumnMinimumWidth(column, 96)
+        else:
+            for column in range(4):
+                self.filter_flow.setColumnStretch(column, 1)
+            self.filter_flow.setColumnMinimumWidth(4, 92)
+            self.filter_flow.setColumnMinimumWidth(5, 155)
+        for index, widget in enumerate([*self.filter_fields, self.search, self.reset_filters]):
+            widget.setMaximumWidth(16777215)
+            self.filter_flow.addWidget(widget, index // columns, index % columns,
+                                       Qt.AlignmentFlag.AlignBottom)
+        self.filter_flow.invalidate()
+
+    def _active_filters(self):
+        from .native_components import SITE_NAMES
+        entries = []
+        controls = (("site", "基地", self.site), ("unit", "机组", self.unit),
+                    ("outage", "大修批次", self.outage), ("detection_status", "检测结论", self.detection_status),
+                    ("maintenance_status", "维护状态", self.maintenance_status),
+                    ("analyst", "分析人员", self.analyst), ("thimble", "通道编号", self.channel))
+        for key, title, control in controls:
+            value = str(control.currentData() or "") if isinstance(control, QComboBox) else control.text().strip()
+            if not value:
+                continue
+            if key == "site":
+                display_code = {"P": "HZ", "C": "CN"}.get(value, value)
+                text = f"{SITE_NAMES.get(value, value)}（{display_code}）"
+            elif key == "unit":
+                text = f"{value} 号"
+            elif key == "thimble":
+                text = f"#{value}"
+            else:
+                text = control.currentText() if isinstance(control, QComboBox) else value
+            entries.append((key, f"{title}：{text}"))
+        for field, value in self.column_filters.items():
+            label = self.model.headers[self.model.fields.index(field)] if field in self.model.fields else field
+            entries.append((f"column:{field}", f"{label}：{value}"))
+        return entries
+
+    def _sync_filter_summary(self, *_):
+        entries = self._active_filters()
+        self.filter_summary.set_entries(entries, self._filter_busy)
+        self.reset_filters.setEnabled(bool(entries))
+        self.reset_filters.setToolTip("清除全部筛选条件（含列筛选）" if entries else "当前没有筛选条件")
+        active_keys = {key for key, _ in entries}
+        for key, field in zip(("site", "unit", "outage", "detection_status", "maintenance_status", "analyst", "thimble"),
+                              self.filter_fields):
+            active = key in active_keys
+            if field.property("active") != active:
+                field.setProperty("active", active)
+                for control in [field, *field.findChildren(QWidget)]:
+                    control.style().unpolish(control)
+                    control.style().polish(control)
+        self._update_workbench_actions()
+
+    def clear_filter(self, key):
+        self._filter_timer.stop()
+        if key.startswith("column:"):
+            self.column_filters.pop(key[7:], None)
+        else:
+            control = {"site": self.site, "unit": self.unit, "outage": self.outage,
+                       "detection_status": self.detection_status, "maintenance_status": self.maintenance_status,
+                       "analyst": self.analyst, "thimble": self.channel}.get(key)
+            if control is None:
+                return
+            if isinstance(control, QComboBox):
+                if control.currentIndex() > 0:
+                    control.setCurrentIndex(0)
+                    return
+            else:
+                control.clear()
+        self.apply_filters()
+
+    def _update_workbench_actions(self):
+        busy = self._filter_busy
+        selected = bool(self.model.selected)
+        self.select_page_button.setEnabled(not busy and self.model.rowCount() > 0)
+        self.clear_selection_button.setEnabled(not busy and selected)
+        self.selection_info.setVisible(selected)
+        self.delete.setEnabled(not busy and selected and (self.permissions is None or "data.delete" in self.permissions))
+        self.prev.setEnabled(not busy and self.page > 1)
+        self.next.setEnabled(not busy and self.page < self.pages)
+        self.refresh_button.setEnabled(not busy)
+
+    def eventFilter(self, watched, event):
+        if (watched in (self.analyst, self.channel) and event.type() == QEvent.Type.KeyPress
+                and event.key() == Qt.Key.Key_Escape and watched.text()):
+            watched.clear()
+            self.apply_filters()
+            return True
+        return super().eventFilter(watched, event)
 
     def sort_column(self, section):
         field = self.model.fields[section]
@@ -488,10 +649,7 @@ class DataWorkbench(QWidget):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        width = max(144, min(250, (event.size().width() - 36 - 28 - 244) // 7 - 6))
-        for field in self.filter_fields:
-            field.setFixedWidth(width)
-        self.filter_flow.invalidate()
+        self._arrange_filters(event.size().width())
         self.splitter.setOrientation(Qt.Orientation.Vertical if event.size().width() <= 1120
                                      else Qt.Orientation.Horizontal)
 
@@ -514,10 +672,10 @@ class DataWorkbench(QWidget):
 
     def _on_overview(self, data: dict[str, Any] | None, error: str | None) -> None:
         if error or not data:
-            self.summary.setText(error or "概况读取失败")
+            self.summary.setToolTip(error or "概况读取失败")
             return
         stats = data.get("stats") or {}
-        self.summary.setText(
+        self.summary.setToolTip(
             f"检测记录 {stats.get('findings', 0):,} 条  |  大修 {stats.get('outages', 0)} 个  |  "
             f"机组 {stats.get('units', 0)} 个  |  分析人员 {stats.get('analysts', 0)} 人"
         )
@@ -548,6 +706,7 @@ class DataWorkbench(QWidget):
             self.load_findings()
 
     def apply_filters(self):
+        self._filter_timer.stop()
         if self.channel.text() and not self.channel.hasAcceptableInput():
             self.status.setText("通道号应为 1-50 的整数")
             return
@@ -556,9 +715,6 @@ class DataWorkbench(QWidget):
         self.load_findings()
 
     def _apply_scope(self, scope):
-        if not any(scope.values()):
-            self.analyst.clear()
-            self.channel.clear()
         self.map_unit.setValue(int(scope.get("unit") or 1))
         self.apply_filters()
 
@@ -575,15 +731,19 @@ class DataWorkbench(QWidget):
 
     def load_findings(self) -> None:
         self.status.setText("正在加载...")
+        self._filter_busy = True
+        self._sync_filter_summary()
         self._query_number += 1
         number = self._query_number
         self.client.get(f"/api/findings{self._params()}",
                         lambda data, error: self._on_findings(data, error) if number == self._query_number else None)
 
     def _on_findings(self, data: dict[str, Any] | None, error: str | None) -> None:
+        self._filter_busy = False
         if error or not data:
             self.status.setText(error or "数据读取失败")
             self.model.replace([])
+            self._sync_filter_summary()
             return
         self.page = int(data.get("page") or 1)
         self.model.page_offset = (self.page - 1) * self.page_size.value()
@@ -593,8 +753,7 @@ class DataWorkbench(QWidget):
         self._update_plate()
         self.pages = max(1, int(data.get("pages") or 1))
         self.status.setText(f"第 {data.get('page', 1)} / {self.pages} 页，共 {data.get('total', 0):,} 条")
-        self.prev.setEnabled(self.page > 1)
-        self.next.setEnabled(self.page < self.pages)
+        self._sync_filter_summary()
 
     def _change_page(self, delta: int) -> None:
         self.page = max(1, min(self.pages, self.page + delta))
@@ -650,6 +809,7 @@ class DataWorkbench(QWidget):
 
     def _selection_changed(self):
         self.selection_info.setText(f"已勾选 {len(self.model.selected):,} 条")
+        self._update_workbench_actions()
         self._update_plate()
         self.selectionChanged.emit(list(self.model.selected.values()))
 

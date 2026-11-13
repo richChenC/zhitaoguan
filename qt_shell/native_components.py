@@ -1189,6 +1189,31 @@ def workspace_styles(theme="light", density="comfortable"):
         QProgressBar#unitMeter {{ border:0; border-radius:0; background:{control}; min-height:4px; max-height:4px; }}
         QProgressBar#unitMeter::chunk {{ background:{accent}; border:0; border-radius:0; }}
         QWidget#filterBand, QWidget#workspacePanel {{ background:{surface}; border:1px solid {line}; border-radius:6px; }}
+        QWidget#workbenchFilterBand {{ background:{surface}; border:1px solid {line}; border-radius:8px; }}
+        QScrollArea#workbenchScroll QScrollBar:vertical {{ width:15px; }}
+        QWidget#workbenchFilterBand QComboBox, QWidget#workbenchFilterBand QLineEdit,
+        QWidget#workbenchFilterBand QPushButton {{ min-height:32px; max-height:32px; }}
+        QWidget#workbenchCommands {{ background:{control}; border-top:1px solid {line}; }}
+        QWidget#workbenchCommands QPushButton {{ min-height:0; max-height:34px; padding:0 10px; font-size:11px; font-weight:600; }}
+        QWidget#workbenchCommands QPushButton[commandHeight="30"] {{ min-height:28px; max-height:28px; }}
+        QWidget#workbenchCommands QPushButton[commandHeight="34"] {{ min-height:32px; max-height:32px; }}
+        QWidget#workbenchCommands QPushButton#workbenchRefresh {{ min-height:28px; max-height:28px;
+            min-width:28px; max-width:28px; padding:0; }}
+        QWidget#workbenchActionGroup[separated="true"] {{ border-left:1px solid {line}; }}
+        QLabel#workbenchCommandCaption {{ font-size:11px; color:{muted}; }}
+        QWidget#workbenchFilterField[active="true"] QLabel {{ color:{accent}; }}
+        QWidget#workbenchFilterField[active="true"] QComboBox,
+        QWidget#workbenchFilterField[active="true"] QLineEdit {{ border-color:{accent}; }}
+        QWidget#workbenchFilterSummary {{ border-top:1px dashed {line}; }}
+        QLabel#workbenchFilterLead {{ font-size:11px; color:{muted}; }}
+        QLabel#workbenchFilterLead[filtered="true"] {{ color:{accent}; font-weight:600; }}
+        QWidget#workbenchFilterChip {{ background:{accent_soft}; border:1px solid {line}; border-radius:11px; }}
+        QLabel#filterChipText {{ font-size:11px; color:{accent}; }}
+        QToolButton#filterChipRemove {{ min-height:0; min-width:0; padding:0; border:0; background:transparent; }}
+        QToolButton#filterChipRemove:hover {{ background:{hover}; }}
+        QWidget#workbenchFilterBand QPushButton#workbenchFilterClear {{ min-height:22px; max-height:22px;
+            padding:0 4px; border:0; background:transparent;
+            color:{accent}; font-size:11px; text-decoration:underline; }}
         QWidget#modelSettingsBody {{ background:{surface}; }}
         QWidget#modelPartInfoBody {{ background:{surface}; }}
         QLabel#modelPartName {{ font-size:13px; font-weight:600; }}

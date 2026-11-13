@@ -17,6 +17,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("database", type=Path)
     parser.add_argument("reference", type=Path)
+    parser.add_argument("--workbench-reference", type=Path)
+    parser.add_argument("--workbench-only", action="store_true")
     args = parser.parse_args()
     project = Path(__file__).resolve().parents[2]
     work = project.parent / "05_测试与验证" / "03_自动化临时产物" / (
@@ -69,7 +71,8 @@ def main():
         def bounds(control):
             origin = control.mapTo(window, QPoint(0, 0))
             return {"x": origin.x(), "y": origin.y(), "w": control.width(), "h": control.height()}
-        for sample in json.loads(args.reference.read_text(encoding="utf-8-sig")):
+        navigation_samples = [] if args.workbench_only else json.loads(args.reference.read_text(encoding="utf-8-sig"))
+        for sample in navigation_samples:
             width, theme = sample["width"], sample["theme"]
             window.context.preferences.save(theme=theme)
             window.apply_preferences()
@@ -124,6 +127,10 @@ def main():
         assert window.task_center.dialog.isVisible()
         window.task_center.dialog.hide()
         result["utilities_clicked"] = ["账户与权限", "软件设置", "操作通知"]
+        if args.workbench_reference:
+            from probe_native_workbench_filters import verify_workbench_filters
+            result["workbench_filters"] = verify_workbench_filters(
+                app, window, client, work, args.workbench_reference, wait, until, request)
         with sqlite3.connect(database) as db:
             result["findings_after"] = db.execute("SELECT COUNT(*) FROM findings").fetchone()[0]
         assert result["findings_before"] == result["findings_after"]

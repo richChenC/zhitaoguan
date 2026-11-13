@@ -228,6 +228,24 @@ try {
     Start-Sleep -Seconds 2
     $result.steps += 'actual-initialization-controls'
     Capture 'frozen-workbench'
+    $filterSummary = @(Find-Control $window ([System.Windows.Automation.ControlType]::Text) |
+        Where-Object { $_.Current.Name -eq '未设置筛选条件，当前显示全部检测记录' })
+    if ($filterSummary.Count -ne 1) { throw 'Native unfiltered workbench summary missing' }
+    $resetFilters = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '清除条件'
+    if ($resetFilters.Count -ne 1 -or $resetFilters[0].Current.IsEnabled) {
+        throw 'Unfiltered workbench reset should be disabled'
+    }
+    $analyst = Find-Control $window ([System.Windows.Automation.ControlType]::Edit) '分析人员'
+    if ($analyst.Count -ne 1) { throw 'Workbench analyst filter missing' }
+    $analyst[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue('native-chip-probe')
+    $clearChip = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '清除条件：分析人员：native-chip-probe'
+    if ($clearChip.Count -ne 1) { throw 'Native individual filter clear action missing' }
+    Activate-Control $clearChip[0]
+    Start-Sleep -Milliseconds 600
+    if ($analyst[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value) {
+        throw 'Native individual filter clear did not clear analyst'
+    }
+    $result.steps += 'native-workbench-filter-summary-and-individual-clear'
     $mainWindow = $window
     foreach ($utilityName in @('Frozen Probe，已登录账户', '软件设置')) {
         $utility = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) $utilityName |
