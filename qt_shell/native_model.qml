@@ -120,8 +120,10 @@ Rectangle {
                                                   root.clipAxis === "z" ? 1 : 0)
         shadingMode: CustomMaterial.Shaded
         cullMode: Material.NoCulling
-        sourceBlend: CustomMaterial.SrcAlpha
-        destinationBlend: CustomMaterial.OneMinusSrcAlpha
+        sourceBlend: alphaValue < 1 ? CustomMaterial.SrcAlpha : CustomMaterial.NoBlend
+        destinationBlend: alphaValue < 1 ? CustomMaterial.OneMinusSrcAlpha : CustomMaterial.NoBlend
+        sourceAlphaBlend: CustomMaterial.One
+        destinationAlphaBlend: CustomMaterial.OneMinusSrcAlpha
         vertexShader: "shaders/section.vert"
         fragmentShader: "shaders/section.frag"
     }
