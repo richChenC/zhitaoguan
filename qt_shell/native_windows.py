@@ -61,8 +61,8 @@ from PySide6.QtWidgets import (
 from .constants import APP_ICON, OUTPUT_DIR, PRODUCT_NAME, REPORT_DIR, USER_DATA
 from .native_client import NativeClient
 from .native_components import (
-    AccountIdentityButton, AnalyticsScopeBar, PlateMap, ReferencePlateMap, SiteCoverageButton, TubeStateGrid,
-    ScopeBar, STATE_NAMES, STATE_PALETTE, ToolFlowLayout, WorkspaceContext, button, canonical_site, export_widget_image, icon, workspace_styles,
+    AccountIdentityButton, AnalyticsScopeBar, NativeNavigationBar, PlateMap, ReferencePlateMap, SiteCoverageButton, TubeStateGrid,
+    ScopeBar, STATE_NAMES, STATE_PALETTE, ToolFlowLayout, WorkspaceContext, button, canonical_site, colored_icon, export_widget_image, icon, status_dot, workspace_styles,
 )
 
 
@@ -6632,12 +6632,11 @@ class NativeMainWindow(QMainWindow):
         layout.setSpacing(0)
         top = QWidget()
         top.setObjectName("topNavigation")
-        top.setFixedHeight(62)
+        top.setFixedHeight(58)
         top_layout = QHBoxLayout(top)
-        top_layout.setContentsMargins(8, 6, 14, 6)
-        self.nav = QTabBar()
-        self.nav.setObjectName("mainNavigation")
-        self.nav.setExpanding(False)
+        top_layout.setContentsMargins(4, 0, 12, 0)
+        top_layout.setSpacing(8)
+        self.nav = NativeNavigationBar()
         for label, name in (("数据工作台", "database"), ("三维缺陷模型", "box"),
                             ("数据可视化", "chart-no-axes-combined"), ("报告中心", "files"),
                             ("状态处理", "wrench")):
@@ -6645,26 +6644,44 @@ class NativeMainWindow(QMainWindow):
         top_layout.addWidget(self.nav)
         top_layout.addStretch()
         self.account_button = AccountIdentityButton(user, lambda: self.open_settings(4))
-        self.connection_status = QLabel("● 本机服务已连接")
-        self.connection_status.setObjectName("muted")
-        self.connection_status.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.connection_status = QLabel("本机服务已连接")
+        self.connection_status.setObjectName("connectionStatus")
+        self.connection_status.setFixedHeight(14)
         self.notifications_button = button("", "bell", self.show_notifications)
-        self.notifications_button.setToolTip("通知中心")
+        self.notifications_button.setToolTip("操作通知")
+        self.notifications_button.setAccessibleName("操作通知")
         self.settings_button = button("", "settings", lambda: self.open_settings(0))
         self.settings_button.setToolTip("软件设置")
+        self.settings_button.setAccessibleName("软件设置")
         for control in (self.notifications_button, self.settings_button):
-            control.setFixedSize(34, 34)
+            control.setObjectName("navigationUtility")
+            control.setFixedSize(30, 28)
+            control.setIconSize(QSize(18, 18))
         self.utilities = QWidget()
+        self.utilities.setObjectName("navigationFooter")
         self.utilities.setFixedWidth(256)
+        self.utilities.setFixedHeight(58)
         utilities_layout = QVBoxLayout(self.utilities)
-        utilities_layout.setContentsMargins(0, 0, 0, 0)
-        utilities_layout.setSpacing(0)
+        utilities_layout.setContentsMargins(9, 5, 0, 4)
+        utilities_layout.setSpacing(1)
         utilities_row = QHBoxLayout()
-        utilities_row.setSpacing(6)
-        for control in (self.account_button, self.notifications_button, self.settings_button):
-            utilities_row.addWidget(control)
+        utilities_row.setSpacing(0)
+        utilities_row.addWidget(self.account_button)
+        utilities_row.addSpacing(25)
+        self._account_spacing = utilities_row.itemAt(1).spacerItem()
+        utilities_row.addWidget(self.notifications_button)
+        utilities_row.addSpacing(8)
+        utilities_row.addWidget(self.settings_button)
         utilities_layout.addLayout(utilities_row)
-        utilities_layout.addWidget(self.connection_status)
+        status_row = QHBoxLayout()
+        status_row.setSpacing(5)
+        status_row.addStretch()
+        connection_dot = status_dot()
+        connection_dot.setObjectName("connectionDot")
+        status_row.addWidget(connection_dot, 0, Qt.AlignmentFlag.AlignVCenter)
+        status_row.addWidget(self.connection_status)
+        status_row.addStretch()
+        utilities_layout.addLayout(status_row)
         top_layout.addWidget(self.utilities)
         layout.addWidget(top)
         self.stack = QStackedWidget()
@@ -6815,8 +6832,9 @@ class NativeMainWindow(QMainWindow):
         for control in self.findChildren(QPushButton):
             if control.property("iconName"):
                 control.setIcon(icon(control.property("iconName"), theme))
-        for index, name in enumerate(("database", "box", "chart-no-axes-combined", "files", "wrench")):
-            self.nav.setTabIcon(index, icon(name, theme))
+        self.nav.set_theme(theme)
+        for control, name in ((self.notifications_button, "bell"), (self.settings_button, "settings")):
+            control.setIcon(colored_icon(name, "#a8b8b5" if theme == "dark" else "#b0bdc1"))
         for plate in (self.workbench.plate, self.stack.widget(1).plate, self.stack.widget(3).visualization.plate):
             plate.levels = list(prefs["depth_levels"])
             plate.colors = list(prefs["depth_colors"])
@@ -6842,7 +6860,11 @@ class NativeMainWindow(QMainWindow):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, "utilities"):
-            self.utilities.setFixedWidth(224 if self.width() <= 1100 else 256)
+            compact = self.width() <= 1100
+            self.utilities.setFixedWidth(224 if compact else 256)
+            self.account_button.set_compact(compact)
+            self._account_spacing.changeSize(12 if compact else 25, 0)
+            self.utilities.layout().invalidate()
 
     def _request_finished(self, path, data, error):
         if (error or not data or data.get("ok") is False or data.get("success") is False

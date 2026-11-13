@@ -8,9 +8,9 @@ import re
 from functools import lru_cache
 
 from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QObject, QPoint, QPointF, QRect, QRectF, QSaveFile, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPalette, QPen, QPolygonF
+from PySide6.QtGui import QColor, QCursor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPalette, QPen, QPolygonF
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QHBoxLayout, QLabel, QLayout, QMessageBox, QPushButton, QSizePolicy, QToolTip, QVBoxLayout, QWidget,
+    QComboBox, QFileDialog, QHBoxLayout, QLabel, QLayout, QMessageBox, QPushButton, QSizePolicy, QTabBar, QToolTip, QVBoxLayout, QWidget,
 )
 
 from .constants import UI_DIR, USER_DATA
@@ -64,6 +64,98 @@ def button(text, name=None, callback=None):
     return control
 
 
+@lru_cache(maxsize=128)
+def colored_icon(name, color):
+    source = icon(name)
+    result = QIcon()
+    for size in (16, 18, 20, 24, 32):
+        image = source.pixmap(size, size)
+        painter = QPainter(image)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+        painter.fillRect(image.rect(), QColor(color))
+        painter.end()
+        result.addPixmap(image)
+    return result
+
+
+class NativeNavigationBar(QTabBar):
+    """Keep native tab semantics while matching the reference's icon spacing."""
+    icon_names = ("database", "box", "chart-no-axes-combined", "files", "wrench")
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.theme = "light"
+        self.setObjectName("mainNavigation")
+        self.setAccessibleName("主要工作区")
+        self.setExpanding(False)
+        self.setDrawBase(False)
+        self.setFixedHeight(38)
+        self.setMouseTracking(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+    def _font(self, selected=False):
+        font = QFont("Microsoft YaHei")
+        font.setPixelSize(12)
+        font.setWeight(QFont.Weight.Bold if selected else QFont.Weight.Medium)
+        return font
+
+    def tabSizeHint(self, index):
+        width = QFontMetrics(self._font()).horizontalAdvance(self.tabText(index)) + 49
+        return QSize(width + (3 if index < self.count() - 1 else 0), 38)
+
+    def visual_tab_rect(self, index):
+        return self.tabRect(index).adjusted(0, 0, -3 if index < self.count() - 1 else 0, 0)
+
+    def set_theme(self, theme):
+        self.theme = theme
+        self.update()
+
+    def mouseMoveEvent(self, event):
+        super().mouseMoveEvent(event)
+        self.update()
+
+    def leaveEvent(self, event):
+        super().leaveEvent(event)
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        dark = self.theme == "dark"
+        hovered = self.tabAt(self.mapFromGlobal(QCursor.pos())) if self.underMouse() else -1
+        for index in range(self.count()):
+            rect = self.visual_tab_rect(index)
+            selected = index == self.currentIndex()
+            color = ("#91e2d6" if dark else "#087e7b") if selected else ("#c9d7d4" if dark else "#687786")
+            if selected or index == hovered:
+                painter.setPen(QPen(QColor("#c6e2de") if selected else QColor("transparent"), 1))
+                painter.setBrush(QColor(("#294744" if dark else "#e8f4f2") if selected
+                                       else ("#263436" if dark else "#f0f5f7")))
+                painter.drawRoundedRect(QRectF(rect).adjusted(.5, .5, -.5, -.5), 4, 4)
+            painter.setFont(self._font(selected))
+            text_width = painter.fontMetrics().horizontalAdvance(self.tabText(index))
+            left = rect.x() + (rect.width() - text_width - 23) / 2
+            image = colored_icon(self.icon_names[index], color).pixmap(16, 16)
+            painter.drawPixmap(QPointF(left, rect.y() + 11), image)
+            painter.setPen(QColor(color))
+            painter.drawText(QRectF(left + 23, rect.y(), text_width, 38),
+                             Qt.AlignmentFlag.AlignCenter, self.tabText(index))
+            if selected and self.hasFocus():
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.setPen(QPen(QColor(color), 1, Qt.PenStyle.DotLine))
+                painter.drawRoundedRect(QRectF(rect).adjusted(3, 3, -3, -3), 2, 2)
+
+
+def status_dot(parent=None):
+    dot = QWidget(parent)
+    dot.setObjectName("onlineDot")
+    dot.setFixedSize(6, 6)
+    dot.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+    dot.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+    return dot
+
+
 class AccountIdentityButton(QPushButton):
     def __init__(self, user, callback, parent=None):
         super().__init__(parent)
@@ -72,10 +164,9 @@ class AccountIdentityButton(QPushButton):
         self.setAccessibleName(f"{self.display_name}，已登录账户")
         self.setToolTip(f"{self.display_name} · {user.get('username', '')}\n账户与权限 · 已登录")
         self.setFixedHeight(34)
-        self.setMinimumWidth(118)
-        self.setMaximumWidth(154)
+        self.setFixedWidth(154)
         row = QHBoxLayout(self)
-        row.setContentsMargins(0, 0, 12, 0)
+        row.setContentsMargins(0, 0, 13, 0)
         row.setSpacing(9)
         self.avatar = QLabel(self.display_name[:2] or "账户")
         self.avatar.setObjectName("accountAvatar")
@@ -83,25 +174,46 @@ class AccountIdentityButton(QPushButton):
         self.avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         row.addWidget(self.avatar)
         summary = QVBoxLayout()
-        summary.setSpacing(0)
+        summary.setSpacing(2)
         self.name_label = QLabel()
         self.name_label.setObjectName("accountName")
         self.name_label.setMinimumWidth(0)
         self.name_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.name_label.setFixedHeight(15)
         summary.addWidget(self.name_label)
-        status = QLabel("● 已登录")
+        status_row = QHBoxLayout()
+        status_row.setContentsMargins(0, 0, 0, 0)
+        status_row.setSpacing(5)
+        status_row.addWidget(status_dot(), 0, Qt.AlignmentFlag.AlignVCenter)
+        status = QLabel("已登录")
         status.setObjectName("accountStatus")
-        summary.addWidget(status)
+        status.setFixedHeight(12)
+        status_row.addWidget(status)
+        status_row.addStretch()
+        summary.addLayout(status_row)
         row.addLayout(summary, 1)
         for label in (self.avatar, self.name_label, status):
             label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.clicked.connect(callback)
+        self._compact = False
+
+    def set_compact(self, compact):
+        if compact == self._compact:
+            return
+        self._compact = compact
+        self.setFixedWidth(135 if compact else 154)
+        self.layout().setSpacing(7 if compact else 9)
+        self.layout().setContentsMargins(0, 0, 9 if compact else 13, 0)
+        self._elide_name()
+
+    def _elide_name(self):
+        available = max(0, self.width() - 28 - self.layout().spacing() - self.layout().contentsMargins().right())
+        self.name_label.setText(self.name_label.fontMetrics().elidedText(
+            self.display_name, Qt.TextElideMode.ElideRight, available))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        available = max(0, self.width() - 28 - 9 - 12)
-        self.name_label.setText(self.name_label.fontMetrics().elidedText(
-            self.display_name, Qt.TextElideMode.ElideRight, available))
+        self._elide_name()
 
 
 class SiteCoverageButton(QPushButton):
@@ -1025,14 +1137,24 @@ def workspace_styles(theme="light", density="comfortable"):
         QToolButton#reportGroupChoice[confirmed="true"] {{ background:{accent_soft}; color:{accent}; }}
         QToolButton#reportGroupChoice[current="true"] {{ border:2px solid {accent}; }}
         QScrollArea {{ background:{bg}; border:0; }}
-        QWidget#topNavigation {{ background:{surface}; border-bottom:1px solid {line}; }}
-        QPushButton#accountIdentity {{ background:transparent; border:0; border-right:1px solid {line};
+        QWidget#topNavigation {{ background:{"#182123" if dark else "#ffffff"};
+            border-bottom:1px solid {"#3b4c4d" if dark else "#dce4e9"}; }}
+        QWidget#navigationFooter {{ background:{"#182123" if dark else "#ffffff"};
+            border-left:1px solid {"#3b4c4d" if dark else "#e1e7eb"}; }}
+        QPushButton#navigationUtility {{ background:transparent; border:0; border-radius:4px; padding:4px;
+            min-width:0; min-height:0; }}
+        QPushButton#navigationUtility:hover {{ background:{hover}; }}
+        QLabel#connectionStatus {{ font-size:9px; color:#97a5ac; }}
+        QWidget#onlineDot {{ border:0; border-radius:3px; background:#33946c; }}
+        QWidget#connectionDot {{ border:0; border-radius:3px; background:#269773; }}
+        QPushButton#accountIdentity {{ background:transparent; border:0;
+            border-right:1px solid {"#455560" if dark else "#dce5e9"};
             border-radius:0; padding:0; min-height:34px; text-align:left; }}
         QPushButton#accountIdentity:hover {{ background:{hover}; }}
-        QLabel#accountAvatar {{ background:{"#203b3a" if dark else "#e9f5f3"}; color:{accent};
+        QLabel#accountAvatar {{ background:{"#203b3a" if dark else "#e9f5f3"}; color:{"#9be0d3" if dark else "#b0bdc1"};
             border:1px solid {"#32625e" if dark else "#c5e2df"}; border-radius:14px;
             font-size:11px; font-weight:700; }}
-        QLabel#accountName {{ color:{text}; font-size:12px; font-weight:700; }}
+        QLabel#accountName {{ color:{"#e5eeec" if dark else "#31566b"}; font-size:12px; font-weight:700; }}
         QLabel#accountStatus {{ color:{muted}; font-size:10px; }}
         QPushButton#siteCoverage {{ background:{control}; border:1px solid transparent;
             padding:0; min-height:32px; border-radius:4px; }}
@@ -1122,9 +1244,7 @@ def workspace_styles(theme="light", density="comfortable"):
         QPushButton[primary="true"] {{ background:{accent}; color:white; border-color:{accent}; font-weight:600; }}
         QPushButton[primary="true"]:disabled {{ background:{control}; color:{muted}; border-color:{line}; }}
         QPushButton[danger="true"] {{ color:#c24858; border-color:#dfadb6; }}
-        QTabBar#mainNavigation {{ background:{surface}; }}
-        QTabBar#mainNavigation::tab {{ padding:9px 13px; margin:0 3px; border:1px solid transparent; border-radius:3px; }}
-        QTabBar#mainNavigation::tab:selected {{ background:{accent_soft}; border-color:{line}; color:{accent}; }}
+        QTabBar#mainNavigation {{ background:transparent; }}
         QLabel#pageTitle {{ color:{text}; font-size:20px; font-weight:600; padding-top:2px; }}
         QLabel#muted {{ color:{muted}; }}
         QDialog#importWorkspace, QDialog#importWorkspace QWizardPage {{ background:{bg}; }}

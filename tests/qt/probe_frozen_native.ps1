@@ -228,6 +228,34 @@ try {
     Start-Sleep -Seconds 2
     $result.steps += 'actual-initialization-controls'
     Capture 'frozen-workbench'
+    $mainWindow = $window
+    foreach ($utilityName in @('Frozen Probe，已登录账户', '软件设置')) {
+        $utility = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) $utilityName |
+            Where-Object { -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
+        if ($utility.Count -ne 1) { throw "Native navigation utility missing: $utilityName" }
+        Activate-Control $utility[0]
+        $settingsHandle = [IntPtr]::Zero
+        for ($attempt=0; $attempt -lt 50 -and $settingsHandle -eq [IntPtr]::Zero; $attempt++) {
+            Start-Sleep -Milliseconds 100
+            $settingsHandle = [NativeProbeWindow]::FindNamed($process.Id, '软件设置')
+        }
+        if ($settingsHandle -eq [IntPtr]::Zero) { throw "Navigation utility did not open settings: $utilityName" }
+        $window = [System.Windows.Automation.AutomationElement]::FromHandle($settingsHandle)
+        Capture ('frozen-navigation-utility-' + $result.steps.Count)
+        [NativeProbeWindow]::PostMessage($settingsHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+        Start-Sleep -Milliseconds 200
+        $window = $mainWindow
+        $result.steps += ('native-navigation-utility-' + $utilityName)
+    }
+    $notification = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) '操作通知' |
+        Where-Object { -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
+    if ($notification.Count -ne 1) { throw 'Native notification navigation utility missing' }
+    Activate-Control $notification[0]
+    Start-Sleep -Milliseconds 150
+    $closeNotification = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '关闭操作通知'
+    if ($closeNotification.Count -ne 1) { throw 'Native notification drawer did not open' }
+    Activate-Control $closeNotification[0]
+    $result.steps += 'native-navigation-notification-open-close'
     $tabs = Find-Control $window ([System.Windows.Automation.ControlType]::TabItem)
     $result.tabs = @($tabs | ForEach-Object { $_.Current.Name })
     foreach ($label in @('三维缺陷模型','数据可视化','报告中心','状态处理','数据工作台')) {
