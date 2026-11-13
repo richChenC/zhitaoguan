@@ -227,20 +227,15 @@ def run(app, window, client, work, scope, request, wait, until):
         window.open_settings(4)
         account = window.settings_page
         until(app, lambda: bool(account.roles), "account roles")
-        def create_viewer():
-            dialog = app.activeModalWidget()
-            edits = dialog.findChildren(QLineEdit)
-            edits[0].setText("nativeviewer")
-            edits[1].setText("Native Viewer")
-            edits[2].setText("NativeViewer@2026")
-            roles = dialog.findChild(QListWidget)
-            for i in range(roles.count()):
-                item = roles.item(i)
-                item.setCheckState(Qt.CheckState.Checked if item.data(Qt.ItemDataRole.UserRole) == "viewer"
-                                   else Qt.CheckState.Unchecked)
-            click(dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Ok))
-        QTimer.singleShot(60, create_viewer)
-        created = finish("/api/auth/users", lambda: click(account.user_add))
+        editor = account.account
+        click(editor.new)
+        for field, value in ((editor.username, "nativeviewer"), (editor.display_name, "Native Viewer"),
+                             (editor.password, "NativeViewer@2026"), (editor.confirm_password, "NativeViewer@2026")):
+            field.setText(value)
+        for code, choice in editor.role_choices.items():
+            choice.setChecked(code == "viewer")
+        window.settings_dialog.stack.currentWidget().ensureWidgetVisible(editor.submit)
+        created = finish("/api/auth/users", lambda: click(editor.submit))
         from qt_shell.native_client import NativeClient
         viewer = NativeClient(client.base_url, app)
         viewer_user = request(viewer, "POST", "/api/auth/login",

@@ -56,8 +56,14 @@ def main():
             elif stage == 1 and window:
                 window.open_settings(4)
                 state["stage"] = 2
-            elif stage == 2 and window and window.settings_page.logout.isVisible():
-                QTest.mouseClick(window.settings_page.logout, Qt.MouseButton.LeftButton)
+            elif stage == 2 and window and window.settings_page.account.security.isVisible():
+                def logout():
+                    from qt_shell.native_accounts import AccountSecurityDialog
+                    dialog = app.activeModalWidget()
+                    assert isinstance(dialog, AccountSecurityDialog)
+                    QTest.mouseClick(dialog.logout, Qt.MouseButton.LeftButton)
+                QTimer.singleShot(60, logout)
+                QTest.mouseClick(window.settings_page.account.security, Qt.MouseButton.LeftButton)
                 state["stage"] = 3
             elif stage == 3 and login and login.submit.isEnabled():
                 assert login.initialized is True

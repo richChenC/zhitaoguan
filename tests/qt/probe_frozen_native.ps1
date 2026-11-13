@@ -465,6 +465,19 @@ try {
             Where-Object { -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
         if ($utility.Count -ne 1) { throw "Native navigation utility missing: $utilityName" }
         Activate-Control $utility[0]
+        if ($utilityName -eq 'Frozen Probe，已登录账户') {
+            $accountHandle = [IntPtr]::Zero
+            for ($attempt=0; $attempt -lt 50 -and $accountHandle -eq [IntPtr]::Zero; $attempt++) {
+                Start-Sleep -Milliseconds 100
+                $accountHandle = [NativeProbeWindow]::FindNamed($process.Id, '账户')
+            }
+            if ($accountHandle -eq [IntPtr]::Zero) { throw 'Native account security dialog missing' }
+            $accountWindow = [System.Windows.Automation.AutomationElement]::FromHandle($accountHandle)
+            $accountPreferences = Find-Control $accountWindow ([System.Windows.Automation.ControlType]::Button) '账户与权限'
+            if ($accountPreferences.Count -ne 1) { throw 'Native account preferences action missing' }
+            Activate-Control $accountPreferences[0]
+            $result.steps += 'native-account-security-dialog-to-permissions'
+        }
         $settingsHandle = [IntPtr]::Zero
         for ($attempt=0; $attempt -lt 50 -and $settingsHandle -eq [IntPtr]::Zero; $attempt++) {
             Start-Sleep -Milliseconds 100
@@ -472,6 +485,60 @@ try {
         }
         if ($settingsHandle -eq [IntPtr]::Zero) { throw "Navigation utility did not open settings: $utilityName" }
         $window = [System.Windows.Automation.AutomationElement]::FromHandle($settingsHandle)
+        if ($utilityName -eq 'Frozen Probe，已登录账户') {
+            foreach ($field in @(
+                @{Name='用户名（建议姓名完整拼音，创建后不可更改）';Value='frozenviewer'},
+                @{Name='姓名或显示名称';Value='Frozen Viewer'},
+                @{Name='密码（至少 6 位；编辑时留空保持不变）';Value='FrozenViewer@2026'},
+                @{Name='确认密码';Value='FrozenViewer@2026'}
+            )) {
+                $edit = Find-Control $window ([System.Windows.Automation.ControlType]::Edit) $field.Name
+                if ($edit.Count -ne 1 -or -not $edit[0].Current.IsEnabled) {
+                    throw "Native account editor field missing: $($field.Name)"
+                }
+                $edit[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($field.Value)
+            }
+            $accountScroll = @(Find-Control $window ([System.Windows.Automation.ControlType]::ScrollBar) |
+                Where-Object { -not $_.Current.IsOffscreen -and
+                    $_.Current.BoundingRectangle.Height -gt $_.Current.BoundingRectangle.Width } |
+                Sort-Object { $_.Current.BoundingRectangle.Height } -Descending)
+            if (-not $accountScroll.Count) { throw 'Native account page scrollbar missing' }
+            $accountRange = $accountScroll[0].GetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern)
+            $accountRange.SetValue($accountRange.Current.Maximum)
+            Start-Sleep -Milliseconds 150
+            $createAccount = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) '创建账户' |
+                Where-Object { -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
+            if ($createAccount.Count -ne 1) { throw 'Native create account command not reachable' }
+            Activate-Control $createAccount[0]
+            $accountSaved = $false
+            for ($attempt=0; $attempt -lt 100; $attempt++) {
+                Start-Sleep -Milliseconds 100
+                $accountJson = & $python -c "import json,sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.row_factory=sqlite3.Row; r=c.execute('SELECT id,username,display_name,active FROM users WHERE username=?',('frozenviewer',)).fetchone(); print(json.dumps(dict(r) if r else None)); c.close()" (Join-Path $work 'data/thimble.db')
+                if ($LASTEXITCODE -eq 0 -and $accountJson -ne 'null') {
+                    $savedAccount = $accountJson | ConvertFrom-Json
+                    if ($savedAccount.display_name -eq 'Frozen Viewer' -and $savedAccount.active -eq 1) {
+                        $accountSaved=$true; break
+                    }
+                }
+            }
+            if (-not $accountSaved) { throw 'Frozen native account did not persist' }
+            $accountRoles = & $python -c "import json,sqlite3,sys; c=sqlite3.connect(sys.argv[1]); print(json.dumps([r[0] for r in c.execute('SELECT role_code FROM user_roles WHERE user_id=? ORDER BY role_code',(sys.argv[2],))])); c.close()" (Join-Path $work 'data/thimble.db') $savedAccount.id
+            $parsedRoles = @(ConvertFrom-Json $accountRoles)
+            if ($LASTEXITCODE -ne 0 -or $parsedRoles.Count -ne 1 -or $parsedRoles[0] -ne 'viewer') {
+                throw 'Frozen native account default role is not viewer'
+            }
+            $savedFeedback = @()
+            for ($attempt=0; $attempt -lt 50; $attempt++) {
+                Start-Sleep -Milliseconds 100
+                $savedFeedback = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '保存账户变更'
+                if ($savedFeedback.Count -eq 1) { break }
+            }
+            if ($savedFeedback.Count -ne 1) { throw 'Frozen account save did not refresh the directory' }
+            $accountCount = Find-Control $window ([System.Windows.Automation.ControlType]::Text) '2 个账户 · 2 个启用'
+            if ($accountCount.Count -ne 1) { throw 'Frozen account directory count did not refresh' }
+            Capture 'frozen-account-directory-saved'
+            $result.steps += 'native-account-inline-create-confirmation-and-sqlite-viewer-role'
+        }
         if ($utilityName -eq '软件设置') {
             $copyPath = Find-Control $window ([System.Windows.Automation.ControlType]::Button) '复制数据库文件路径'
             if ($copyPath.Count -ne 1) { throw 'Native settings copy path control missing' }

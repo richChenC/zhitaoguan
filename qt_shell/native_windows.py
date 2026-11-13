@@ -5375,42 +5375,16 @@ class NativeSettingsPage(QWidget):
         self.client = client
         self.user = user
         permissions = set(user.get("permissions", []))
-        self.roles: list[dict[str, str]] = []
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 16, 18, 16)
         title = QLabel("设置与系统维护")
         title.setObjectName("pageTitle")
         layout.addWidget(title)
         self.tabs = QTabWidget()
-        self.account = QWidget()
-        account_layout = QFormLayout(self.account)
-        account_layout.addRow("当前账户", QLabel(str(user.get("username", ""))))
-        account_layout.addRow("显示名称", QLabel(str(user.get("display_name", ""))))
-        account_layout.addRow("权限", QLabel("、".join(user.get("permissions", [])) or "无"))
-        self.logout = QPushButton("退出登录")
-        self.logout.clicked.connect(self.logoutRequested)
-        account_layout.addRow("", self.logout)
-        self.change_password = QPushButton("修改当前密码")
-        self.change_password.clicked.connect(self.change_current_password)
-        account_layout.addRow("", self.change_password)
-        self.users_table = QTableWidget(0, 5)
-        self.users_table.setHorizontalHeaderLabels(["用户名", "显示名称", "角色", "状态", "最近登录"])
-        self.users_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.users_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.users_table.horizontalHeader().setStretchLastSection(True)
-        account_layout.addRow("本地账户", self.users_table)
-        user_actions = QHBoxLayout()
-        self.user_add = QPushButton("新建账户")
-        self.user_edit = QPushButton("编辑选中账户")
-        self.user_add.clicked.connect(lambda: self.edit_user())
-        self.user_edit.clicked.connect(self.edit_selected_user)
-        user_actions.addWidget(self.user_add)
-        user_actions.addWidget(self.user_edit)
-        user_actions.addStretch(1)
-        account_layout.addRow("", user_actions)
-        self.user_hint = QLabel("")
-        self.user_hint.setObjectName("muted")
-        account_layout.addRow("", self.user_hint)
+        from .native_accounts import AccountWorkspace
+        self.account = AccountWorkspace(client, user)
+        self.account.logoutRequested.connect(self.logoutRequested)
+        self.user_add = self.account.new
         from .native_settings_layout import SettingsStoragePanel
         self.source = SettingsStoragePanel(self)
         self._source_serial = 0
@@ -5444,155 +5418,12 @@ class NativeSettingsPage(QWidget):
         self.tabs.addTab(self.logs, "运行日志")
         layout.addWidget(self.tabs, 1)
         self.load_source()
-        self._set_user_management_enabled("users.manage" in user.get("permissions", []))
-        if "users.manage" in user.get("permissions", []):
-            self.load_users()
+    @property
+    def roles(self):
+        return self.account.definitions
 
-    def _set_user_management_enabled(self, enabled: bool) -> None:
-        self.users_table.setVisible(enabled)
-        self.user_add.setVisible(enabled)
-        self.user_edit.setVisible(enabled)
-        self.user_hint.setText("" if enabled else "当前账户没有本地账户管理权限。")
-
-    def change_current_password(self) -> None:
-        dialog = QDialog(self)
-        dialog.setWindowTitle("修改当前密码")
-        form = QFormLayout(dialog)
-        current = QLineEdit()
-        new = QLineEdit()
-        confirm = QLineEdit()
-        for edit in (current, new, confirm):
-            edit.setEchoMode(QLineEdit.EchoMode.Password)
-        form.addRow("当前密码", current)
-        form.addRow("新密码", new)
-        form.addRow("确认新密码", confirm)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        form.addRow(buttons)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        if not current.text() or len(new.text()) < 6 or new.text() != confirm.text():
-            QMessageBox.warning(self, PRODUCT_NAME, "新密码至少 6 位，且两次输入必须一致")
-            return
-        self.change_password.setEnabled(False)
-        self.client.post("/api/auth/password", {
-            "current_password": current.text(),
-            "password": new.text(),
-        }, self._password_changed)
-
-    def _password_changed(self, data: dict[str, Any] | None, error: str | None) -> None:
-        self.change_password.setEnabled(True)
-        if error or not data:
-            QMessageBox.warning(self, PRODUCT_NAME, error or "密码修改失败")
-            return
-        QMessageBox.information(self, PRODUCT_NAME, "密码已修改，请使用新密码重新登录。")
-        self.logoutRequested.emit()
-
-    def load_users(self) -> None:
-        self.client.get("/api/auth/users", self._users_loaded)
-
-    def _users_loaded(self, data: dict[str, Any] | None, error: str | None) -> None:
-        if error or not data:
-            self.user_hint.setText(error or "账户列表读取失败")
-            return
-        self.roles = [item for item in data.get("roles", []) if isinstance(item, dict)]
-        users = [item for item in data.get("users", []) if isinstance(item, dict)]
-        self.users_table.setRowCount(len(users))
-        for row, item in enumerate(users):
-            values = (
-                item.get("username", ""),
-                item.get("display_name", ""),
-                "、".join(item.get("roles", [])),
-                "启用" if item.get("active") else "停用",
-                item.get("last_login") or "尚未登录",
-            )
-            for column, value in enumerate(values):
-                self.users_table.setItem(row, column, QTableWidgetItem(str(value)))
-            self.users_table.item(row, 0).setData(Qt.ItemDataRole.UserRole, item)
-        self.user_hint.setText(f"共 {len(users)} 个本地账户")
-
-    def _role_codes(self) -> list[str]:
-        return [str(item.get("code")) for item in self.roles if item.get("code")]
-
-    def edit_selected_user(self) -> None:
-        index = self.users_table.currentRow()
-        if index < 0 or not self.users_table.item(index, 0):
-            QMessageBox.information(self, PRODUCT_NAME, "请先选择账户")
-            return
-        user = self.users_table.item(index, 0).data(Qt.ItemDataRole.UserRole) or {}
-        self.edit_user(user)
-
-    def edit_user(self, existing: dict[str, Any] | None = None) -> None:
-        dialog = QDialog(self)
-        dialog.setWindowTitle("编辑本地账户" if existing else "新建本地账户")
-        dialog.resize(500, 480)
-        layout = QVBoxLayout(dialog)
-        form = QFormLayout()
-        username = QLineEdit(str((existing or {}).get("username", "")))
-        username.setReadOnly(existing is not None)
-        display = QLineEdit(str((existing or {}).get("display_name", "")))
-        password = QLineEdit()
-        password.setEchoMode(QLineEdit.EchoMode.Password)
-        password.setPlaceholderText("新建必填；编辑时留空表示不修改")
-        active = QCheckBox("账户启用")
-        active.setChecked(bool((existing or {}).get("active", True)))
-        form.addRow("用户名", username)
-        form.addRow("显示名称", display)
-        form.addRow("密码", password)
-        form.addRow("", active)
-        layout.addLayout(form)
-        roles = QListWidget()
-        selected_roles = set((existing or {}).get("roles", []))
-        role_items = self.roles or [
-            {"code": "admin", "label": "系统管理员"},
-            {"code": "importer", "label": "数据导入员"},
-            {"code": "editor", "label": "数据编辑员"},
-            {"code": "reviewer", "label": "审核员"},
-            {"code": "reporter", "label": "报告用户"},
-            {"code": "viewer", "label": "只读用户"},
-        ]
-        for item in role_items:
-            code = str(item.get("code") or "")
-            entry = QListWidgetItem(f"{item.get('label', code)} ({code})")
-            entry.setData(Qt.ItemDataRole.UserRole, code)
-            entry.setFlags(entry.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            entry.setCheckState(Qt.CheckState.Checked if code in selected_roles else Qt.CheckState.Unchecked)
-            roles.addItem(entry)
-        layout.addWidget(QLabel("角色（至少选择一个）"))
-        layout.addWidget(roles, 1)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        layout.addWidget(buttons)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        selected = [
-            roles.item(index).data(Qt.ItemDataRole.UserRole)
-            for index in range(roles.count())
-            if roles.item(index).checkState() == Qt.CheckState.Checked
-        ]
-        if not selected or not display.text().strip() or (not existing and not password.text()):
-            QMessageBox.warning(self, PRODUCT_NAME, "请填写显示名称、密码并至少选择一个角色")
-            return
-        payload: dict[str, Any] = {
-            "username": username.text().strip(),
-            "display_name": display.text().strip(),
-            "roles": selected,
-            "active": active.isChecked(),
-        }
-        if password.text():
-            payload["password"] = password.text()
-        endpoint = "/api/auth/users/update" if existing else "/api/auth/users"
-        if existing:
-            payload["id"] = existing.get("id")
-        self.client.post(endpoint, payload, self._user_saved)
-
-    def _user_saved(self, data: dict[str, Any] | None, error: str | None) -> None:
-        if error or not data:
-            QMessageBox.warning(self, PRODUCT_NAME, error or "账户保存失败")
-            return
-        self.load_users()
+    def load_users(self):
+        self.account.load()
 
     def load_source(self) -> None:
         if self._source_busy:
@@ -6959,7 +6790,7 @@ class NativeMainWindow(QMainWindow):
             self.nav.addTab(icon(name), label)
         top_layout.addWidget(self.nav)
         top_layout.addStretch()
-        self.account_button = AccountIdentityButton(user, lambda: self.open_settings(4))
+        self.account_button = AccountIdentityButton(user, self.open_account_security)
         self.connection_status = QLabel("本机服务已连接")
         self.connection_status.setObjectName("connectionStatus")
         self.connection_status.setFixedHeight(14)
@@ -7088,6 +6919,27 @@ class NativeMainWindow(QMainWindow):
         self.settings_dialog.show()
         self.settings_dialog.raise_()
         self.settings_dialog.activateWindow()
+
+    def open_account_security(self):
+        from .native_accounts import AccountSecurityDialog
+        previous = getattr(self, "_account_security", None)
+        if previous is not None and previous.isVisible():
+            previous.raise_()
+            previous.activateWindow()
+            return
+        dialog = previous
+        if dialog is None:
+            dialog = AccountSecurityDialog(self.client, self.user, self)
+            self._account_security = dialog
+            dialog.logoutRequested.connect(self._logout)
+            dialog.preferencesRequested.connect(lambda: self.open_settings(4))
+        dialog.setStyleSheet(self.settings_dialog.styleSheet())
+        dialog.status.clear()
+        dialog.duties.setChecked(False)
+        dialog.duties_note.hide()
+        dialog.resize(480, 527)
+        dialog._layout_content()
+        dialog.open()
 
     def _open_recycle(self):
         self.maintenance.tabs.setCurrentWidget(self.maintenance.recycle)

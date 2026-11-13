@@ -120,6 +120,9 @@ def main():
                                       "heartbeat_max_ms": round(max(gaps, default=0), 2)})
         QTest.mouseClick(window.account_button, Qt.MouseButton.LeftButton)
         wait(80)
+        assert window._account_security.isVisible()
+        QTest.mouseClick(window._account_security.preferences, Qt.MouseButton.LeftButton)
+        wait(80)
         assert window.settings_dialog.isVisible() and window.settings_dialog.nav.currentRow() == 4
         window.settings_dialog.hide()
         QTest.mouseClick(window.settings_button, Qt.MouseButton.LeftButton)

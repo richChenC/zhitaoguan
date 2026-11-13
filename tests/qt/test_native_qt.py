@@ -1054,9 +1054,9 @@ class NativeQtTests(unittest.TestCase):
                 self.requests.append((path, payload))
         client = Client()
         page = NativeSettingsPage(client, {"username": "admin", "permissions": ["users.manage"]})
-        self.assertEqual(page.users_table.rowCount(), 1)
+        self.assertEqual(len(page.account.roster_rows), 1)
         self.assertFalse(page.user_add.isHidden())
-        self.assertEqual(page.users_table.item(0, 2).text(), "admin")
+        self.assertEqual(page.account.users[0]["roles"], ["admin"])
         page.close()
 
     def test_native_entry_does_not_import_webengine(self):

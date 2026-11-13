@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 
 from .native_components import button
 from .native_import_quality import ImportQualityPanel, quality_styles
+from .native_accounts import account_styles
 from .native_settings_layout import (
     SettingsNavigation, SettingsNavigationDelegate, SettingsPreferencePanel,
     SettingsQuickActions, SettingsToggle, SettingsPreferenceRow, settings_styles,
@@ -360,7 +361,17 @@ class SettingsDialog(QDialog):
         self.add_page("对比规则", rules_page, subtitle="历次结果匹配", scroll=True, framed=False)
         self._source_actions()
         client.get("/api/settings/data-source", self._source_profile_loaded)
-        self.add_page("账户与权限", account_page, subtitle="个人账户、角色与密码")
+        account_page.tabs.removeTab(account_page.tabs.indexOf(account_page.account))
+        accounts = QWidget()
+        accounts_layout = QVBoxLayout(accounts)
+        accounts_layout.setContentsMargins(0, 0, 0, 0)
+        accounts_layout.setSpacing(0)
+        accounts_layout.addWidget(account_page.account)
+        accounts_layout.addStretch()
+        account_page.account.show()
+        account_page.account.storageRequested.connect(lambda: self._jump(0))
+        self.account_workspace = account_page.account
+        self.add_page("账户与权限", accounts, subtitle="个人账户、角色与密码", scroll=True, framed=False)
         maintenance = QWidget()
         maintenance_layout = QVBoxLayout(maintenance)
         # Account and runtime logs remain in their existing native tabs.
@@ -391,7 +402,11 @@ class SettingsDialog(QDialog):
         self.maintenance_tabs = QTabWidget()
         self.maintenance_tabs.addTab(maintenance, "备份与恢复")
         self.maintenance_tabs.addTab(maintenance_page, "质量与操作审计")
+        account_page.tabs.removeTab(account_page.tabs.indexOf(account_page.logs))
+        self.maintenance_tabs.addTab(account_page.logs, "运行日志")
         self.add_page("备份与维护", self.maintenance_tabs, subtitle="安全与审计")
+        account_page.setParent(self)
+        account_page.hide()
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
         self.nav.setCurrentRow(0)
         self.preferences.changed.connect(self._sync_report_policy)
@@ -433,7 +448,8 @@ class SettingsDialog(QDialog):
 
     def set_theme(self, theme):
         dark = theme == "dark"
-        self.setStyleSheet(settings_styles(theme) + business_styles(dark) + quality_styles(dark))
+        self.setStyleSheet(settings_styles(theme) + business_styles(dark) + quality_styles(dark) + account_styles(dark))
+        self.account_workspace.set_theme(theme)
         self.quality_panel.set_theme(theme)
         self.rules_panel.setProperty("dark", dark)
         for control in self.rules_panel.group.buttons():
