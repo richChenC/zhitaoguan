@@ -256,6 +256,24 @@ try {
         }
     }
     $result.steps += 'native-workbench-field-modes-and-persistent-choice'
+    foreach ($plateMode in @('奇数机组', '偶数机组', '综合显示')) {
+        $plateTab = Find-Control $window ([System.Windows.Automation.ControlType]::TabItem) $plateMode
+        if ($plateTab.Count -ne 1) { throw "Native plate mode missing: $plateMode" }
+        $plateTab[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        Start-Sleep -Milliseconds 100
+        if (-not $plateTab[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected) {
+            throw "Native plate mode did not select: $plateMode"
+        }
+        $plateBounds = $plateTab[0].Current.BoundingRectangle
+        if ([Math]::Abs($plateBounds.Width - 74) -gt 1 -or [Math]::Abs($plateBounds.Height - 34) -gt 1) {
+            throw "Native plate tab has incorrect dimensions: $plateBounds"
+        }
+    }
+    $result.steps += 'native-workbench-plate-header-and-three-mode-controls'
+    $visibleJump = Find-Control $window ([System.Windows.Automation.ControlType]::Edit) '跳转到指定页码'
+    if ($visibleJump.Count -ne 1) { throw 'Native pager focus target missing' }
+    $visibleJump[0].SetFocus()
+    Start-Sleep -Milliseconds 200
     foreach ($paging in @(
         @{Name='下一页'; Page=2},
         @{Name='上一页'; Page=1}

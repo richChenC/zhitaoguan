@@ -176,6 +176,7 @@ class FindingsModel(QAbstractTableModel):
 
 class DataWorkbench(QWidget):
     scopeChanged = Signal(dict)
+    tubeFocusRequested = Signal(dict)
     dataChanged = Signal()
     selectionChanged = Signal(list)
     recycleRequested = Signal()
@@ -417,38 +418,25 @@ class DataWorkbench(QWidget):
         table_layout.addWidget(self.table_heading)
         table_layout.addWidget(self.table, 1)
         self.splitter.addWidget(table_host)
-        map_host = QWidget()
-        map_host.setMinimumHeight(420)
-        map_host.setObjectName("workspacePanel")
-        map_layout = QVBoxLayout(map_host)
-        map_heading = QHBoxLayout()
-        map_heading.addWidget(QLabel("堆芯分布"))
-        self.map_unit = QSpinBox()
+        from .native_workbench_plate import WorkbenchPlatePanel
+        self.map_panel = map_host = WorkbenchPlatePanel(self.export_plate)
+        self.map_unit = QSpinBox(map_host)
         self.map_unit.setRange(1, 99)
         self.map_unit.setPrefix("机组 ")
         self.map_unit.valueChanged.connect(self._update_plate)
         self.map_unit.hide()
-        map_heading.addWidget(button("导出图片", "download", self.export_plate))
-        map_layout.addLayout(map_heading)
-        self.parity_tabs = QTabBar()
-        self.parity_tabs.addTab("综合显示")
-        self.parity_tabs.addTab("奇数机组")
-        self.parity_tabs.addTab("偶数机组")
-        self.parity_tabs.setExpanding(False)
+        self.parity_tabs = map_host.tabs
         self.parity_tabs.currentChanged.connect(self._set_plate_parity)
-        map_layout.addWidget(self.parity_tabs)
-        self.plate = ReferencePlateMap()
+        self.plate = map_host.plate
+        self.plate.allow_parity_switch = False
+        self.plate.interactionRejected.connect(self.pager.status.setText)
         self.plate.tubeClicked.connect(self._tube_clicked)
         self.plate.unitChanged.connect(self.map_unit.setValue)
-        map_layout.addWidget(self.plate, 1)
-        self.plate_detail = QLabel(" ")
-        self.plate_detail.setWordWrap(True)
-        map_layout.addWidget(self.plate_detail)
-        self.plate_stats = QLabel("勾选检测记录后统计缺陷分布")
-        self.plate_stats.setObjectName("muted")
-        self.plate_stats.setWordWrap(True)
-        map_layout.addWidget(self.plate_stats)
+        self.plate_detail = map_host.details
+        self.plate_detail.focusRequested.connect(self.tubeFocusRequested.emit)
+        self.plate_stats = map_host.stats
         self.splitter.addWidget(map_host)
+        map_host.geometryChanged.connect(self._sync_splitter_height)
         self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 1)
         self.splitter.setSizes([854, 531])
@@ -663,9 +651,23 @@ class DataWorkbench(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._arrange_filters(event.size().width())
-        self.splitter.setOrientation(Qt.Orientation.Vertical if event.size().width() <= 1120
-                                     else Qt.Orientation.Horizontal)
-        self.splitter.setHandleWidth(12 if self.splitter.orientation() == Qt.Orientation.Vertical else 44)
+        width = event.size().width()
+        vertical = width <= 1120
+        self.map_panel.set_side_by_side(vertical)
+        self.splitter.setOrientation(Qt.Orientation.Vertical if vertical else Qt.Orientation.Horizontal)
+        self.splitter.setHandleWidth(16 if vertical else 44)
+        first = self.map_panel if width <= 1100 else self.table_host
+        if self.splitter.widget(0) is not first:
+            self.splitter.insertWidget(0, first)
+        self.table_host.setMinimumHeight(718 if vertical else 350)
+        self._sync_splitter_height()
+
+    def _sync_splitter_height(self):
+        if self.splitter.orientation() == Qt.Orientation.Vertical:
+            height = self.table_host.minimumHeight() + self.map_panel.minimumHeight() + self.splitter.handleWidth()
+        else:
+            height = max(self.table_host.minimumHeight(), self.map_panel.minimumHeight())
+        self.splitter.setMinimumHeight(height)
 
     def _params(self) -> str:
         from urllib.parse import urlencode
@@ -918,21 +920,21 @@ class DataWorkbench(QWidget):
     def _update_plate(self, *_):
         if not hasattr(self, "plate"):
             return
+        self._plate_detail_request = getattr(self, "_plate_detail_request", 0) + 1
+        rows = list(self.model.selected.values())
+        scopes = {(row.get("site_code"), row.get("outage"), row.get("unit_id")) for row in rows}
+        if rows and len(scopes) == 1:
+            self.map_unit.blockSignals(True)
+            self.map_unit.setValue(int(rows[0]["unit_id"]))
+            self.map_unit.blockSignals(False)
+            self.parity_tabs.setCurrentIndex(1 if int(rows[0]["unit_id"]) % 2 else 2)
         unit = self.map_unit.value()
         selected = [row["thimble_id"] for row in self.model.selected.values() if int(row["unit_id"]) == unit]
         if getattr(self, "_workspace_tube", 0):
             selected.append(self._workspace_tube)
-        rows = list(self.model.selected.values())
-        scopes = {(row.get("outage"), row.get("unit_id")) for row in rows}
         self.plate.set_records(rows if len(scopes) == 1 else [], unit, selected)
-        if rows and len(scopes) != 1:
-            self.plate_stats.setText("已保留跨机组或大修的勾选；缺陷分布需选择同一机组、同次大修")
-        elif rows:
-            defects = [row for row in rows if row.get("detection_status") != "ndd" and (row.get("percent") or 0) > 0]
-            self.plate_stats.setText(f"已选 {len(rows)} 条 · 缺陷管 {len({row['thimble_id'] for row in defects})} 根"
-                                     f" · 最大磨损 {max((row['percent'] for row in defects), default=0):g}%")
-        else:
-            self.plate_stats.setText("勾选检测记录后统计缺陷分布")
+        self.plate.selection_ready = bool(self.unit.currentData() or (rows and len(scopes) == 1))
+        self.map_panel.show_records(rows)
 
     def _record_clicked(self, index):
         row = self.model.row(index)
@@ -945,20 +947,37 @@ class DataWorkbench(QWidget):
             self.plate.update()
             self.plate_detail.setText(f"{row['outage']} · {row['thimble_id']}号管 · {row.get('position') or ''}\n"
                                       f"{row.get('analysis') or ''}\n{row.get('report_path') or ''}")
+            self.map_panel.arrange()
 
     def _tube_clicked(self, tube):
-        rows = [row for row in self.core_rows if int(row.get("unit_id") or 0) == self.map_unit.value()
-                and int(row.get("thimble_id") or 0) == tube]
-        self.plate_detail.setText(f"{tube}号管 · 范围内 {len(rows)} 组检测结果\n" + "\n".join(
-            f"{row.get('outage')} · {row.get('position')} · {row.get('percent', '/')}%" for row in rows[:8]))
-        for number, row in enumerate(self.model.rows):
-            if row["thimble_id"] == tube and row["unit_id"] == self.map_unit.value():
-                self.table.selectRow(number)
-                self.table.scrollTo(self.model.index(number, 4))
-                break
+        from urllib.parse import urlencode
         values = self.scope_bar.values()
-        if values.get("unit") and values.get("outage"):
-            self.scopeChanged.emit({**values, "thimble": str(tube)})
+        rows = list(self.model.selected.values())
+        scopes = {(row.get("site_code"), row.get("unit_id"), row.get("outage")) for row in rows}
+        anchor = rows[0] if rows and len(scopes) == 1 else {}
+        unit = values.get("unit") or anchor.get("unit_id")
+        if not unit:
+            self.status.setText("请先筛选机组或勾选同一机组、同一次大修的数据")
+            return
+        scope = {"site": values.get("site") or anchor.get("site_code") or "",
+                 "unit": str(unit), "outage": values.get("outage") or anchor.get("outage") or "",
+                 "thimble": str(tube)}
+        self._plate_detail_request = getattr(self, "_plate_detail_request", 0) + 1
+        serial = self._plate_detail_request
+        self.plate_detail.setText("正在读取管位检测记录...")
+        self.map_panel.arrange()
+        def loaded(data, error):
+            if serial != self._plate_detail_request:
+                return
+            if error or not data:
+                self.plate_detail.setText(error or "管位记录读取失败")
+            else:
+                records = data.get("items") or []
+                channel = next(item for item in self.plate.channels if
+                               int(item["serialOdd" if int(unit) % 2 else "serialEven"]) == tube)
+                self.plate_detail.show_tube(scope, channel["pos"], records)
+            self.map_panel.arrange()
+        self.client.get("/api/findings?" + urlencode({**scope, "page": 1, "size": 200}), loaded)
 
     def export_plate(self):
         export_widget_image(self, self.client, self.plate, "导出管板图片")
@@ -6921,6 +6940,7 @@ class NativeMainWindow(QMainWindow):
         self._navigation_save.timeout.connect(self._save_navigation)
         self.nav.currentChanged.connect(self._navigate)
         self.workbench.scopeChanged.connect(self.context.set_scope)
+        self.workbench.tubeFocusRequested.connect(self._focus_plate_tube)
         self.stack.widget(2).scopeChanged.connect(self.context.set_scope)
         self.stack.widget(3).visualization.scopeChanged.connect(self.context.set_scope)
         self.stack.widget(3).visualization.historyRecordsRequested.connect(self._open_history_records)
@@ -6949,6 +6969,10 @@ class NativeMainWindow(QMainWindow):
         self.nav.setCurrentIndex(max(0, min(4, int(start))))
         self._navigate(self.nav.currentIndex())
         self.statusBar().hide()
+
+    def _focus_plate_tube(self, scope):
+        self.context.set_scope(scope)
+        self.nav.setCurrentIndex(1)
 
     def _navigate(self, index):
         if not 0 <= index < 5:
@@ -7050,6 +7074,7 @@ class NativeMainWindow(QMainWindow):
             plate.levels = list(prefs["depth_levels"])
             plate.colors = list(prefs["depth_colors"])
             plate.update()
+        self.workbench.map_panel.set_theme(theme)
         visualization = self.stack.widget(3).visualization
         visualization.set_theme(theme, prefs["animations"])
         visualization.set_severity(prefs["depth_levels"], prefs["depth_colors"])

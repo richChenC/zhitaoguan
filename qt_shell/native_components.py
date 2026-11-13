@@ -960,12 +960,25 @@ class PositionHeatmap(QWidget):
 class ReferencePlateMap(PlateMap):
     """The drawing's 15-row grid, with odd/even channel numbers in each circle."""
     unitChanged = Signal(int)
+    interactionRejected = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parity = "both"
         self.parity_rows = {1: {}, 0: {}}
-        self.setMinimumSize(300, 330)
+        self.theme = "light"
+        self.selection_ready = True
+        self.allow_parity_switch = True
+        self.setMinimumSize(0, 0)
+
+    def set_theme(self, theme):
+        self.theme = theme
+        self.update()
+
+    def grid_rect(self):
+        border = 1 if self.theme == "dark" else 0
+        side = max(0, self.width() - 136 - 2 * border)
+        return QRectF(68 + border, 52 + border, side, side)
 
     def set_records(self, rows, unit=1, selected=()):
         self.unit = int(unit or 1)
@@ -975,7 +988,8 @@ class ReferencePlateMap(PlateMap):
             parity = int(row.get("unit_id") or self.unit) % 2
             tube = int(row.get("thimble_id") or 0)
             previous = self.parity_rows[parity].get(tube)
-            if previous is None or (row.get("percent") or 0) > (previous.get("percent") or 0):
+            effective = str(row.get("display_conclusion") or row.get("indication") or "").upper() != "NDD" and row.get("detection_status") != "ndd"
+            if effective and (previous is None or (row.get("percent") or 0) > (previous.get("percent") or 0)):
                 self.parity_rows[parity][tube] = row
         self.update()
 
@@ -986,51 +1000,77 @@ class ReferencePlateMap(PlateMap):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        cell = min((self.width() - 112) / 15, (self.height() - 106) / 15)
-        left, top = (self.width() - cell * 15) / 2, (self.height() - cell * 15) / 2
+        dark = self.theme == "dark"
+        if dark:
+            painter.setPen(QPen(QColor("#405657"), 1))
+            painter.setBrush(QColor("#182123"))
+            painter.drawRoundedRect(QRectF(.5, .5, self.width() - 1, self.height() - 1), 8, 8)
+        else:
+            painter.fillRect(self.rect(), QColor("#ffffff"))
+        grid = self.grid_rect()
+        left, top, cell = grid.left(), grid.top(), grid.width() / 15
+        if cell <= 0:
+            return
         columns = "RPNMLKJHGFEDCBA"
         widths = (3, 7, 9, 11, 13, 13, 15, 15, 15, 13, 13, 11, 9, 7, 3)
         font = painter.font()
         font.setPixelSize(10)
+        font.setWeight(QFont.Weight.Bold)
         painter.setFont(font)
-        painter.setPen(QPen(QColor("#9aa5ad"), 1))
-        painter.setBrush(QColor("#ffffff"))
+        painter.setPen(QPen(QColor("#607475" if dark else "#9aa5ad"), 1))
+        painter.setBrush(QColor("#233032" if dark else "#ffffff"))
         for row, width in enumerate(widths):
             for column in range((15 - width) // 2, (15 + width) // 2):
-                painter.drawRect(QRectF(left + column * cell, top + row * cell, cell, cell))
-        painter.setPen(QColor("#52616c"))
+                painter.drawRect(QRectF(left + column * cell + .5, top + row * cell + .5,
+                                        max(0, cell - 1), max(0, cell - 1)))
+        painter.setPen(QColor("#d5e2df" if dark else "#52616c"))
         for column, label in enumerate(columns):
-            painter.drawText(QRectF(left + column * cell, top - 25, cell, 20),
+            painter.drawText(QRectF(left + column * cell, top - 18, cell, 15.5),
                              Qt.AlignmentFlag.AlignCenter, label)
         for row in range(15):
-            painter.drawText(QRectF(left - 29, top + row * cell, 24, cell),
+            painter.drawText(QRectF(left - 18, top + row * cell, 15, cell),
                              Qt.AlignmentFlag.AlignCenter, f"{row + 1:02}")
         self.hit_regions = {}
-        diameter = cell * .88
+        diameter = min(30, grid.width() * .062)
+        font.setPointSizeF(max(6, min(10, grid.width() * .019)) * 72 / self.logicalDpiY())
+        font.setWeight(QFont.Weight.ExtraBold)
+        painter.setFont(font)
         for channel in self.channels:
             match = re.fullmatch(r"([A-Z])(\d+)", channel["pos"])
             x = left + (columns.index(match[1]) + .5) * cell
             y = top + (int(match[2]) - .5) * cell
             rect = QRectF(x - diameter / 2, y - diameter / 2, diameter, diameter)
             odd, even = int(channel["serialOdd"]), int(channel["serialEven"])
+            has_severity = any((self.parity_rows[p].get(tube) or {}).get("percent", 0)
+                               for p, tube in ((1, odd), (0, even))
+                               if self.parity == "both" or p == (1 if self.parity == "odd" else 0))
+            def color(parity, tube):
+                return QColor("#334446") if dark and not has_severity else self._record_color(parity, tube)
             painter.setPen(Qt.PenStyle.NoPen)
             if self.parity == "both":
-                painter.setBrush(self._record_color(1, odd))
+                painter.setBrush(color(1, odd))
                 painter.drawPie(rect, 90 * 16, 180 * 16)
-                painter.setBrush(self._record_color(0, even))
+                painter.setBrush(color(0, even))
                 painter.drawPie(rect, -90 * 16, 180 * 16)
             else:
                 parity = 1 if self.parity == "odd" else 0
-                painter.setBrush(self._record_color(parity, odd if parity else even))
+                painter.setBrush(color(parity, odd if parity else even))
                 painter.drawEllipse(rect)
             active = odd if self.unit % 2 else even
-            painter.setPen(QPen(QColor("#087d79" if active in self.selected else "#607783"),
-                                2 if active in self.selected else 1))
+            focused = active in self.selected
+            if focused:
+                painter.setPen(QPen(QColor("#168c87"), 1))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawEllipse(rect.adjusted(-2, -2, 2, 2))
+            painter.setPen(QPen(QColor("#9cb4b0" if dark else "#344b58"), 1))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawEllipse(rect)
-            painter.setPen(QColor("#233b46"))
+            painter.setPen(QColor("#edf6f4" if dark and not has_severity else "#26343c"))
             if self.parity == "both":
+                painter.save()
+                painter.setPen(QPen(QColor("#34434c"), 1))
                 painter.drawLine(QPointF(x, rect.top()), QPointF(x, rect.bottom()))
+                painter.restore()
                 painter.drawText(QRectF(rect.left(), rect.top(), diameter / 2, diameter),
                                  Qt.AlignmentFlag.AlignCenter, str(odd))
                 painter.drawText(QRectF(x, rect.top(), diameter / 2, diameter),
@@ -1038,29 +1078,37 @@ class ReferencePlateMap(PlateMap):
             else:
                 painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, str(odd if self.parity == "odd" else even))
             self.hit_regions[(odd, even)] = rect
-        painter.setPen(QColor("#263a43"))
-        for label, rect in (("180°", QRectF(left, top - 48, cell * 15, 20)),
-                            ("0°", QRectF(left, top + cell * 15 + 17, cell * 15, 20)),
-                            ("90°", QRectF(left - 51, top + 7 * cell + 12, 38, 20)),
-                            ("270°", QRectF(left + 15 * cell + 9, top + 7 * cell + 12, 42, 20)),
-                            ("OUTLET", QRectF(left + 15 * cell + 2, top + 7 * cell - 30, 52, 20)),
-                            ("INLET", QRectF(left + 12 * cell, top - 11, 58, 20))):
+        flow_color = QColor("#d5e2df" if dark else "#263a43")
+        arrow_color = QColor("#c0d1cd" if dark else "#263a43")
+        font.setPixelSize(11)
+        painter.setFont(font)
+        painter.setPen(flow_color)
+        for label, rect in (("180°", QRectF(left, top - 42, cell * 15, 17)),
+                            ("0°", QRectF(left, top + cell * 15 + 17, cell * 15, 17)),
+                            ("90°", QRectF(left - 64, top + 7 * cell + 13, 46, 15.5)),
+                            ("270°", QRectF(left + 15 * cell + 17, top + 7 * cell + 13, 46, 15.5)),
+                            ("OUTLET", QRectF(left + 15 * cell, top + 7 * cell - 20, 64, 15.5)),
+                            ("INLET", QRectF(left + 15 * cell * .87 - 10, top - 4, 40, 15.5))):
             painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, label)
 
         def arrow(x1, y1, x2, y2):
             import math
             angle = math.atan2(y2 - y1, x2 - x1)
-            painter.setPen(QPen(QColor("#263a43"), 1.5))
+            painter.setPen(QPen(arrow_color, 2))
             painter.drawLine(QPointF(x1, y1), QPointF(x2, y2))
-            painter.setBrush(QColor("#263a43"))
+            painter.setBrush(arrow_color)
             painter.drawPolygon(QPolygonF([QPointF(x2, y2),
                 QPointF(x2 - 7 * math.cos(angle - .45), y2 - 7 * math.sin(angle - .45)),
                 QPointF(x2 - 7 * math.cos(angle + .45), y2 - 7 * math.sin(angle + .45))]))
-        arrow(left - 48, top + 7 * cell, left - 9, top + 7 * cell)
-        arrow(left + 15 * cell + 9, top + 7 * cell, left + 15 * cell + 48, top + 7 * cell)
-        for x, y, dx, dy in ((2.9, 1, -.6, -.9), (12, .1, -.6, .9),
-                             (2.9, 14, -.6, .9), (12, 14.9, -.6, -.9)):
-            arrow(left + x * cell, top + y * cell, left + (x + dx) * cell, top + (y + dy) * cell)
+        arrow(left - 64, top + 7 * cell, left - 18, top + 7 * cell)
+        arrow(left + 15 * cell + 17, top + 7 * cell, left + 15 * cell + 63, top + 7 * cell)
+        import math
+        for x, y, angle in ((left + grid.width() * .13 + 27, top + 17, -126),
+                             (left + grid.width() * .87 - 27, top + 17, 124),
+                             (left + grid.width() * .13 + 27, grid.bottom() - 17, 110),
+                             (left + grid.width() * .87 - 27, grid.bottom() - 17, -117)):
+            dx, dy = math.cos(math.radians(angle)) * 17, math.sin(math.radians(angle)) * 17
+            arrow(x - dx, y - dy, x + dx, y + dy)
 
     def _hit(self, point):
         for (odd, even), rect in self.hit_regions.items():
@@ -1074,7 +1122,13 @@ class ReferencePlateMap(PlateMap):
         hit = self._hit(event.position())
         if hit and event.button() == Qt.MouseButton.LeftButton:
             tube, parity, _, _ = hit
+            if not self.selection_ready:
+                self.interactionRejected.emit("请先筛选机组或勾选同一机组、同一次大修的数据")
+                return
             if self.unit % 2 != parity:
+                if not self.allow_parity_switch:
+                    self.interactionRejected.emit("当前机组奇偶与所选管板不匹配")
+                    return
                 self.unit = 1 if parity else 2
                 self.unitChanged.emit(self.unit)
             self.selected = {tube}
@@ -1336,6 +1390,29 @@ def workspace_styles(theme="light", density="comfortable"):
         QPushButton#workbenchSelectionButton {{ min-height:32px; max-height:32px;
             min-width:85px; max-width:85px; padding:0; font-size:11px; font-weight:400; }}
         QWidget#workbenchFieldModes {{ background:{control}; border:1px solid {line}; border-radius:4px; }}
+        QWidget#workbenchPlateHeading {{ background:{"#1c2527" if dark else "#f8fafb"}; }}
+        QLabel#workbenchPlateTitle {{ font-size:14px; font-weight:700; }}
+        QLabel#workbenchPlateSubtitle {{ font-size:11px; color:{muted}; }}
+        QPushButton#workbenchPlateExport {{ min-width:85px; max-width:85px;
+            min-height:28px; max-height:28px; padding:0; font-size:11px; font-weight:600;
+            background:{"#1c2527" if dark else "#f7f9fa"}; border-color:{"#3b4c4d" if dark else "#a9b7bd"}; }}
+        QWidget#workbenchPlateModes {{ background:{"#1c2527" if dark else "#f3f6f8"}; border:0; border-radius:4px; }}
+        QTabBar#workbenchPlateTabs {{ background:transparent; }}
+        QTabBar#workbenchPlateTabs::tab {{ padding:0; min-width:74px; max-width:74px;
+            min-height:34px; max-height:34px; border:0; border-radius:3px;
+            font-size:12px; font-weight:600; color:{"#a8b8b5" if dark else "#6e7c87"};
+            background:{"#232f31" if dark else "#ffffff"}; }}
+        QTabBar#workbenchPlateTabs::tab:selected {{ background:{"#207e75" if dark else "#087d79"}; color:#ffffff; }}
+        QWidget#workbenchPlateStats {{ border:1px solid {"#3b4c4d" if dark else "#e1eaec"};
+            border-radius:6px; background:{"#1c2527" if dark else "#f8fafb"}; }}
+        QLabel#workbenchPlateStatsEmpty {{ font-size:10px; color:{"#a8b8b5" if dark else "#7a888e"}; }}
+        QWidget#workbenchPlateStatistic {{ border:0; border-right:1px solid {line}; }}
+        QLabel#workbenchPlateStatisticLabel {{ font-size:9px; color:{muted}; }}
+        QLabel#workbenchPlateStatisticValue {{ font-size:13px; font-weight:700; }}
+        QWidget#workbenchPlateDetails {{ border:1px solid {"#3b4c4d" if dark else "#e4eaf0"};
+            border-radius:4px; background:{surface}; }}
+        QLabel#workbenchPlateDetailCaption {{ font-size:12px; color:{muted}; }}
+        QListView#workbenchSelectedRecords {{ border:0; background:transparent; padding:0; }}
         QTabBar#workbenchFieldTabs {{ background:transparent; }}
         QTabBar#workbenchFieldTabs::tab {{ min-height:0; padding:0; border:1px solid transparent;
             border-radius:3px; background:transparent; font-size:11px; font-weight:600; }}

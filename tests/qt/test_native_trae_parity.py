@@ -185,7 +185,10 @@ class NativeParityTests(unittest.TestCase):
         self.assertTrue(page.plate.visibleRegion().boundingRect().height() >= 300)
         page.resize(1480, 940)
         self.app.processEvents()
-        self.assertEqual(page.scroll.verticalScrollBar().maximum(), 0)
+        self.assertGreater(page.scroll.verticalScrollBar().maximum(), 0)
+        page.scroll.ensureWidgetVisible(page.plate_detail)
+        self.app.processEvents()
+        self.assertEqual(page.plate_detail.visibleRegion().boundingRect().height(), page.plate_detail.height())
 
     def test_preferences_autosave_and_apply_ndd_immediately(self):
         window = NativeMainWindow(Client(), {"username": "test", "permissions": ["data.read"]})
