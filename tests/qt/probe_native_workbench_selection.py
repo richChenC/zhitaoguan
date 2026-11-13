@@ -11,7 +11,7 @@ from unittest.mock import patch
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QLineEdit
+from PySide6.QtWidgets import QPlainTextEdit
 
 from qt_shell.native_plate_snapshot import create_plate_snapshot
 
@@ -63,7 +63,7 @@ def verify_workbench_selection(app, window, client, work, reference_path, wait, 
     QTest.mouseClick(page.table.viewport(), Qt.MouseButton.LeftButton, pos=position)
     QTest.mouseDClick(page.table.viewport(), Qt.MouseButton.LeftButton, pos=position)
     wait(40)
-    editors = [control for control in page.table.findChildren(QLineEdit) if control.isVisible()]
+    editors = [control for control in page.table.findChildren(QPlainTextEdit) if control.isVisible()]
     assert len(editors) == 1, "actual double-click editor"
     capture("double-click-editor")
     QTest.keyClick(editors[0], Qt.Key.Key_Escape)

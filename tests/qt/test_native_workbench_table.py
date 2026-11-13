@@ -11,7 +11,7 @@ import native_test_env
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtGui import QFont
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLineEdit
+from PySide6.QtWidgets import QApplication, QLineEdit, QPlainTextEdit
 
 from qt_shell.native_components import workspace_styles
 from qt_shell.native_windows import DataWorkbench
@@ -178,10 +178,10 @@ class WorkbenchTableTests(unittest.TestCase):
         page.table.setFocus()
         QTest.keyClick(page.table, Qt.Key.Key_F2)
         self.app.processEvents()
-        editors = [editor for editor in page.table.findChildren(QLineEdit) if editor.isVisible()]
+        editors = [editor for editor in page.table.findChildren(QPlainTextEdit) if editor.isVisible()]
         self.assertEqual(len(editors), 1)
-        editors[0].setText("reviewed")
-        QTest.keyClick(editors[0], Qt.Key.Key_Return)
+        editors[0].setPlainText("reviewed")
+        QTest.keyClick(editors[0], Qt.Key.Key_Return, Qt.KeyboardModifier.ControlModifier)
         self.app.processEvents()
         self.assertEqual(page.client.requests[-1][1], "/api/findings/edit")
         readonly = self.page(["data.read"])

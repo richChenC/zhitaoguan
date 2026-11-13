@@ -13,7 +13,7 @@ import native_test_env
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtGui import QImage
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLineEdit
+from PySide6.QtWidgets import QApplication, QLineEdit, QMessageBox, QPlainTextEdit
 
 from qt_shell.native_components import workspace_styles
 from qt_shell.native_plate_snapshot import create_plate_snapshot
@@ -97,6 +97,7 @@ class WorkbenchSelectionTests(unittest.TestCase):
         page = self.page()
         page.field_mode.setCurrentIndex(1)
         column = page.model.fields.index("analysis")
+        original_mode = page.parity_tabs.currentIndex()
         self.click(page, 0, column)
         self.assertIn(1, page.model.selected)
         index = page.model.index(0, column)
@@ -104,12 +105,116 @@ class WorkbenchSelectionTests(unittest.TestCase):
                           pos=page.table.visualRect(index).center())
         self.app.processEvents()
         self.assertNotIn(1, page.model.selected)
-        editor = next(control for control in page.table.findChildren(QLineEdit) if control.isVisible())
-        editor.setText("canceled")
+        self.assertEqual(page.parity_tabs.currentIndex(), original_mode)
+        editor = next(control for control in page.table.findChildren(QPlainTextEdit) if control.isVisible())
+        editor.setPlainText("canceled")
         QTest.keyClick(editor, Qt.Key.Key_Escape)
         self.app.processEvents()
         self.assertEqual(page.model.rows[0]["analysis"], "before")
         self.assertFalse(any(path == "/api/findings/edit" for _method, path, _payload, _callback in page.client.requests))
+
+    def start_editor(self, page, field, row=0):
+        index = page.model.index(row, page.model.fields.index(field))
+        page.table.setCurrentIndex(index)
+        page.table.scrollTo(index)
+        page.table.setFocus()
+        QTest.keyClick(page.table, Qt.Key.Key_F2)
+        self.app.processEvents()
+        kind = QPlainTextEdit if field in {"analysis", "maintenance_text"} else QLineEdit
+        return next(control for control in page.table.findChildren(kind) if control.isVisible())
+
+    def edits(self, page):
+        return [item for item in page.client.requests if item[1] == "/api/findings/edit"]
+
+    def test_multiline_enter_control_enter_and_success_deselect_only_saved_row(self):
+        page = self.page()
+        page.model.set_checked_rows([0, 1], True)
+        editor = self.start_editor(page, "analysis")
+        self.assertEqual(editor.toPlainText(), "before")
+        self.assertEqual(page.table.rowHeight(0), 90)
+        self.assertGreaterEqual(editor.height(), editor.fontMetrics().lineSpacing() * 3)
+        editor.setPlainText("first")
+        editor.moveCursor(editor.textCursor().MoveOperation.End)
+        QTest.keyClick(editor, Qt.Key.Key_Return)
+        QTest.keyClicks(editor, "second")
+        self.assertEqual(editor.toPlainText(), "first\nsecond")
+        self.assertFalse(self.edits(page))
+        QTest.keyClick(editor, Qt.Key.Key_Return, Qt.KeyboardModifier.ControlModifier)
+        self.app.processEvents()
+        self.assertEqual(len(self.edits(page)), 1)
+        self.assertEqual(page.table.rowHeight(0), page.table.verticalHeader().defaultSectionSize())
+        method, endpoint, payload, callback = self.edits(page)[0]
+        self.assertEqual(payload, {"id": 1, "field": "analysis", "value": "first\nsecond",
+                                  "expected_value": "before"})
+        callback({"ok": True, "value": "first\nsecond"}, None)
+        self.assertEqual(list(page.model.selected), [2])
+        self.assertFalse(page.model.pending)
+
+    def test_multiline_blur_commits_escape_cancels_and_unchanged_never_writes(self):
+        page = self.page()
+        editor = self.start_editor(page, "maintenance_text")
+        editor.setPlainText("first\nsecond")
+        QTest.keyClick(editor, Qt.Key.Key_Escape)
+        self.app.processEvents()
+        self.assertFalse(self.edits(page))
+        editor = self.start_editor(page, "analysis")
+        QTest.keyClick(editor, Qt.Key.Key_Return, Qt.KeyboardModifier.ControlModifier)
+        self.app.processEvents()
+        self.assertFalse(self.edits(page))
+        editor = self.start_editor(page, "analysis")
+        editor.setPlainText("blur\nsaved")
+        QTest.mouseClick(editor.viewport(), Qt.MouseButton.LeftButton)
+        self.assertFalse(self.edits(page))
+        QTest.mouseClick(page.records_title, Qt.MouseButton.LeftButton)
+        self.app.processEvents()
+        self.assertEqual(len(self.edits(page)), 1)
+        self.assertEqual(self.edits(page)[0][2]["value"], "blur\nsaved")
+
+    def test_location_edits_use_source_value_and_conflicts_preserve_selection(self):
+        page = self.page()
+        page.model.rows[0].update(location="P1 + 0 mm", location_raw="P1")
+        page.model.set_checked_rows([0], True)
+        editor = self.start_editor(page, "location")
+        self.assertEqual(editor.text(), "P1")
+        self.assertEqual(page.table.rowHeight(0), 54)
+        QTest.keyClick(editor, Qt.Key.Key_Return)
+        self.app.processEvents()
+        self.assertFalse(self.edits(page))
+        editor = self.start_editor(page, "location")
+        editor.setText("P1+2")
+        QTest.keyClick(editor, Qt.Key.Key_Return)
+        self.app.processEvents()
+        payload = self.edits(page)[-1][2]
+        self.assertEqual(payload["expected_value"], "P1")
+        self.assertEqual(payload["value"], "P1+2")
+        with patch.object(QMessageBox, "warning"):
+            self.edits(page)[-1][3](None, "该字段已被其他操作修改")
+        self.assertIn(1, page.model.selected)
+        self.assertFalse(page.model.pending)
+        self.assertEqual(page.model.rows[0]["location_raw"], "P1")
+
+    def test_editor_last_row_is_visible_restores_height_and_model_reset_releases_it(self):
+        page = self.page()
+        rows = [dict(page.model.rows[0], id=number + 1) for number in range(50)]
+        page.model.replace(rows)
+        for width, theme in ((1480, "light"), (980, "dark")):
+            page.setStyleSheet(workspace_styles(theme))
+            page.resize(width, 940)
+            self.app.processEvents()
+            editor = self.start_editor(page, "analysis", 49)
+            self.assertEqual(editor.height(), 70)
+            self.assertGreaterEqual(editor.y(), 0)
+            self.assertLessEqual(editor.geometry().bottom(), page.table.viewport().rect().bottom())
+            QTest.keyClick(editor, Qt.Key.Key_Escape)
+            self.app.processEvents()
+            self.assertEqual(page.table.rowHeight(49), page.table.verticalHeader().defaultSectionSize())
+        editor = self.start_editor(page, "analysis")
+        editor.setPlainText("must not write to replacement row")
+        page.model.replace(list(reversed(rows)))
+        self.app.processEvents()
+        self.assertIsNone(page.table.itemDelegate()._active_editor)
+        QTest.mouseClick(page.records_title, Qt.MouseButton.LeftButton)
+        self.assertFalse(self.edits(page))
 
     def test_sort_cycles_through_cancel_and_checkbox_scope_guard_applies_to_model(self):
         page = self.page()

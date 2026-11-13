@@ -7,10 +7,10 @@ from pathlib import Path
 import time
 
 from PySide6.QtCore import QEvent, QIODevice, QPointF, QRect, QSaveFile, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QIntValidator, QKeySequence, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QIntValidator, QKeySequence, QPainter, QPainterPath, QPen, QTextBlockFormat, QTextCursor
 from PySide6.QtWidgets import (
     QAbstractItemView, QApplication, QComboBox, QHBoxLayout, QLabel, QLineEdit, QStyle, QStyledItemDelegate,
-    QStyleOptionViewItem, QTabBar, QTableView, QWidget,
+    QPlainTextEdit, QStyleOptionViewItem, QTabBar, QTableView, QWidget,
 )
 
 from .constants import USER_DATA
@@ -56,6 +56,7 @@ class WorkbenchSortPreference:
 
 class FindingTable(QTableView):
     checkRequested = Signal(int, bool, bool, int)
+    editSelectionUndoRequested = Signal(int, bool)
     selectPageRequested = Signal()
     handles_checks = True
 
@@ -65,6 +66,7 @@ class FindingTable(QTableView):
         self._last_click = None
         self._double_release = False
         self.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
 
     def setModel(self, model):
         super().setModel(model)
@@ -100,7 +102,7 @@ class FindingTable(QTableView):
             previous = self._last_click
             if (self.model().flags(index) & Qt.ItemFlag.ItemIsEditable and previous
                     and previous[0] == index.row() and time.monotonic() - previous[2] < .5):
-                self.checkRequested.emit(index.row(), False, previous[1], self._anchor)
+                self.editSelectionUndoRequested.emit(index.row(), previous[1])
             self._double_release = True
         super().mouseDoubleClickEvent(event)
 
@@ -162,6 +164,73 @@ class PagerLayout(ToolFlowLayout):
 
 class FindingDelegate(QStyledItemDelegate):
     """Draw a centered native checkbox with the whole cell as its click target."""
+    def createEditor(self, parent, option, index):
+        field = index.model().fields[index.column()]
+        if field in {"analysis", "maintenance_text"}:
+            editor = QPlainTextEdit(parent)
+            editor.setTabChangesFocus(True)
+            editor.document().setDocumentMargin(0)
+        else:
+            editor = super().createEditor(parent, option, index)
+        if editor is not None:
+            editor.setAccessibleName(index.model().headers[index.column()].replace("\n", ""))
+            editor.setProperty("findingEditor", True)
+            table = self.parent()
+            editor.setProperty("originalRowHeight", table.rowHeight(index.row()))
+            table.setRowHeight(index.row(), 90 if isinstance(editor, QPlainTextEdit) else 54)
+            table.doItemsLayout()
+            table.scrollTo(index)
+            self._active_editor = editor
+            QApplication.instance().installEventFilter(self)
+        return editor
+
+    def destroyEditor(self, editor, index):
+        if getattr(self, "_active_editor", None) is editor:
+            self._active_editor = None
+            QApplication.instance().removeEventFilter(self)
+        if index.isValid() and editor.property("originalRowHeight"):
+            self.parent().setRowHeight(index.row(), editor.property("originalRowHeight"))
+        super().destroyEditor(editor, index)
+
+    def setEditorData(self, editor, index):
+        if isinstance(editor, QPlainTextEdit):
+            editor.setPlainText(index.data(Qt.ItemDataRole.EditRole) or "")
+            cursor = editor.textCursor()
+            cursor.select(QTextCursor.SelectionType.Document)
+            block = QTextBlockFormat()
+            block.setLineHeight(18.6, QTextBlockFormat.LineHeightTypes.FixedHeight.value)
+            cursor.mergeBlockFormat(block)
+            editor.selectAll()
+        else:
+            super().setEditorData(editor, index)
+
+    def setModelData(self, editor, model, index):
+        if isinstance(editor, QPlainTextEdit):
+            model.setData(index, editor.toPlainText(), Qt.ItemDataRole.EditRole)
+        else:
+            super().setModelData(editor, model, index)
+
+    def updateEditorGeometry(self, editor, option, index):
+        editor.setGeometry(self.parent().visualRect(index).adjusted(10, 8, -10, -12))
+
+    def eventFilter(self, editor, event):
+        active = getattr(self, "_active_editor", None)
+        if editor is not active:
+            if (active is not None and event.type() == QEvent.Type.MouseButtonPress
+                    and isinstance(editor, QWidget) and not active.isAncestorOf(editor)):
+                self.commitData.emit(active)
+                self.closeEditor.emit(active)
+            return False
+        if isinstance(editor, QPlainTextEdit) and event.type() == QEvent.Type.KeyPress:
+            if (event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+                    and event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+                self.commitData.emit(editor)
+                self.closeEditor.emit(editor)
+                return True
+            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                return False
+        return super().eventFilter(editor, event)
+
     def paint(self, painter, option, index):
         if index.column() != 0:
             return super().paint(painter, option, index)

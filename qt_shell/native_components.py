@@ -1370,6 +1370,8 @@ def workspace_styles(theme="light", density="comfortable"):
         QAbstractItemView, QTextEdit, QPlainTextEdit, QTextBrowser {{ background:{surface};
             alternate-background-color:{table_zebra}; border:1px solid {line};
             selection-background-color:{selected}; selection-color:{text}; }}
+        QPlainTextEdit[findingEditor="true"] {{ padding:6px 8px; border-radius:4px; font-size:12px; }}
+        QLineEdit[findingEditor="true"] {{ min-height:0px; font-size:12px; }}
         QTableView {{ gridline-color:{line}; border:1px solid {line}; border-radius:5px;
             background:{surface}; alternate-background-color:{table_zebra};
             selection-background-color:{selected}; selection-color:{text}; }}

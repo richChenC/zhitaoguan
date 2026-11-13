@@ -108,6 +108,8 @@ class FindingsModel(QAbstractTableModel):
             if index.column() == 1:
                 return self.page_offset + index.row() + 1
             value = row.get(field, "")
+            if role == Qt.ItemDataRole.EditRole and field == "location":
+                value = row.get("location_raw", value)
             if role == Qt.ItemDataRole.DisplayRole and field == "indication":
                 value = row.get("display_conclusion", value) or "未标注"
             if field == "maintenance_status":
@@ -146,13 +148,14 @@ class FindingsModel(QAbstractTableModel):
             return bool(applied and not skipped)
         field = self.fields[index.column()]
         if role == Qt.ItemDataRole.EditRole and self.editable and field in self.editable_fields:
+            original = row.get("location_raw", row.get(field)) if field == "location" else row.get(field)
             key = (row["id"], field)
             if key in self.pending:
                 return False
-            if str(row.get(field) or "") == str(value):
+            if str("" if original is None else original) == str(value):
                 return False
             self.pending.add(key)
-            self.editRequested.emit(row["id"], field, value, row.get(field))
+            self.editRequested.emit(row["id"], field, value, original)
             return True
         return False
 
@@ -399,6 +402,7 @@ class DataWorkbench(QWidget):
         self.table.setColumnWidth(0, 45)
         self.table.setColumnWidth(1, 50)
         self.table.checkRequested.connect(self._check_rows)
+        self.table.editSelectionUndoRequested.connect(self._undo_edit_selection)
         self.table.selectPageRequested.connect(self.toggle_page)
         self.model.selectionRejected.connect(self.pager.status.setText)
         self.table.horizontalHeader().setSectionsClickable(True)
@@ -898,13 +902,7 @@ class DataWorkbench(QWidget):
                 self.load_findings()
                 return
             if finding_id in self.model.selected:
-                self.model.selected[finding_id][field] = data.get("value")
-                if field == "thimble_id":
-                    from .native_model_data import reference_layout
-                    unit = int(self.model.selected[finding_id]["unit_id"])
-                    channel = next(c for c in reference_layout()["channels"]
-                                   if int(c["serialOdd" if unit % 2 else "serialEven"]) == int(data["value"]))
-                    self.model.selected[finding_id]["position"] = channel["pos"]
+                self.model.selected.pop(finding_id)
                 self._selection_changed()
             self.status.setText("已保存，审计已记录")
             self.load_findings()
@@ -966,9 +964,17 @@ class DataWorkbench(QWidget):
     def _check_rows(self, number, extend, checked, anchor_index):
         if self._filter_busy:
             return
+        self._last_click_presentation = (self.map_unit.value(), self.parity_tabs.currentIndex())
         anchor = self.model.rows[anchor_index] if 0 <= anchor_index < self.model.rowCount() else None
         indices = range(min(anchor_index, number), max(anchor_index, number) + 1) if extend and anchor else [number]
         self.model.set_checked_rows(indices, checked, anchor if extend else None)
+
+    def _undo_edit_selection(self, number, checked):
+        presentation = getattr(self, "_last_click_presentation", None)
+        self.model.set_checked_rows([number], checked)
+        if presentation:
+            self.map_unit.setValue(presentation[0])
+            self.parity_tabs.setCurrentIndex(presentation[1])
 
     def _update_plate(self, *_):
         if not hasattr(self, "plate"):

@@ -392,6 +392,72 @@ try {
     Start-Sleep -Milliseconds 150
     if ($clearSelection[0].Current.IsEnabled) { throw 'Native clear selection did not reset actions' }
     $result.steps += 'native-workbench-same-scope-select-page-repeat-and-clear'
+    $findingTables = @(Find-Control $window ([System.Windows.Automation.ControlType]::Table) |
+        Where-Object { -not $_.Current.IsOffscreen -and $_.Current.BoundingRectangle.Width -gt 500 })
+    if ($findingTables.Count -ne 1) { throw 'Visible native finding table missing for editor check' }
+    $historyBefore = & $python -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); print(c.execute('SELECT COUNT(*) FROM finding_edit_history').fetchone()[0]); c.close()" (Join-Path $work 'data/thimble.db')
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot read isolated finding edit history' }
+    [NativeProbeWindow]::SetForegroundWindow([IntPtr]$window.Current.NativeWindowHandle) | Out-Null
+    $findingTables[0].SetFocus()
+    # Home/End reach the last retained source field; F2 opens its native editor.
+    foreach ($key in @(0x24, 0x23, 0x71)) {
+        [NativeProbeWindow]::PostMessage([IntPtr]$window.Current.NativeWindowHandle, 0x0100,
+                                        [IntPtr]$key, [IntPtr]1) | Out-Null
+        [NativeProbeWindow]::PostMessage([IntPtr]$window.Current.NativeWindowHandle, 0x0101,
+                                        [IntPtr]$key, [IntPtr]1) | Out-Null
+        Start-Sleep -Milliseconds 100
+    }
+    $findingEditor = @()
+    for ($attempt=0; $attempt -lt 50; $attempt++) {
+        $focused = [System.Windows.Automation.AutomationElement]::FocusedElement
+        if ($focused -and $focused.Current.Name -eq '堵管移位信息') {
+            $findingEditor = @($focused)
+        }
+        if ($findingEditor.Count -eq 1) { break }
+        Start-Sleep -Milliseconds 100
+    }
+    if ($findingEditor.Count -ne 1) {
+        $result.editor_focus = [System.Windows.Automation.AutomationElement]::FocusedElement.Current.Name
+        $result.editor_controls = @($window.FindAll([System.Windows.Automation.TreeScope]::Descendants,
+            [System.Windows.Automation.Condition]::TrueCondition) | Where-Object {
+                -not $_.Current.IsOffscreen -and ($_.Current.ControlType -in @(
+                    [System.Windows.Automation.ControlType]::Edit,
+                    [System.Windows.Automation.ControlType]::Document,
+                    [System.Windows.Automation.ControlType]::Table))
+            } | ForEach-Object {
+                @{name=$_.Current.Name; type=$_.Current.ControlType.ProgrammaticName;
+                  bounds=$_.Current.BoundingRectangle.ToString(); handle=$_.Current.NativeWindowHandle;
+                  patterns=@($_.GetSupportedPatterns() | ForEach-Object { $_.ProgrammaticName })}
+            })
+        Capture 'frozen-editor-failure'
+        throw 'Frozen F2 did not open native multiline source editor'
+    }
+    $result.finding_editor_type = $findingEditor[0].Current.ControlType.ProgrammaticName
+    $result.finding_editor_patterns = @($findingEditor[0].GetSupportedPatterns() |
+        ForEach-Object { $_.ProgrammaticName })
+    $result.finding_editor_bounds = $findingEditor[0].Current.BoundingRectangle.ToString()
+    if ([Math]::Abs($findingEditor[0].Current.BoundingRectangle.Height - 70) -gt 1) {
+        throw 'Frozen multiline editor has incorrect height'
+    }
+    $findingEditor[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue("CANCEL ONLY`nMULTILINE TEST")
+    Capture 'frozen-finding-multiline-editor'
+    [NativeProbeWindow]::PostMessage([IntPtr]$window.Current.NativeWindowHandle, 0x0100,
+                                    [IntPtr]0x1B, [IntPtr]1) | Out-Null
+    [NativeProbeWindow]::PostMessage([IntPtr]$window.Current.NativeWindowHandle, 0x0101,
+                                    [IntPtr]0x1B, [IntPtr]1) | Out-Null
+    Start-Sleep -Milliseconds 150
+    if ([System.Windows.Automation.AutomationElement]::FocusedElement.Current.Name -eq '堵管移位信息') {
+        throw 'Frozen Escape did not close finding editor'
+    }
+    $historyAfter = & $python -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); print(c.execute('SELECT COUNT(*) FROM finding_edit_history').fetchone()[0]); c.close()" (Join-Path $work 'data/thimble.db')
+    if ($LASTEXITCODE -ne 0 -or $historyBefore -ne $historyAfter) {
+        throw 'Canceled frozen multiline edit changed database history'
+    }
+    [NativeProbeWindow]::PostMessage([IntPtr]$window.Current.NativeWindowHandle, 0x0100,
+                                    [IntPtr]0x24, [IntPtr]1) | Out-Null
+    [NativeProbeWindow]::PostMessage([IntPtr]$window.Current.NativeWindowHandle, 0x0101,
+                                    [IntPtr]0x24, [IntPtr]1) | Out-Null
+    $result.steps += 'native-workbench-multiline-f2-value-escape-and-no-database-write'
     Capture 'frozen-workbench-table'
     $mainWindow = $window
     foreach ($utilityName in @('Frozen Probe，已登录账户', '软件设置')) {

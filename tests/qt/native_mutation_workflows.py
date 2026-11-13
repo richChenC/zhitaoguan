@@ -8,7 +8,7 @@ from unittest.mock import patch
 from PySide6.QtCore import QPoint, QTimer, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
-    QCheckBox, QDialogButtonBox, QLineEdit, QListWidget, QMessageBox, QPushButton,
+    QCheckBox, QDialogButtonBox, QLineEdit, QListWidget, QMessageBox, QPushButton, QPlainTextEdit,
 )
 
 
@@ -35,10 +35,15 @@ def run(app, window, client, work, scope, request, wait, until):
         page.table.setCurrentIndex(index)
         page.table.setFocus()
         QTest.keyClick(page.table, Qt.Key.Key_F2)
-        until(app, lambda: any(e.isVisible() for e in page.table.findChildren(QLineEdit)), "inline editor")
-        editor = next(e for e in page.table.findChildren(QLineEdit) if e.isVisible())
-        editor.setText(text)
-        QTest.keyClick(editor, Qt.Key.Key_Return)
+        kind = QPlainTextEdit if page.model.fields[column] in {"analysis", "maintenance_text"} else QLineEdit
+        until(app, lambda: any(e.isVisible() for e in page.table.findChildren(kind)), "inline editor")
+        editor = next(e for e in page.table.findChildren(kind) if e.isVisible())
+        if isinstance(editor, QPlainTextEdit):
+            editor.setPlainText(text)
+            QTest.keyClick(editor, Qt.Key.Key_Return, Qt.KeyboardModifier.ControlModifier)
+        else:
+            editor.setText(text)
+            QTest.keyClick(editor, Qt.Key.Key_Return)
 
     info = patch.object(QMessageBox, "information", return_value=QMessageBox.StandardButton.Ok)
     warning = patch.object(QMessageBox, "warning",
