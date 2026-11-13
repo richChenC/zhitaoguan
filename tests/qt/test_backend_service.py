@@ -4,6 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import native_test_env  # noqa: F401
+
 import qt_shell.backend_service as backend_module
 import qt_shell.main as shell_main
 from qt_shell.backend_service import BackendService, ServiceStartError

@@ -19,6 +19,7 @@ def main():
     parser.add_argument("reference", type=Path)
     parser.add_argument("--workbench-reference", type=Path)
     parser.add_argument("--workbench-only", action="store_true")
+    parser.add_argument("--table-reference", type=Path)
     args = parser.parse_args()
     project = Path(__file__).resolve().parents[2]
     work = project.parent / "05_测试与验证" / "03_自动化临时产物" / (
@@ -131,6 +132,10 @@ def main():
             from probe_native_workbench_filters import verify_workbench_filters
             result["workbench_filters"] = verify_workbench_filters(
                 app, window, client, work, args.workbench_reference, wait, until, request)
+        if args.table_reference:
+            from probe_native_workbench_table import verify_workbench_table
+            result["workbench_table"] = verify_workbench_table(
+                app, window, client, work, args.table_reference, wait, until, request)
         with sqlite3.connect(database) as db:
             result["findings_after"] = db.execute("SELECT COUNT(*) FROM findings").fetchone()[0]
         assert result["findings_before"] == result["findings_after"]

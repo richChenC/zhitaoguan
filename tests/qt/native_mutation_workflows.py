@@ -34,7 +34,7 @@ def run(app, window, client, work, scope, request, wait, until):
         page.table.scrollTo(index)
         page.table.setCurrentIndex(index)
         page.table.setFocus()
-        click(page.edit_button)
+        QTest.keyClick(page.table, Qt.Key.Key_F2)
         until(app, lambda: any(e.isVisible() for e in page.table.findChildren(QLineEdit)), "inline editor")
         editor = next(e for e in page.table.findChildren(QLineEdit) if e.isVisible())
         editor.setText(text)

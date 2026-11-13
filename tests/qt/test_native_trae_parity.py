@@ -129,6 +129,13 @@ class NativeParityTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
         cls.app.setQuitOnLastWindowClosed(False)
 
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory(dir=native_test_env.test_data.name)
+        self.addCleanup(folder.cleanup)
+        state = patch("qt_shell.native_workbench_table.USER_DATA", Path(folder.name))
+        state.start()
+        self.addCleanup(state.stop)
+
     def tearDown(self):
         for widget in self.app.topLevelWidgets():
             widget.close()

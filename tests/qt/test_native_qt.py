@@ -1002,7 +1002,7 @@ class NativeQtTests(unittest.TestCase):
         page.close()
 
     def test_report_header_settings_roundtrip_in_isolated_user_data(self):
-        with tempfile.TemporaryDirectory() as temp:
+        with tempfile.TemporaryDirectory(dir=native_test_env.test_data.name) as temp:
             with patch.object(native_windows, "USER_DATA", Path(temp)):
                 page = NativeReportsPage(type("Client", (), {
                     "get": lambda *_args: None,

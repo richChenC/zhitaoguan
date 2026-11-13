@@ -246,6 +246,42 @@ try {
         throw 'Native individual filter clear did not clear analyst'
     }
     $result.steps += 'native-workbench-filter-summary-and-individual-clear'
+    foreach ($fieldMode in @('全部字段', '重点字段')) {
+        $fieldTab = Find-Control $window ([System.Windows.Automation.ControlType]::TabItem) $fieldMode
+        if ($fieldTab.Count -ne 1) { throw "Native workbench field tab missing: $fieldMode" }
+        $fieldTab[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        Start-Sleep -Milliseconds 100
+        if (-not $fieldTab[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected) {
+            throw "Native workbench field tab did not select: $fieldMode"
+        }
+    }
+    $result.steps += 'native-workbench-field-modes-and-persistent-choice'
+    foreach ($paging in @(
+        @{Name='下一页'; Page=2},
+        @{Name='上一页'; Page=1}
+    )) {
+        $pageButton = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) $paging.Name |
+            Where-Object { -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
+        if ($pageButton.Count -ne 1) { throw "Native workbench pager missing: $($paging.Name)" }
+        Activate-Control $pageButton[0]
+        $pageFound = $false
+        for ($attempt=0; $attempt -lt 100; $attempt++) {
+            Start-Sleep -Milliseconds 100
+            $pageLabels = @(Find-Control $window ([System.Windows.Automation.ControlType]::Text) |
+                Where-Object { $_.Current.Name -match ('^' + $paging.Page + ' / \d+$') })
+            $readySize = Find-Control $window ([System.Windows.Automation.ControlType]::ComboBox) '每页显示条数'
+            if ($pageLabels.Count -eq 1 -and $readySize.Count -eq 1 -and $readySize[0].Current.IsEnabled) {
+                $pageFound = $true
+                break
+            }
+        }
+        if (-not $pageFound) { throw "Native workbench did not reach page $($paging.Page)" }
+    }
+    $pageJump = Find-Control $window ([System.Windows.Automation.ControlType]::Edit) '跳转到指定页码'
+    $pageSize = Find-Control $window ([System.Windows.Automation.ControlType]::ComboBox) '每页显示条数'
+    if ($pageJump.Count -ne 1 -or $pageSize.Count -ne 1) { throw 'Native jump or page size control missing' }
+    $result.steps += 'native-workbench-real-next-previous-and-page-controls'
+    Capture 'frozen-workbench-table'
     $mainWindow = $window
     foreach ($utilityName in @('Frozen Probe，已登录账户', '软件设置')) {
         $utility = @(Find-Control $window ([System.Windows.Automation.ControlType]::Button) $utilityName |

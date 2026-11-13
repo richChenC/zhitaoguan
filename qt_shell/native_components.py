@@ -1327,6 +1327,34 @@ def workspace_styles(theme="light", density="comfortable"):
             border:0; border-bottom:2px solid transparent; }}
         QTabBar::tab:hover {{ color:{accent}; background:{hover}; }}
         QTabBar::tab:selected {{ color:{accent}; border-bottom-color:{accent}; font-weight:600; }}
+        QWidget#workbenchTableHeading {{ background:{control}; border-bottom:1px solid {line}; }}
+        QLabel#workbenchTableTitle {{ font-size:14px; font-weight:600; }}
+        QLabel#workbenchRecordCount {{ font-size:11px; color:{muted};
+            border-left:1px solid {line}; padding-left:9px; margin-left:3px; }}
+        QLabel#workbenchSelectionCount {{ font-size:11px; color:{accent}; background:{accent_soft};
+            padding:2px 6px; border-radius:3px; }}
+        QPushButton#workbenchSelectionButton {{ min-height:32px; max-height:32px;
+            min-width:85px; max-width:85px; padding:0; font-size:11px; font-weight:400; }}
+        QWidget#workbenchFieldModes {{ background:{control}; border:1px solid {line}; border-radius:4px; }}
+        QTabBar#workbenchFieldTabs {{ background:transparent; }}
+        QTabBar#workbenchFieldTabs::tab {{ min-height:0; padding:0; border:1px solid transparent;
+            border-radius:3px; background:transparent; font-size:11px; font-weight:600; }}
+        QTabBar#workbenchFieldTabs::tab:selected {{ background:{surface}; border-color:{line}; color:{accent}; }}
+        QTableView#workbenchTable {{ border:1px solid {line}; border-radius:0; }}
+        QTableView#workbenchTable QHeaderView::section {{ padding:8px 6px; font-size:12px; }}
+        QWidget#workbenchPager {{ background:{surface}; border-top:1px solid {line}; }}
+        QWidget#workbenchPager QLabel {{ font-size:11px; color:{muted}; }}
+        QWidget#workbenchPager QLabel#workbenchPageInfo {{ font-size:12px; color:{text}; }}
+        QWidget#workbenchPager QLabel#workbenchPageSizeLabel {{ font-size:12px; }}
+        QComboBox#workbenchPageSize {{ min-width:48px; max-width:48px; min-height:32px; max-height:32px;
+            padding:0 8px; font-size:11px; }}
+        QComboBox#workbenchPageSize::drop-down {{ width:18px; }}
+        QPushButton#workbenchPageButton {{ min-width:28px; max-width:28px; min-height:28px; max-height:28px; padding:0; }}
+        QLineEdit#workbenchPageJump {{ min-width:44px; max-width:44px; min-height:22px; max-height:22px;
+            padding:3px 4px; font-size:11px; }}
+        QSplitter#workbenchSplitter::handle {{ background:transparent; }}
+        QSplitter#workbenchSplitter::handle:horizontal {{ margin:0 21px; border-left:1px solid {line}; }}
+        QSplitter#workbenchSplitter::handle:vertical {{ margin:5px 0; border-top:1px solid {line}; }}
         QGroupBox {{ background:{surface}; border:1px solid {line}; border-radius:5px;
             margin-top:14px; padding:16px 12px 12px; }}
         QGroupBox::title {{ subcontrol-origin:margin; left:10px; padding:0 5px; }}

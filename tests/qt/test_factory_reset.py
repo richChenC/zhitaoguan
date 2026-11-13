@@ -3,12 +3,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import native_test_env
+
 from qt_shell.factory_reset import apply, schedule
 
 
 class FactoryResetTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory()
+        self.temporary = tempfile.TemporaryDirectory(dir=native_test_env.test_data.name)
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         (self.root / "data" / "backups").mkdir(parents=True)

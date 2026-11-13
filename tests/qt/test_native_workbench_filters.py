@@ -81,7 +81,9 @@ class WorkbenchFilterTests(unittest.TestCase):
         page.analyst.setText("<b>张三</b>")
         page.channel.setText("6")
         page.column_filters["analysis"] = "原文"
+        page.column_filters["percent"] = "10"
         page.apply_filters()
+        self.assertIn(("column:percent", "磨损深度（壁厚%）：10"), page.filter_summary.entries)
         for key in ("site", "unit", "outage"):
             count = len(self.queries(page))
             page.clear_filter(key)
@@ -94,6 +96,8 @@ class WorkbenchFilterTests(unittest.TestCase):
         self.assertIn("<b>张三</b>", chip.remove_button.accessibleName())
         page.clear_filter("column:analysis")
         self.assertNotIn("column_analysis=", self.queries(page)[-1][1])
+        self.assertEqual(page.column_filters, {"percent": "10"})
+        page.clear_filter("column:percent")
         self.assertEqual(page.column_filters, {})
 
     def test_user_typing_debounces_enter_and_escape_cancel_pending_query(self):

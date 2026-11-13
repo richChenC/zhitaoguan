@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QEvent, QIODevice, QModelIndex, QObject, QSaveFile, QSize, QUrl, QTimer, Qt, Signal
-from PySide6.QtGui import QBrush, QCloseEvent, QColor, QCursor, QIcon, QImage, QPainter, QPixmap, QVector3D
+from PySide6.QtGui import QAction, QBrush, QCloseEvent, QColor, QCursor, QIcon, QImage, QKeySequence, QPainter, QPixmap, QShortcut, QVector3D
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -70,7 +70,7 @@ class FindingsModel(QAbstractTableModel):
     editRequested = Signal(int, str, object, object)
     selectionChanged = Signal()
     headers = ["选择", "序号", "大修", "机组", "通道编号", "堆芯位置", "三字符", "幅值（V）",
-               "相位", "磨损深度（壁厚%）", "磨损位置", "测量通道", "探头类型",
+               "相位", "磨损深度\n（壁厚%）", "磨损位置", "测量通道", "探头类型",
                "分析人员", "数据", "数据组", "维护状态", "备注", "堵管移位信息"]
     fields = ["_checked", "_number", "outage", "unit_id", "thimble_id", "position",
               "indication", "volts", "degrees", "percent", "location", "channel",
@@ -118,7 +118,7 @@ class FindingsModel(QAbstractTableModel):
             if field == "maintenance_status":
                 return row.get("maintenance_status_source") or "未找到维护记录"
             return str(row.get(field) or "")
-        if role == Qt.ItemDataRole.TextAlignmentRole and index.column() in {1, 3, 4, 7, 8, 9}:
+        if role == Qt.ItemDataRole.TextAlignmentRole:
             return int(Qt.AlignmentFlag.AlignCenter)
         return None
 
@@ -206,6 +206,8 @@ class DataWorkbench(QWidget):
         self.model.selectionChanged.connect(self._selection_changed)
         self._query_number = 0
         self._filter_busy = False
+        self._loaded_page = 1
+        self._loaded_scope = None
         self._filter_timer = QTimer(self)
         self._filter_timer.setSingleShot(True)
         self._filter_timer.setInterval(350)
@@ -275,9 +277,9 @@ class DataWorkbench(QWidget):
         self.channel.setPlaceholderText("如 6")
         from PySide6.QtGui import QIntValidator
         self.channel.setValidator(QIntValidator(1, 50, self.channel))
-        self.page_size = QSpinBox()
-        self.page_size.setRange(20, 500)
-        self.page_size.setValue(100)
+        from .native_workbench_table import FieldModeControl, FindingDelegate, WorkbenchPager
+        self.pager = WorkbenchPager()
+        self.page_size = self.pager.size_combo
         self.search = button("应用筛选", "funnel")
         self.search.setProperty("primary", True)
         self.search.clicked.connect(self.apply_filters)
@@ -351,13 +353,17 @@ class DataWorkbench(QWidget):
             control.setEnabled(self.permissions is None or permission in self.permissions)
 
         self.table = QTableView()
+        self.table.setObjectName("workbenchTable")
         self.table.setModel(self.model)
+        self.table.setItemDelegate(FindingDelegate(self.table))
         self.table.setAlternatingRowColors(True)
         self.table.setShowGrid(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.EditKeyPressed)
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.verticalHeader().setDefaultSectionSize(37)
+        self.table.horizontalHeader().setStretchLastSection(False)
+        self.table.horizontalHeader().setMinimumSectionSize(40)
+        self.table.horizontalHeader().setFixedHeight(51)
+        self.table.verticalHeader().setDefaultSectionSize(38)
         self.table.verticalHeader().hide()
         self.table.setColumnWidth(0, 45)
         self.table.setColumnWidth(1, 50)
@@ -367,31 +373,48 @@ class DataWorkbench(QWidget):
         self.table.horizontalHeader().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.horizontalHeader().customContextMenuRequested.connect(self.filter_column)
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setObjectName("workbenchSplitter")
+        self.splitter.setHandleWidth(44)
         self.splitter.setChildrenCollapsible(False)
         table_host = QWidget()
-        table_host.setMinimumHeight(320)
+        self.table_host = table_host
+        table_host.setMinimumHeight(350)
         table_host.setObjectName("workspacePanel")
         table_layout = QVBoxLayout(table_host)
-        table_layout.setContentsMargins(0, 0, 0, 0)
+        table_layout.setContentsMargins(1, 1, 1, 1)
         table_layout.setSpacing(0)
-        table_heading = QHBoxLayout()
-        table_heading.setContentsMargins(14, 8, 14, 8)
+        self.table_heading = QWidget()
+        self.table_heading.setObjectName("workbenchTableHeading")
+        self.table_heading.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        self.table_heading.setFixedHeight(55)
+        table_heading = QHBoxLayout(self.table_heading)
+        table_heading.setContentsMargins(14, 10, 14, 11)
+        table_heading.setSpacing(9)
         self.records_title = QLabel("检测记录")
+        self.records_title.setObjectName("workbenchTableTitle")
         table_heading.addWidget(self.records_title)
-        table_heading.addStretch()
+        self.record_count = QLabel("共 0 条")
+        self.record_count.setObjectName("workbenchRecordCount")
+        table_heading.addWidget(self.record_count)
         self.selection_info = QLabel("已勾选 0 条")
+        self.selection_info.setObjectName("workbenchSelectionCount")
         table_heading.addWidget(self.selection_info)
+        table_heading.addStretch()
         self.select_page_button = button("全选本页", "check-check", self.toggle_page)
         self.clear_selection_button = button("清除勾选", "x", self.clear_selection)
+        for control in (self.select_page_button, self.clear_selection_button):
+            control.setObjectName("workbenchSelectionButton")
+            control.setFixedSize(87, 34)
+            control.setIconSize(QSize(15, 15))
         table_heading.addWidget(self.select_page_button)
+        table_heading.setSpacing(6)
         table_heading.addWidget(self.clear_selection_button)
-        self.field_mode = QTabBar()
-        self.field_mode.setExpanding(False)
-        for text, mode in (("重点字段", "key"), ("全部字段", "all")):
-            self.field_mode.setTabData(self.field_mode.addTab(text), mode)
+        table_heading.addSpacing(10)
+        self.field_modes = FieldModeControl()
+        self.field_mode = self.field_modes.tabs
         self.field_mode.currentChanged.connect(self._set_field_mode)
-        table_heading.addWidget(self.field_mode)
-        table_layout.addLayout(table_heading)
+        table_heading.addWidget(self.field_modes)
+        table_layout.addWidget(self.table_heading)
         table_layout.addWidget(self.table, 1)
         self.splitter.addWidget(table_host)
         map_host = QWidget()
@@ -426,39 +449,27 @@ class DataWorkbench(QWidget):
         self.plate_stats.setWordWrap(True)
         map_layout.addWidget(self.plate_stats)
         self.splitter.addWidget(map_host)
-        # TRAE workbench keeps the table and inspection map closer to a 3:2
-        # split on wide screens, so the map remains readable instead of being
-        # squeezed into a narrow side rail.
-        self.splitter.setStretchFactor(0, 3)
-        self.splitter.setStretchFactor(1, 2)
-        self.splitter.setSizes([900, 600])
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 1)
+        self.splitter.setSizes([854, 531])
         layout.addWidget(self.splitter, 1)
         self.core_rows = []
-        bottom = QHBoxLayout()
-        bottom.setContentsMargins(10, 6, 10, 6)
-        bottom.setSpacing(8)
-        self.status = QLabel("准备就绪")
-        self.edit_hint = QLabel("双击可编辑字段")
-        self.edit_hint.setObjectName("muted")
-        self.edit_hint.setVisible(self.permissions is None or "data.edit" in self.permissions)
-        self.edit_button = QPushButton("编辑选中记录")
-        self.edit_button.clicked.connect(self.edit_selected_finding)
-        if self.permissions is not None and "data.edit" not in self.permissions:
-            self.edit_button.setEnabled(False)
-            self.edit_button.setToolTip("当前账户没有检测记录编辑权限")
-        self.prev = QPushButton("上一页")
-        self.next = QPushButton("下一页")
-        self.prev.clicked.connect(lambda: self._change_page(-1))
-        self.next.clicked.connect(lambda: self._change_page(1))
-        bottom.addWidget(self.status)
-        bottom.addWidget(self.edit_hint)
-        bottom.addStretch(1)
-        bottom.addWidget(self.edit_button)
-        bottom.addWidget(QLabel("每页"))
-        bottom.addWidget(self.page_size)
-        bottom.addWidget(self.prev)
-        bottom.addWidget(self.next)
-        table_layout.addLayout(bottom)
+        self.status = self.pager.status
+        self.edit_action = QAction("编辑选中记录", self.table)
+        self.edit_action.triggered.connect(self.edit_selected_finding)
+        self.edit_action.setEnabled(self.permissions is None or "data.edit" in self.permissions)
+        self.table.addAction(self.edit_action)
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.ActionsContextMenu)
+        self.prev, self.next = self.pager.prev, self.pager.next
+        self.page_info, self.page_jump = self.pager.info, self.pager.jump
+        self.pager.pageRequested.connect(self.go_to_page)
+        self._page_shortcuts = []
+        for key, delta in (("Alt+Left", -1), ("Alt+Right", 1)):
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(lambda step=delta: self._change_page(step))
+            self._page_shortcuts.append(shortcut)
+        table_layout.addWidget(self.pager)
         self.page = 1
         self.pages = 1
         self._import_task: str | None = None
@@ -471,7 +482,8 @@ class DataWorkbench(QWidget):
         self._progress_timer.setInterval(400)
         self._progress_timer.timeout.connect(self._poll_import_progress)
         self._set_field_mode()
-        self.page_size.valueChanged.connect(self.apply_filters)
+        self.pager.sizeChanged.connect(self.apply_filters)
+        self.field_modes.saveFailed.connect(self.status.setText)
         for control in (self.site, self.unit, self.outage, self.detection_status, self.maintenance_status):
             control.currentIndexChanged.connect(self._sync_filter_summary)
         for control in (self.detection_status, self.maintenance_status):
@@ -487,11 +499,13 @@ class DataWorkbench(QWidget):
 
     def _set_field_mode(self, *_):
         important = {"_checked", "_number", "outage", "unit_id", "thimble_id", "position",
-                     "indication", "percent", "location", "maintenance_status", "analysis"}
+                     "indication", "percent", "location", "maintenance_status", "analysis", "maintenance_text"}
+        focus_widths = (58, 58, 81, 70, 104, 104, 93, 72, 72, 128, 128, 104, 104, 104, 160, 160, 139, 197, 174)
+        all_widths = (54, 54, 72, 72, 104, 104, 72, 72, 72, 104, 104, 104, 104, 104, 160, 160, 160, 160, 160)
+        widths = focus_widths if self.field_mode.currentIndex() == 0 else all_widths
         for column, field in enumerate(self.model.fields):
             self.table.setColumnHidden(column, self.field_mode.currentIndex() == 0 and field not in important)
-        self.table.setColumnWidth(self.model.fields.index("percent"), 120)
-        self.table.setColumnWidth(self.model.fields.index("maintenance_status"), 125)
+            self.table.setColumnWidth(column, widths[column])
 
     def _set_plate_parity(self, index):
         self.plate.parity = ("both", "odd", "even")[index]
@@ -562,7 +576,7 @@ class DataWorkbench(QWidget):
                 text = control.currentText() if isinstance(control, QComboBox) else value
             entries.append((key, f"{title}：{text}"))
         for field, value in self.column_filters.items():
-            label = self.model.headers[self.model.fields.index(field)] if field in self.model.fields else field
+            label = self.model.headers[self.model.fields.index(field)].replace("\n", "") if field in self.model.fields else field
             entries.append((f"column:{field}", f"{label}：{value}"))
         return entries
 
@@ -607,8 +621,7 @@ class DataWorkbench(QWidget):
         self.clear_selection_button.setEnabled(not busy and selected)
         self.selection_info.setVisible(selected)
         self.delete.setEnabled(not busy and selected and (self.permissions is None or "data.delete" in self.permissions))
-        self.prev.setEnabled(not busy and self.page > 1)
-        self.next.setEnabled(not busy and self.page < self.pages)
+        self.pager.set_state(self.page, self.pages, busy=busy)
         self.refresh_button.setEnabled(not busy)
 
     def eventFilter(self, watched, event):
@@ -652,11 +665,12 @@ class DataWorkbench(QWidget):
         self._arrange_filters(event.size().width())
         self.splitter.setOrientation(Qt.Orientation.Vertical if event.size().width() <= 1120
                                      else Qt.Orientation.Horizontal)
+        self.splitter.setHandleWidth(12 if self.splitter.orientation() == Qt.Orientation.Vertical else 44)
 
     def _params(self) -> str:
         from urllib.parse import urlencode
         values = {
-            "page": self.page, "size": self.page_size.value(),
+            "page": self.page, "size": self.page_size.currentData(),
             **self.scope_bar.values(), "analyst": self.analyst.text().strip(),
             "thimble": self.channel.text().strip(),
             "detection_status": self.detection_status.currentData(),
@@ -729,35 +743,72 @@ class DataWorkbench(QWidget):
         self.page = 1
         self.load_findings()
 
-    def load_findings(self) -> None:
+    def load_findings(self, *, page_only=False) -> None:
+        from urllib.parse import parse_qsl, urlencode
+        params = dict(parse_qsl(self._params()[1:]))
+        scope = tuple(sorted((key, value) for key, value in params.items() if key != "page"))
+        keep_page = page_only and scope == self._loaded_scope and bool(self.model.rows)
+        if keep_page:
+            params["core"] = "0"
         self.status.setText("正在加载...")
         self._filter_busy = True
         self._sync_filter_summary()
         self._query_number += 1
         number = self._query_number
-        self.client.get(f"/api/findings{self._params()}",
-                        lambda data, error: self._on_findings(data, error) if number == self._query_number else None)
+        def loaded(data, error):
+            if number != self._query_number:
+                return
+            self._on_findings(data, error, page_only=keep_page)
+            if not error and data:
+                self._loaded_scope = scope
+        self.client.get(f"/api/findings?{urlencode(params)}", loaded)
 
-    def _on_findings(self, data: dict[str, Any] | None, error: str | None) -> None:
+    def _on_findings(self, data: dict[str, Any] | None, error: str | None, *, page_only=False) -> None:
         self._filter_busy = False
         if error or not data:
             self.status.setText(error or "数据读取失败")
-            self.model.replace([])
+            if page_only:
+                self.page = self._loaded_page
+            else:
+                self.page = self.pages = 1
+                self.model.replace([])
+                self.record_count.setText("加载失败")
+                self.core_rows = []
+                self._loaded_scope = None
+                self._update_plate()
             self._sync_filter_summary()
             return
         self.page = int(data.get("page") or 1)
-        self.model.page_offset = (self.page - 1) * self.page_size.value()
+        self._loaded_page = self.page
+        size = int(data.get("size") or self.page_size.currentData())
+        self.model.page_offset = (self.page - 1) * size
         self.model.replace(data.get("items") or [])
-        self.records_title.setText(f"检测记录    共 {data.get('total', 0):,} 条")
-        self.core_rows = data.get("core_items") or []
-        self._update_plate()
+        total = int(data.get("total") or 0)
+        self.record_count.setText(f"共 {total} 条")
+        if not page_only:
+            self.core_rows = data.get("core_items") or []
+            self._update_plate()
         self.pages = max(1, int(data.get("pages") or 1))
-        self.status.setText(f"第 {data.get('page', 1)} / {self.pages} 页，共 {data.get('total', 0):,} 条")
+        start = (self.page - 1) * size + 1
+        self.status.setText(f"第 {start}\u2013{min(self.page * size, total)} 条，共 {total} 条" if total else "共 0 条")
         self._sync_filter_summary()
 
     def _change_page(self, delta: int) -> None:
-        self.page = max(1, min(self.pages, self.page + delta))
-        self.load_findings()
+        self.go_to_page(self.page + delta)
+
+    def go_to_page(self, page: int) -> bool:
+        if self._filter_busy:
+            return False
+        if self._filter_timer.isActive():
+            self.apply_filters()
+            return False
+        target = max(1, min(self.pages, page))
+        if target == self.page:
+            return False
+        self.page = target
+        self.table.scrollToTop()
+        self.load_findings(page_only=True)
+        return True
 
     def edit_selected_finding(self, index: QModelIndex | None = None) -> None:
         """Start native inline editing; the model submits an audited update."""
@@ -773,7 +824,7 @@ class DataWorkbench(QWidget):
 
     def _finding_edited(self, label: str, data: dict[str, Any] | None,
                         error: str | None) -> None:
-        self.edit_button.setEnabled(self.permissions is None or "data.edit" in self.permissions)
+        self.edit_action.setEnabled(self.permissions is None or "data.edit" in self.permissions)
         if error or not data:
             self.status.setText("保存失败")
             QMessageBox.warning(self, PRODUCT_NAME, error or f"{label}保存失败")

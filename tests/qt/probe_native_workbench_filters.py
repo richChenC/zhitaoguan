@@ -86,7 +86,7 @@ def verify_workbench_filters(app, window, client, work, reference_path, wait, un
         QTest.mouseClick(page.filter_summary.clear_all, Qt.MouseButton.LeftButton)
         settled("clear all filters")
         assert page.summary.text() == expected["clear-all"]["controls"]["#workspaceFilterSummary"][0]["text"]
-        assert page.records_title.text().endswith("4,517 条")
+        assert page.record_count.text() == "共 4517 条"
         # User typing must coalesce to one query after 350ms of inactivity.
         window.resize(1480, 940)
         wait(100)
