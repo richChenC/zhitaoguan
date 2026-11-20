@@ -8,7 +8,7 @@ from threading import Event
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QGridLayout, QHBoxLayout,
-    QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
+    QInputDialog, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QProgressBar, QPushButton,
     QScrollArea, QSpinBox, QStackedWidget, QTableWidget, QTableWidgetItem, QTabBar, QVBoxLayout,
     QWidget, QWizard, QWizardPage,
 )
@@ -1190,7 +1190,8 @@ class _PlanManagerDialog(QDialog):
             self.status.setText("加载计划失败：" + (error or "无数据"))
             self.table.setRowCount(0)
             return
-        items = data.get("items") or data if isinstance(data, list) else []
+        items = data.get("items") if isinstance(data, dict) else data
+        items = items or []
         self.table.setRowCount(len(items))
         self._plans = items
         for row, plan in enumerate(items):

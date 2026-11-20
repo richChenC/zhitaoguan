@@ -149,8 +149,10 @@ class UnitOverview(QWidget):
             title_layout.setContentsMargins(8, 6, 8, 6)
             title_layout.addWidget(plain_label(f"{site}  {SITE_NAMES.get(site, site)}\n{len(snapshots)} 台机组", "unitName"), 1)
             denom_tag = f"（计划 {denominator} 根）" if plan_denom else ""
+            plug_value = f"{plugged_count}" if plugged_count else "/"
             for value, label in ((coverage, f"检测覆盖 {reported}/{denominator}{denom_tag}"),
                                  (counts["defect"], "WAR 检出"),
+                                 (plug_value, "堵管"),
                                  (f"{max(depths):g}%" if depths else "/", "峰值深度"),
                                  (counts["missing"], "无检测记录")):
                 title_layout.addWidget(plain_label(f"{value}\n{label}"), 1)

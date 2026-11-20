@@ -5756,7 +5756,7 @@ class Handler(SimpleHTTPRequestHandler):
                                           status=data.get("status"),
                                           planned_tubes=data.get("planned_tubes"))
                     db.execute("COMMIT")
-                    plan = get_plan(connect(), plan_id)
+                    plan = get_plan(db, plan_id)
                 return self.json_response({"ok": True, "changed": changed, "plan": plan})
             if path.startswith("/api/plans/") and path.endswith("/delete"):
                 plan_id = path.split("/")[3]

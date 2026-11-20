@@ -364,6 +364,28 @@ class NativeWorkflowTests(unittest.TestCase):
                     if isinstance(series, QLineSeries)]
         self.assertEqual(segments, [[1, 2], [3, 4]])
 
+    def test_plan_manager_dialog_instantiates_and_lists_plans(self):
+        from qt_shell.native_import import _PlanManagerDialog
+        client = Client()
+        dialog = _PlanManagerDialog(client, None, site_code="D", unit_id=1, outage="D101")
+        dialog.show()
+        QTest.qWait(120)
+        request = next(r for r in client.requests if r[1].startswith("/api/plans"))
+        self.assertIn("site=D", request[1])
+        self.assertIn("unit=1", request[1])
+        request[3]({"items": [
+            {"id": "p1", "plan_code": "D101-2026", "title": "D 基地 1 号机 D101",
+             "outage": "D101", "unit_id": 1, "tube_count": 50, "status": "active"},
+        ]}, None)
+        self.app.processEvents()
+        self.assertEqual(dialog.table.rowCount(), 1)
+        self.assertEqual(dialog.table.item(0, 0).text(), "D101-2026")
+        dialog.table.selectRow(0)
+        self.app.processEvents()
+        self.assertTrue(dialog.btn_edit.isEnabled())
+        # 缺失导入会立刻在构造时崩溃（QInputDialog / QTableWidget 等符号未导入）
+        self.assertTrue(hasattr(dialog, "btn_create"))
+
 
 if __name__ == "__main__":
     unittest.main()
