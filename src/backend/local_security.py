@@ -107,6 +107,17 @@ def verify_password(password, encoded):
         return False
 
 
+def verify_actor_password(server, password):
+    """Re-authenticate the current session user without creating a new session."""
+    principal = _principal.get()
+    if not principal or not isinstance(password, str) or not password:
+        return False
+    with server.connect() as db:
+        user = db.execute('SELECT password_hash,active FROM users WHERE id=?',
+                          (principal['id'],)).fetchone()
+    return bool(user and user['active'] and verify_password(password, user['password_hash']))
+
+
 def seed(db):
     for code, label in PERMISSIONS.items():
         db.execute('INSERT OR IGNORE INTO permissions VALUES(?,?)', (code,label))

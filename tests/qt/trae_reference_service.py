@@ -26,6 +26,8 @@ def main():
         with closing(sqlite3.connect(database)) as target:
             source.backup(target)
             target.executescript("DELETE FROM login_sessions; DELETE FROM user_roles; DELETE FROM users;")
+            # Restored registry paths still refer to real installation backups.
+            target.execute("DELETE FROM restore_points")
             target.commit()
     for key, value in {"THIMBLE_USER_DATA_DIR": work, "THIMBLE_DATA_DIR": database.parent,
                        "THIMBLE_DB_PATH": database, "THIMBLE_OUTPUT_DIR": work / "exports",

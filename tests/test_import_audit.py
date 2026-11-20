@@ -89,6 +89,18 @@ class ImportAuditTests(unittest.TestCase):
         with server.connect() as db:
             self.assertEqual(db.execute("SELECT indication FROM findings").fetchone()[0], "WAR")
 
+    def test_fill_ndd_persists_ndd_and_audits_source(self):
+        source = self.workbook([["H209", 2, 1, "B5", "", "P1"]])
+        result = server.import_excel_file(str(source), "fill_ndd")
+        self.assertEqual(result["inserted"], 1)
+        with server.connect() as db:
+            row = db.execute(
+                "SELECT indication,indication_resolution,source_indication FROM findings").fetchone()
+            audit = db.execute(
+                "SELECT action,resolved_indication,source_indication FROM indication_resolution_audit").fetchall()
+        self.assertEqual(tuple(row), ("NDD", "bulk_ndd", ""))
+        self.assertEqual([tuple(item) for item in audit], [("bulk_ndd", "NDD", "")])
+
     def test_changed_record_prevents_partial_rollback(self):
         source = self.workbook([
             ["H209", 2, 1, "B5", "WAR", "P1"],

@@ -18,7 +18,6 @@ Rectangle {
     property bool showSupports: true
     property bool showSockets: true
     property bool showPenetrations: true
-    property bool showDome: true
     property bool showPlates: true
     property bool enlargeTubes: true
     property real modelOpacity: 1
@@ -66,7 +65,6 @@ Rectangle {
     property bool mirrorTop: false
     readonly property bool mirroredActive: orthographicActive && mirrorTop
     property bool standardAligned: true
-    readonly property real domeAlpha: orthographicActive && standardAligned ? .07 : .26
     readonly property real plateAlpha: orthographicActive && standardAligned ? .13 : .42
     property vector3d assemblyMinimum: Qt.vector3d(-2192.96, -2192.96, -2192.96)
     property vector3d assemblyMaximum: Qt.vector3d(2192.96, 1637.4, 2192.96)
@@ -208,7 +206,6 @@ Rectangle {
         if (showVessel) include(geometryBounds.vessel ||
             [[assemblyMinimum.x, assemblyMinimum.y, assemblyMinimum.z],
              [assemblyMaximum.x, assemblyMaximum.y, assemblyMaximum.z]])
-        if (orthographicActive && showDome) include(geometryBounds.dome, [0,-explode*800,0])
         if (showPlates) {
             include(geometryBounds.ucsPlate, [0,explode*800,0])
             include(geometryBounds.secondaryGrid, [0,explode*400,0])
@@ -424,16 +421,6 @@ Rectangle {
                         projectionMirror: root.mirroredActive
                     }
                 }
-            }
-        }
-        Model {
-            visible: root.showDome && root.displayMode === "assembly" && root.tubes.length > 0
-            geometry: ReferenceGeometry { partId: "dome" }
-            y: -root.explode * 800
-            materials: SectionMaterial {
-                tint: "#8aa0bd"; alphaValue: root.domeAlpha
-                metalnessValue: .25; roughnessValue: .72
-                objectName: "domeMaterial"
             }
         }
         Model {
@@ -673,8 +660,12 @@ Rectangle {
                          (root.displayMode === "assembly" || modelData.tube === root.selectedTube)
                 position: root.displayMode === "assembly" ? Qt.vector3d(modelData.x,modelData.y,modelData.z) :
                           Qt.vector3d(0,modelData.y-modelData.yBase-root.detailTarget,0)
-                scale: Qt.vector3d(.45,.45,.45)
-                materials: SectionMaterial { tint:"#c8424a"; alphaValue: 1 }
+                scale: Qt.vector3d(.62,.62,.62)
+                materials: PrincipledMaterial {
+                    baseColor: "#ff7a00"
+                    emissiveFactor: "#ff3d00"
+                    lighting: PrincipledMaterial.NoLighting
+                }
             }
         }
         Node {

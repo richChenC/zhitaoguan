@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from contextlib import closing
 import json
 import os
 from pathlib import Path
@@ -18,9 +19,10 @@ def main():
         "native-mutations-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     (work / "screens").mkdir(parents=True)
     database = work / "data.db"
-    with sqlite3.connect(source.as_uri() + "?mode=ro", uri=True) as src, sqlite3.connect(database) as dst:
+    with closing(sqlite3.connect(source.as_uri() + "?mode=ro", uri=True)) as src, closing(sqlite3.connect(database)) as dst:
         src.backup(dst)
-        dst.executescript("DELETE FROM login_sessions; DELETE FROM user_roles; DELETE FROM users;")
+        dst.executescript("DELETE FROM login_sessions; DELETE FROM user_roles; DELETE FROM users; DELETE FROM restore_points;")
+        dst.commit()
     for key, value in {"THIMBLE_QT_TEST_DATA_ROOT": work, "THIMBLE_ALLOW_MULTI_INSTANCE": "1",
                        "THIMBLE_DB_PATH": database, "QSG_RENDER_LOOP": "basic"}.items():
         os.environ[key] = str(value)
