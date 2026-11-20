@@ -134,13 +134,22 @@ class UnitOverview(QWidget):
             counts = Counter(tube.get("coverage") for tube in tubes)
             depths = [valid_depth(tube) for tube in tubes if valid_depth(tube) is not None]
             reported = len(tubes) - counts["missing"]
-            coverage = f"{reported / len(tubes):.0%}" if tubes else "—"
+            plugged_count = sum(1 for tube in tubes
+                                if tube.get("state") == "plugged" or "plugged" in (tube.get("state_badges") or []))
+            # 计划分母：所有 snapshots 有一致 plan_denominator 时使用；否则回退 len(tubes)
+            denom_candidates = [snap.get("plan_denominator") for snap in snapshots
+                                if snap.get("plan_denominator") is not None]
+            plan_denom = denom_candidates[0] if denom_candidates and all(d == denom_candidates[0]
+                                                                         for d in denom_candidates) else None
+            denominator = plan_denom or len(tubes)
+            coverage = f"{reported / denominator:.0%}" if denominator else "—"
             title = QWidget()
             title.setObjectName("unitSiteHeading")
             title_layout = QHBoxLayout(title)
             title_layout.setContentsMargins(8, 6, 8, 6)
             title_layout.addWidget(plain_label(f"{site}  {SITE_NAMES.get(site, site)}\n{len(snapshots)} 台机组", "unitName"), 1)
-            for value, label in ((coverage, f"检测覆盖 {reported}/{len(tubes)}"),
+            denom_tag = f"（计划 {denominator} 根）" if plan_denom else ""
+            for value, label in ((coverage, f"检测覆盖 {reported}/{denominator}{denom_tag}"),
                                  (counts["defect"], "WAR 检出"),
                                  (f"{max(depths):g}%" if depths else "/", "峰值深度"),
                                  (counts["missing"], "无检测记录")):
@@ -207,12 +216,18 @@ class UnitOverview(QWidget):
         depth_box.addWidget(meter)
         grid.addWidget(depth, 0, 1)
         reported = len(tubes) - counts["missing"]
+        plugged_count = sum(1 for tube in tubes
+                            if tube.get("state") == "plugged" or "plugged" in (tube.get("state_badges") or []))
+        denom = snapshot.get("plan_denominator") or len(tubes)
+        denom_tag = f"（计划）" if snapshot.get("plan_denominator") else ""
         coverage = QWidget()
         coverage_box = QVBoxLayout(coverage)
         coverage_box.setContentsMargins(0, 0, 0, 0)
         coverage_box.setSpacing(5)
-        rate = reported / len(tubes) * 100 if tubes else 0
-        coverage_box.addWidget(plain_label(f"{rate:g}%  ·  {reported}/{len(tubes)} 根有检测记录", "unitCoverage"))
+        rate = reported / denom * 100 if denom else 0
+        plug_note = f"，其中堵管 {plugged_count} 根" if plugged_count else ""
+        coverage_box.addWidget(plain_label(f"{rate:g}%{denom_tag}  ·  {reported}/{denom} 根有检测记录{plug_note}",
+                                           "unitCoverage"))
         coverage_box.addWidget(self._meter(rate))
         grid.addWidget(coverage, 0, 2)
         composition = QWidget()

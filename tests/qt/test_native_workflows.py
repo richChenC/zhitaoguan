@@ -92,27 +92,28 @@ class NativeWorkflowTests(unittest.TestCase):
         self.assertGreaterEqual(report.history_combo.findText("D117"), 0)
         self.assertTrue(any(request[1].startswith("/api/analysis/visualization") for request in requests))
 
-    def test_restore_uses_selected_filtered_backup(self):
+    def test_restore_uses_clicked_backup_path(self):
         from qt_shell.native_windows import NativeSettingsPage
         client = Client()
         page = NativeSettingsPage(client, {"username": "admin", "permissions": ["backup.manage", "database.restore"]})
-        page.backups.rows = [{"name": "first", "path": "first.db"}, {"name": "target", "path": "target.db"}]
-        page.backups.search.setText("target")
-        page.backups.table.selectRow(0)
-        page.validate_backup()
+        callback = next(r for r in client.requests if r[1] == "/api/backups")[3]
+        listing = {"items": [{"name": "first", "path": "first.db"}, {"name": "target", "path": "target.db"}]}
+        callback(listing, None)
+        page.validate_backup("target.db")
+        client.requests[-1][3](listing, None)
         self.assertEqual(client.requests[-1][1], "/api/backup-validate")
         self.assertEqual(client.requests[-1][2]["path"], "target.db")
 
-    def test_backup_table_and_commands_are_visible_after_tab_reparent(self):
+    def test_backup_panel_and_commands_are_visible_after_reparent(self):
         from qt_shell.native_windows import NativeMainWindow
         window = NativeMainWindow(Client(), {"username": "admin",
                                   "permissions": ["data.read", "backup.manage", "database.restore"]})
         window.show()
         window.open_settings(5)
         self.app.processEvents()
-        self.assertTrue(window.settings_page.backups.table.isVisible())
+        self.assertTrue(window.settings_page.backups.summary.isVisible())
         self.assertTrue(window.settings_page.backup_now.isVisible())
-        self.assertTrue(window.settings_page.restore_backup.isVisible())
+        self.assertTrue(window.settings_dialog.maintenance_tabs.isVisible())
 
     def test_workbench_save_does_not_schedule_a_second_table_reset(self):
         from qt_shell.native_windows import NativeMainWindow

@@ -292,8 +292,6 @@ class DataWorkbench(QWidget):
         actions.setSpacing(8)
         self.ledger = button("导出综合台账", "upload", self.export_ledger)
         self.delete = button("删除所选", "trash-2", self.delete_selected)
-        self.clear = button("清空业务数据", None, self.clear_records)
-        self.clear.setProperty("danger", True)
         self.scope_bar = ScopeBar(client, self)
         self.site, self.unit, self.outage = self.scope_bar.site, self.scope_bar.unit, self.scope_bar.outage
         self.scope_bar.changed.connect(self._apply_scope)
@@ -357,8 +355,13 @@ class DataWorkbench(QWidget):
         self.channel.returnPressed.connect(self.apply_filters)
         self.recycle_button = button("回收站", "archive-restore", self.recycleRequested.emit)
         self.recycle_button.setEnabled(self.permissions is None or "data.delete" in self.permissions)
+        self.delete_scope = button("删除当前大修", "trash", self._delete_current_scope)
+        self.delete_scope.setProperty("danger", True)
+        self.delete_scope.setEnabled(False)
+        self.plan_manager = button("大修计划", "folder", self._open_plan_manager)
         for title, controls in (("数据文件", (self.import_button, self.ledger)),
-                                ("记录维护", (self.delete, self.recycle_button, self.clear))):
+                                ("计划管理", (self.plan_manager,)),
+                                ("记录维护", (self.delete, self.recycle_button, self.delete_scope))):
             group = QWidget()
             group.setObjectName("workbenchActionGroup")
             group_layout = QHBoxLayout(group)
@@ -368,8 +371,8 @@ class DataWorkbench(QWidget):
             caption.setObjectName("workbenchCommandCaption")
             group_layout.addWidget(caption)
             for control in controls:
-                control.setFixedHeight(34 if control in (self.import_button, self.clear) else 30)
-                control.setProperty("commandHeight", 34 if control in (self.import_button, self.clear) else 30)
+                control.setFixedHeight(34 if control is self.import_button else 30)
+                control.setProperty("commandHeight", 34 if control is self.import_button else 30)
                 group_layout.addWidget(control)
             group.setProperty("separated", title != "数据文件")
             group.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
@@ -383,7 +386,7 @@ class DataWorkbench(QWidget):
         band_layout.addWidget(commands)
         layout.addWidget(band)
         for control, permission in ((self.ledger, "export.create"), (self.delete, "data.delete"),
-                                    (self.clear, "data.purge")):
+                                    (self.delete_scope, "scope.delete")):
             control.setEnabled(self.permissions is None or permission in self.permissions)
 
         self.table = FindingTable()
@@ -781,6 +784,8 @@ class DataWorkbench(QWidget):
 
     def _apply_scope(self, scope):
         self.map_unit.setValue(int(scope.get("unit") or 1))
+        outage = str(scope.get("outage") or "").strip()
+        self.delete_scope.setEnabled(bool(outage) and (self.permissions is None or "scope.delete" in self.permissions))
         self.apply_filters()
 
     def set_workspace_scope(self, scope):
@@ -1067,6 +1072,72 @@ class DataWorkbench(QWidget):
             self.status.setText(error or f"台账已导出：{(data or {}).get('file_path', '')}")
         self.client.post("/api/data-ledger/export", payload, done)
 
+    def _delete_current_scope(self):
+        scope = self.scope_bar.values()
+        site = str(scope.get("site") or "").strip()
+        unit = str(scope.get("unit") or "").strip()
+        outage = str(scope.get("outage") or "").strip()
+        if not (site and unit and outage):
+            QMessageBox.information(self, PRODUCT_NAME, "请先在顶部范围栏完整选择基地/机组/大修")
+            return
+        from src.backend import analysis_reporting
+        site_name = analysis_reporting.SITE_LABELS.get(site.upper(), site)
+        summary = f"即将删除 [{site_name} {site} 号] {unit} 号机组 {outage} 大修的全部检测记录、三年度统计和维护状态。\n\n" \
+                  "删除前系统将自动生成一份整库备份，放在 backups 目录。\n此操作不可撤销。"
+        first = QMessageBox.question(
+            self, PRODUCT_NAME + " · 删除大修", summary,
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel)
+        if first != QMessageBox.StandardButton.Ok:
+            return
+        second = QMessageBox.warning(
+            self, PRODUCT_NAME + " · 删除大修",
+            "请再次确认：\n\n范围：" + site_name + " " + unit + " 号  " + outage + "\n\n"
+            "确定要删除该大修的所有检测数据吗？",
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel)
+        if second != QMessageBox.StandardButton.Ok:
+            return
+        self.status.setText("正在删除大修数据…")
+        self.delete_scope.setEnabled(False)
+
+        def done(data, error):
+            self.delete_scope.setEnabled(True)
+            if error:
+                self.status.setText("删除失败：" + error)
+                return
+            result = data or {}
+            deleted = result.get("deleted", {})
+            backup = result.get("backup_file")
+            msg = "已删除该大修数据（" + \
+                  f"检测记录 {deleted.get('findings', 0)} 条，维护状态 {deleted.get('tube_states', 0)} 条"
+            if backup:
+                msg += f"；备份已保存至 {backup}"
+            msg += "）。"
+            self.status.setText(msg)
+            self.scope_bar.outage.setCurrentIndex(0)
+            self.load_findings()
+            QMessageBox.information(self, PRODUCT_NAME, msg)
+
+        self.client.post("/api/scope/delete",
+                         {"confirmed": True, "site_code": site.upper(),
+                          "unit_id": unit, "outage": outage},
+                         done)
+
+    def _open_plan_manager(self):
+        """打开大修计划管理对话框（C 批）。"""
+        from .native_import import _PlanManagerDialog
+        scope = self.scope_bar.values()
+        site = str(scope.get("site") or "").strip().upper()
+        unit = str(scope.get("unit") or "").strip()
+        outage = str(scope.get("outage") or "").strip().upper()
+        dialog = _PlanManagerDialog(self.client, self,
+                                    site_code=site, unit_id=int(unit or 0), outage=outage)
+        dialog.exec()
+        # 关闭后刷新删除按钮状态 + 范围栏
+        self._apply_scope(scope)
+        self.load_findings()
+
     def delete_selected(self):
         ids = list(self.model.selected)
         if not ids:
@@ -1085,11 +1156,6 @@ class DataWorkbench(QWidget):
             return
         self.client.post("/api/data/delete", {"scope": "selected", "data": {"findingIds": ids}},
                          self._data_action_done)
-
-    def clear_records(self):
-        text, accepted = QInputDialog.getText(self, "清空业务数据", "输入“清空记录”以确认。操作前自动备份，账户保留。")
-        if accepted and text == "清空记录":
-            self.client.post("/api/clear", {"confirmed": True}, self._data_action_done)
 
     def _data_action_done(self, data, error):
         if error or not data:
@@ -1205,6 +1271,7 @@ class DataWorkbench(QWidget):
         policy = QComboBox()
         policy.addItem("空三字符先进入待复核", "review")
         policy.addItem("空三字符按 WAR 填充", "fill_war")
+        policy.addItem("空三字符按 NDD 入库", "fill_ndd")
         policy_form = QFormLayout()
         policy_form.addRow("缺失三字符处理", policy)
         layout.addLayout(policy_form)
@@ -3611,7 +3678,7 @@ class NativeAnalyticsPage(QWidget):
         self.cards = QGridLayout()
         self.labels: dict[str, QLabel] = {}
         for index, (key, caption) in enumerate((
-            ("totalTubes", "涉及套管"), ("activeDefects", "检测记录"),
+            ("totalTubes", "检测总管数"), ("defectTotal", "缺陷总数"),
             ("runningUnits", "机组数量"), ("activeOutages", "大修数量"),
             ("maxWear", "最大磨损"),
         )):
@@ -3719,11 +3786,18 @@ class NativeAnalyticsPage(QWidget):
             self.visualization.select_tube(int(scope["thimble"]))
 
     def load(self):
-        self.client.get("/api/analytics/summary", self._loaded)
+        prefs = getattr(getattr(self.window(), "context", None), "preferences", None)
+        levels = ",".join(str(value) for value in (prefs.values.get("depth_levels") or [])) if prefs else ""
+        self.client.get("/api/analytics/summary" + (f"?levels={levels}" if levels else ""), self._loaded)
         self._coverage_request += 1
         self._coverage_pending = True
         number = self._coverage_request
-        self.client.get("/api/analysis/visualization" + ("" if self.visualization.ndd_zero else "?ndd_zero=0"),
+        from urllib.parse import urlencode
+        params = {"levels": levels} if levels else {}
+        if not self.visualization.ndd_zero:
+            params["ndd_zero"] = "0"
+        query = ("?" + urlencode(params)) if params else ""
+        self.client.get("/api/analysis/visualization" + query,
                         lambda data, error: self._coverage_loaded(data, error)
                         if number == self._coverage_request else None)
 
@@ -3948,12 +4022,20 @@ class NativeAnalyticsPage(QWidget):
             ])
         )
         summary = data.get("summary") or {}
+        buckets = summary.get("bucket_defects") or []
+        bucket_text = "；".join(
+            f"{item.get('label', '')} 管 {item.get('tubes', 0)} / 缺陷 {item.get('defects', 0)}"
+            for item in buckets) or "无有效磨损区间数据"
+        new_defects = summary.get("new_defects")
         self.analysis_status.setText(
             f"复杂分析完成：{summary.get('records', 0):,} 条记录，"
             f"{summary.get('units', 0)} 个机组，{summary.get('outages', 0)} 个大修，"
-            f"缺失管 {summary.get('missing_tubes', 0)} 根。"
+            f"缺失管 {summary.get('missing_tubes', 0)} 根。\n"
+            f"磨损区间：{bucket_text}。新增缺陷："
+            + ("无上一轮" if new_defects is None else f"{new_defects} 个") + "。"
         )
-        values = {"totalTubes": summary.get("expected_tubes", 0), "activeDefects": summary.get("records", 0),
+        values = {"totalTubes": summary.get("tube_total", summary.get("expected_tubes", 0)),
+                  "defectTotal": summary.get("defect_total", 0),
                   "runningUnits": summary.get("units", 0), "activeOutages": summary.get("outages", 0)}
         depths = [tube["max_depth"] for snapshot in data.get("snapshots") or [] for tube in snapshot.get("tubes") or []
                   if isinstance(tube.get("max_depth"), (float, int))]
@@ -5389,32 +5471,16 @@ class NativeSettingsPage(QWidget):
         self.source = SettingsStoragePanel(self)
         self._source_serial = 0
         self._source_busy = False
-        self.backups = JsonTablePage(client, "数据库备份", "/api/backups",
-                                     [("name", "备份名称"), ("created_at", "时间"), ("size_bytes", "大小"), ("path", "路径"), ("note", "备注")],
-                                     permissions=permissions)
-        backup_actions = QHBoxLayout()
-        self.backup_now = QPushButton("立即备份")
-        self.backup_now.clicked.connect(self.create_backup)
-        self.restore_backup = QPushButton("恢复选中备份")
-        self.restore_backup.clicked.connect(self.validate_backup)
-        backup_actions.addWidget(self.backup_now)
-        backup_actions.addWidget(self.restore_backup)
-        self.backup_now.setEnabled("backup.manage" in user.get("permissions", []))
-        self.restore_backup.setEnabled("database.restore" in user.get("permissions", []))
-        if not self.backup_now.isEnabled():
-            self.backup_now.setToolTip("当前账户没有备份管理权限")
-        if not self.restore_backup.isEnabled():
-            self.restore_backup.setToolTip("当前账户没有恢复数据库权限")
-        backup_actions.addStretch(1)
-        backup_host = QWidget()
-        backup_layout = QVBoxLayout(backup_host)
-        backup_layout.addWidget(self.backups)
-        backup_layout.addLayout(backup_actions)
+        from .native_backups import BackupWorkspace
+        self.backups = BackupWorkspace(client, user)
+        self.backups.logoutRequested.connect(self.logoutRequested)
+        self.backup_now = self.backups.now
+        self.restore_backup = self.backups.external
         self.logs = JsonTablePage(client, "服务日志", "/api/logs/recent?limit=200",
                                   [("time", "时间"), ("level", "级别"), ("message", "消息")], permissions=permissions)
         self.tabs.addTab(self.account, "账户与权限")
         self.tabs.addTab(self.source, "数据存储")
-        self.tabs.addTab(backup_host, "备份与恢复")
+        self.tabs.addTab(self.backups, "备份与恢复")
         self.tabs.addTab(self.logs, "运行日志")
         layout.addWidget(self.tabs, 1)
         self.load_source()
@@ -5498,52 +5564,10 @@ class NativeSettingsPage(QWidget):
             QTimer.singleShot(1500, self.source_copy, lambda: self.source_copy.setText("复制路径"))
 
     def create_backup(self) -> None:
-        self.client.post("/api/backup", {"note": "原生 Qt 手动备份"}, lambda data, error: self._backup_done(data, error))
+        self.backups.create()
 
-    def _backup_done(self, data: dict[str, Any] | None, error: str | None) -> None:
-        if error:
-            QMessageBox.warning(self, PRODUCT_NAME, error)
-            return
-        QMessageBox.information(self, PRODUCT_NAME, f"备份完成\n{(data or {}).get('path', data)}")
-        self.backups.load()
-
-    def validate_backup(self) -> None:
-        index = self.backups.table.currentIndex()
-        if not index.isValid() or index.row() >= len(self.backups.model.rows):
-            QMessageBox.information(self, PRODUCT_NAME, "请先选择备份文件")
-            return
-        path = self.backups.model.rows[index.row()].get("path")
-        if not isinstance(path, str) or not path:
-            QMessageBox.warning(self, PRODUCT_NAME, "所选备份路径无效")
-            return
-        self.client.post("/api/backup-validate", {"path": path},
-                         lambda data, error: self._backup_validated(path, data, error))
-
-    def _backup_validated(self, path: str, data: dict[str, Any] | None, error: str | None) -> None:
-        if error or not data or data.get("integrity") != "ok" or not isinstance(data.get("findings"), int):
-            QMessageBox.warning(self, PRODUCT_NAME, error or "备份校验失败，不能恢复")
-            return
-        verification = "SHA-256 已核对" if data.get("hash_verified") else "仅数据库完整性检查，缺少校验清单"
-        phrase, accepted = QInputDialog.getText(
-            self, "确认恢复数据库",
-            f"备份：{path}\n检测记录：{data['findings']} 条\n校验：{verification}\n\n"
-            "恢复会替换当前业务数据，系统会先创建安全备份并要求重新登录。\n请输入“恢复数据库”确认：",
-        )
-        if not accepted or phrase != "恢复数据库":
-            return
-        self.tabs.setEnabled(False)
-        self.client.post("/api/restore", {"path": path}, self._restore_done)
-
-    def _restore_done(self, data: dict[str, Any] | None, error: str | None) -> None:
-        self.tabs.setEnabled(True)
-        if error or not data:
-            QMessageBox.warning(self, PRODUCT_NAME, error or "数据库恢复失败")
-            return
-        QMessageBox.information(
-            self, PRODUCT_NAME,
-            f"数据库已恢复。\n恢复前安全备份：{data.get('safety_backup', '未返回')}\n请重新登录。",
-        )
-        self.logoutRequested.emit()
+    def validate_backup(self, path: str) -> None:
+        self.backups.open_restore(path)
 
 def _three_d_iso_angles(mode="assembly"):
     x, y, z = {
@@ -5792,7 +5816,7 @@ class NativeThreeDPage(QWidget):
         self._sync_part_tree()
         assembly_settings = section("整体布置")
         self.visibility_checks = {}
-        for label, prop, checked in (("容器包络", "showVessel", True), ("下封头", "showDome", True),
+        for label, prop, checked in (("容器包络", "showVessel", True),
                                      ("支承板", "showPlates", True), ("支承柱", "showSupports", True),
                                      ("管座", "showSockets", True), ("贯穿管", "showPenetrations", True),
                                      ("管径放大", "enlargeTubes", True)):
@@ -6020,10 +6044,10 @@ class NativeThreeDPage(QWidget):
             from .native_geometry import assembly_caps, geometry_data
             vessel = reference_layout()["vessel"]
             radius = vessel["outerRadius"]
-            root.setProperty("assemblyMinimum", QVector3D(-radius, vessel["headBottomY"], -radius))
+            root.setProperty("assemblyMinimum", QVector3D(-radius, vessel["centerY"] - radius, -radius))
             root.setProperty("assemblyMaximum", QVector3D(radius, vessel["cylinderTopY"], radius))
             root.setProperty("geometryBounds", {
-                part: list(geometry_data(part)[2]) for part in ("vessel", "dome", "ucsPlate", "secondaryGrid", "P01", "P02", "P05")
+                part: list(geometry_data(part)[2]) for part in ("vessel", "ucsPlate", "secondaryGrid", "P01", "P02", "P05")
             })
             root.setProperty("columns", [{**row, "meshId": f"column-{index}",
                                           "bounds": list(geometry_data(f"column-{index}")[2])}
@@ -6913,12 +6937,16 @@ class NativeMainWindow(QMainWindow):
             self.apply_preferences()
 
     def open_settings(self, index=0):
+        audit = index == 6
         self.settings_dialog.maintenance_tabs.setCurrentIndex(1 if index == 6 else 0)
         index = 5 if index == 6 else index
         self.settings_dialog.nav.setCurrentRow(index)
         self.settings_dialog.show()
         self.settings_dialog.raise_()
         self.settings_dialog.activateWindow()
+        if audit:
+            QTimer.singleShot(0, self.settings_dialog, lambda: self.settings_dialog.stack.widget(5).ensureWidgetVisible(
+                self.settings_dialog.maintenance_tabs))
 
     def open_account_security(self):
         from .native_accounts import AccountSecurityDialog
@@ -6990,6 +7018,8 @@ class NativeMainWindow(QMainWindow):
         self.client.get("/api/settings/state-direction", self.settings_dialog._direction_loaded)
         self.settings_dialog.rules_panel.load()
         self.settings_dialog.quality_panel.refresh_if_visible()
+        if self.settings_page.backups.isVisible():
+            self.settings_page.backups.load(force=True)
         analytics = self.stack.widget(3)
         analytics.load()
         analytics.load_complex_analysis()
@@ -7077,7 +7107,7 @@ class NativeMainWindow(QMainWindow):
                      "/api/data/delete-preview", "/api/export-folder-excel", "/api/states/batch-preview",
                      "/api/states/import-preview", "/api/states/export", "/api/states/recognize-note",
                      "/api/import-directory-preview", "/api/security/image-export", "/api/audits/export",
-                     "/api/backup", "/api/backup-policy", "/api/settings/data-source"}
+                     "/api/backup", "/api/backup-policy", "/api/restore", "/api/settings/data-source"}
         if path.startswith("/api/auth/") or path in read_only:
             return
         if self._data_refresh.isActive() and not self._refresh_workbench:
@@ -7091,6 +7121,11 @@ class NativeMainWindow(QMainWindow):
         self.client.post("/api/auth/logout", {}, lambda _data, _error: self.logoutRequested.emit())
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        restore = self.settings_page.backups.dialog
+        if restore and restore.restoring:
+            event.ignore()
+            restore.raise_()
+            return
         if self._navigation_save.isActive():
             self._navigation_save.stop()
             self._save_navigation()

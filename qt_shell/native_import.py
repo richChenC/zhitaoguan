@@ -155,6 +155,19 @@ class ImportWizard(QDialog):
         self.route_title.setWordWrap(True)
         self.route_title.setFixedHeight(54)
         source.layout().addWidget(self.route_title)
+        # 导入范围 + 计划选择（B 批：先选大修计划再导入）
+        scope_row = QHBoxLayout()
+        scope_row.setSpacing(12)
+        self.scope_label = QLabel("未选择范围")
+        self.scope_label.setObjectName("muted")
+        scope_row.addWidget(QLabel("导入范围："))
+        scope_row.addWidget(self.scope_label, 1)
+        scope_row.addWidget(QLabel("关联计划："))
+        self.plan_combo = QComboBox()
+        self.plan_combo.setMinimumWidth(220)
+        self.plan_combo.addItem("不关联计划（仅预检）", None)
+        scope_row.addWidget(self.plan_combo)
+        source.layout().addLayout(scope_row)
         self.source_host = QWidget()
         self.source_host.setObjectName("importSourcePanel")
         source_box = QVBoxLayout(self.source_host)
@@ -297,6 +310,7 @@ class ImportWizard(QDialog):
         self.policy = QComboBox()
         self.policy.addItem("空三字符进入待复核", "review")
         self.policy.addItem("空三字符按 WAR 填充", "fill_war")
+        self.policy.addItem("空三字符按 NDD 入库", "fill_ndd")
         self.policy.addItem("仅预检，不写入记录", "check")
         mapping.layout().addWidget(self.policy)
         mapping.layout().addStretch()
@@ -458,6 +472,49 @@ class ImportWizard(QDialog):
             name = control.property("iconName")
             if name:
                 control.setIcon(icon(name, theme))
+        self._load_scope_and_plans()
+
+    def _load_scope_and_plans(self):
+        """从 DataWorkbench 取当前 scope，加载匹配的大修计划列表。"""
+        workbench = self.parent()
+        if workbench is None:
+            self.scope_label.setText("未选择范围")
+            return
+        scope = getattr(workbench, "scope_bar", None)
+        if scope is None:
+            self.scope_label.setText("未选择范围")
+            return
+        values = scope.values()
+        site = str(values.get("site") or "").strip().upper()
+        unit = str(values.get("unit") or "").strip()
+        outage = str(values.get("outage") or "").strip().upper()
+        display = f"{site}  {unit} 号  {outage}" if site or unit or outage else "未选择范围"
+        self.scope_label.setText(display)
+        # 加载匹配的 plans（按 site+unit；outage 匹配则优先显示）
+        self.plan_combo.clear()
+        self.plan_combo.addItem("不关联计划（仅预检）", None)
+        if not site or not unit:
+            return
+        params = f"?site={site}&unit={unit}"
+        self.client.get(f"/api/plans{params}", self._plans_loaded)
+
+    def _plans_loaded(self, data, error):
+        if error or not data:
+            return
+        plans = data.get("items") or data if isinstance(data, list) else []
+        outage_hint = self.scope_label.text().split()[-1] if self.scope_label.text().count() >= 3 else ""
+        matched_index = 0
+        for idx, plan in enumerate(plans, 1):
+            code = str(plan.get("plan_code") or plan.get("id") or "")
+            title = str(plan.get("title") or code)
+            outage_text = str(plan.get("outage") or "")
+            suffix = "（历史迁移）" if str(plan.get("status") or "") == "archived" else ""
+            label = f"{code} — {title}{suffix}"
+            if outage_text and outage_hint and outage_text.upper() == outage_hint.upper():
+                matched_index = idx
+            self.plan_combo.addItem(label, str(plan.get("id")))
+        if matched_index > 0:
+            self.plan_combo.setCurrentIndex(matched_index)
 
     def invalidate(self, *_):
         self.ready_source = self.ready_preview = False
@@ -868,6 +925,9 @@ class ImportWizard(QDialog):
 
     def prepare_payload(self):
         self.payload = {"path": self.path.text().strip(), "blank_indication_policy": self.policy.currentData()}
+        plan_id = self.plan_combo.currentData()
+        if plan_id:
+            self.payload["plan_id"] = plan_id
         if self.mode.currentData() == "excel":
             mapping = None
             if self.manual.isChecked():
@@ -1056,3 +1116,218 @@ class ImportWizard(QDialog):
             self._scan_job.cancelled.set()
         self.timer.stop()
         super().closeEvent(event)
+
+
+class _PlanManagerDialog(QDialog):
+    """大修计划管理对话框（C 批）。创建/编辑/激活/删除大修计划元数据；不触碰业务检测记录。"""
+
+    def __init__(self, client, parent=None, *, site_code="", unit_id=0, outage=""):
+        super().__init__(parent)
+        self.client = client
+        self.site_code = site_code.upper() if site_code else ""
+        self.unit_id = int(unit_id or 0)
+        self.outage = outage.upper() if outage else ""
+        self.setWindowTitle("大修计划管理")
+        self.setMinimumSize(640, 500)
+
+        layout = QVBoxLayout(self)
+        scope_label = QLabel()
+        parts = [p for p in (self.site_code, str(self.unit_id) or "", self.outage) if p]
+        scope_label.setText("当前范围：" + ("  ".join(parts) if parts else "未选择范围（显示全部计划）"))
+        scope_label.setObjectName("muted")
+        scope_label.setWordWrap(True)
+        layout.addWidget(scope_label)
+
+        # 操作条
+        action_row = QHBoxLayout()
+        self.btn_create = button("新建计划", "plus", self._create_plan)
+        self.btn_edit = button("编辑所选", "edit", self._edit_selected)
+        self.btn_activate = button("激活所选", "check", self._activate_selected)
+        self.btn_delete = button("删除所选", "trash-2", self._delete_selected)
+        self.btn_migrate = button("历史迁移", "refresh-cw", self._migrate_legacy)
+        for b in (self.btn_create, self.btn_edit, self.btn_activate, self.btn_delete, self.btn_migrate):
+            action_row.addWidget(b)
+        action_row.addStretch()
+        layout.addLayout(action_row)
+
+        # 计划列表
+        self.table = QTableWidget(0, 6)
+        self.table.setHorizontalHeaderLabels(["计划编号", "标题", "大修", "机组", "管数", "状态"])
+        self.table.verticalHeader().hide()
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.itemSelectionChanged.connect(self._update_action_state)
+        layout.addWidget(self.table, 1)
+
+        self.status = QLabel()
+        self.status.setObjectName("muted")
+        self.status.setWordWrap(True)
+        layout.addWidget(self.status)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        self.btn_close = QPushButton("关闭")
+        self.btn_close.clicked.connect(self.accept)
+        btn_row.addWidget(self.btn_close)
+        layout.addLayout(btn_row)
+
+        self._update_action_state()
+        QTimer.singleShot(50, self._load)
+
+    # ---- 数据加载 ----
+    def _load(self):
+        params = []
+        if self.site_code:
+            params.append(f"site={self.site_code}")
+        if self.unit_id:
+            params.append(f"unit={self.unit_id}")
+        self.client.get("/api/plans" + ("?" + "&".join(params) if params else ""), self._plans_loaded)
+
+    def _plans_loaded(self, data, error):
+        if error or not data:
+            self.status.setText("加载计划失败：" + (error or "无数据"))
+            self.table.setRowCount(0)
+            return
+        items = data.get("items") or data if isinstance(data, list) else []
+        self.table.setRowCount(len(items))
+        self._plans = items
+        for row, plan in enumerate(items):
+            cells = [
+                str(plan.get("plan_code") or plan.get("id") or ""),
+                str(plan.get("title") or ""),
+                str(plan.get("outage") or ""),
+                str(plan.get("unit_id") or ""),
+                str(plan.get("tube_count") or plan.get("planned_tubes_count") or 0),
+                str(plan.get("status") or ""),
+            ]
+            for col, value in enumerate(cells):
+                item = QTableWidgetItem(value)
+                item.setData(Qt.ItemDataRole.UserRole, str(plan.get("id")))
+                if col == 5:
+                    item.setForeground(Qt.GlobalColor.darkGray if value == "archived" else Qt.GlobalColor.black)
+                self.table.setItem(row, col, item)
+        self.status.setText(f"共 {len(items)} 条计划。双击行可编辑。")
+        self.table.doubleClicked.connect(lambda _index: self._edit_selected())
+
+    def _selected_plan_id(self):
+        row = self.table.currentRow()
+        if row < 0 or row >= len(getattr(self, "_plans", [])):
+            return None
+        return str(self._plans[row].get("id"))
+
+    def _update_action_state(self):
+        has_selection = self._selected_plan_id() is not None
+        self.btn_edit.setEnabled(has_selection)
+        self.btn_activate.setEnabled(has_selection)
+        self.btn_delete.setEnabled(has_selection)
+
+    # ---- 操作 ----
+    def _create_plan(self):
+        plan_code, ok = QInputDialog.getText(self, "新建大修计划", "计划编号（如 D101-2026）：", text=self.outage or "")
+        if not ok or not plan_code.strip():
+            return
+        title, _ = QInputDialog.getText(self, "新建大修计划", "计划标题：", text=f"{self.site_code} {self.unit_id} 号 {self.outage}")
+        outage, _ = QInputDialog.getText(self, "新建大修计划", "对应大修号（可留空）：", text=self.outage)
+        tubes_text, _ = QInputDialog.getText(self, "新建大修计划", "管号清单（逗号分隔，留空默认 1-50）：")
+        if tubes_text.strip():
+            try:
+                tubes = [int(x.strip()) for x in tubes_text.split(",") if x.strip()]
+            except ValueError:
+                QMessageBox.warning(self, "大修计划管理", "管号清单必须是整数列表")
+                return
+        else:
+            tubes = list(range(1, 51))
+        payload = {
+            "plan_code": plan_code.strip(),
+            "site_code": self.site_code or "",
+            "unit_id": self.unit_id or 0,
+            "title": title.strip(),
+            "outage": outage.strip().upper() or None,
+            "planned_tubes": tubes,
+            "status": "active",
+        }
+        self.status.setText("正在创建…")
+        self.client.post("/api/plans", payload, self._after_create)
+
+    def _after_create(self, data, error):
+        if error:
+            self.status.setText("创建失败：" + error)
+            return
+        self.status.setText("计划已创建。")
+        self._load()
+
+    def _edit_selected(self):
+        plan_id = self._selected_plan_id()
+        if not plan_id:
+            return
+        self.client.get(f"/api/plans/{plan_id}", self._edit_loaded)
+
+    def _edit_loaded(self, data, error):
+        if error or not data:
+            self.status.setText("加载计划失败：" + (error or "无数据"))
+            return
+        plan = data
+        plan_id = str(plan.get("id") or "")
+        # 简易编辑：只改 title + status
+        title, _ = QInputDialog.getText(self, "编辑计划", "计划标题：", text=str(plan.get("title") or ""))
+        status, _ = QInputDialog.getItem(
+            self, "编辑计划", "状态：",
+            ["active", "archived"], 0 if str(plan.get("status") or "active") == "active" else 1, False)
+        payload = {"title": title.strip(), "status": status}
+        self.status.setText("正在保存…")
+        self.client.post(f"/api/plans/{plan_id}/update", payload, self._after_update)
+
+    def _after_update(self, data, error):
+        if error:
+            self.status.setText("保存失败：" + error)
+            return
+        self.status.setText("计划已更新。")
+        self._load()
+
+    def _activate_selected(self):
+        plan_id = self._selected_plan_id()
+        if not plan_id:
+            return
+        self.client.post(f"/api/plans/{plan_id}/update", {"status": "active"}, self._after_update)
+
+    def _delete_selected(self):
+        plan_id = self._selected_plan_id()
+        if not plan_id:
+            return
+        ret = QMessageBox.question(
+            self, "删除计划元数据",
+            "仅删除大修计划元数据（planned_tubes / title / status），不动任何检测记录。\n确定删除？",
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel)
+        if ret != QMessageBox.StandardButton.Ok:
+            return
+        self.status.setText("正在删除…")
+        self.client.post(f"/api/plans/{plan_id}/delete", self._after_delete)
+
+    def _after_delete(self, data, error):
+        if error:
+            self.status.setText("删除失败：" + error)
+            return
+        self.status.setText("计划元数据已删除。")
+        self._load()
+
+    def _migrate_legacy(self):
+        ret = QMessageBox.question(
+            self, "历史数据迁移",
+            "基于数据库中已有的 (基地, 机组, 大修) 组合自动生成历史迁移计划。\n此操作幂等，重复执行安全。",
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel)
+        if ret != QMessageBox.StandardButton.Ok:
+            return
+        self.status.setText("正在迁移…")
+        self.client.post("/api/plans/migrate-legacy", {}, self._after_migrate)
+
+    def _after_migrate(self, data, error):
+        if error:
+            self.status.setText("迁移失败：" + error)
+            return
+        self.status.setText(f"已迁移：{data.get('migrated', 0)} 条，跳过 {data.get('skipped', 0)} 条。")
+        self._load()
+

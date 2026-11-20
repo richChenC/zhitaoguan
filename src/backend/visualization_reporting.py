@@ -140,6 +140,27 @@ def build(service, query):
     rows = analysis.rows_for(service)
     positions = {id(row): analysis.position_resolution(row) for row in rows}
     repairs = analysis.repairs_for(service)
+
+    # 计划清单分母加载（保守：无计划时回退 50；有计划时使用 actual plan 管数）
+    plan_map = {}
+    try:
+        with service.connect() as _db:
+            try:
+                for _row in _db.execute(
+                        "SELECT p.id, p.site_code, p.unit_id, p.outage, "
+                        "COALESCE(p.status,'') AS status, COUNT(pt.thimble_id) AS tubes_count "
+                        "FROM outage_plans p LEFT JOIN outage_plan_tubes pt ON pt.plan_id=p.id "
+                        "WHERE p.status IN ('active','archived') "
+                        "GROUP BY p.id ORDER BY p.id"):
+                    plan_map[(_row[1], int(_row[2]) if _row[2] and str(_row[2]).isdigit() else 0,
+                              str(_row[3] or "").strip().upper())] = int(_row[5]) or 50
+            except Exception:
+                plan_map = {}
+    except Exception:
+        plan_map = {}
+    def _plan_denominator(site, unit, outage):
+        return plan_map.get((site, unit, str(outage or "").strip().upper()), 50)
+
     units = {}
     invalid = 0
     valid = []
@@ -172,6 +193,8 @@ def build(service, query):
     sites = {v for v in str(query.get("sites", "")).upper().split(",") if v}
     if sites - set(analysis.SITE_LABELS):
         raise ValueError("基地代号无效")
+    thresholds = sorted({int(value) for value in str(query.get("levels", "")).split(",")
+                         if value.strip().isdigit() and 0 <= int(value) <= 100}) or [30, 50]
     selected_unit = str(query.get("unit", "")).upper()
     selected_outage = str(query.get("outage", "")).upper()
     if selected_unit and selected_unit not in units:
@@ -298,8 +321,10 @@ def build(service, query):
                            "partial": bool(missing_tubes or incomplete_tubes or unquantified),
                            "position_stats": {key: {**value, "tubes": len(value["tubes"])}
                                               for key, value in position_stats.items()}})
+        plan_denom = _plan_denominator(site, unit, outage)
         snapshot = {"site": site, "unit": f"{site}{unit}", "outage": outage, "order": order,
-                    "outage_index": outage_index, "tubes": tubes}
+                    "outage_index": outage_index, "tubes": tubes,
+                    "plan_denominator": plan_denom}
         # Keep an unfiltered copy for the fixed base selector summaries.  The
         # visible workspace may be scoped to one base, but the selector cards
         # must retain the same global denominator after a click.
@@ -348,8 +373,16 @@ def build(service, query):
     }
     coverage = []
     for item in latest.values():
-        coverage.append({"unit": item["unit"], "outage": item["outage"],
-                         "counts": dict(Counter(t["coverage"] for t in item["tubes"]))})
+        denom = _plan_denominator(item["site"], item["unit"], item["outage"])
+        counts = dict(Counter(t["coverage"] for t in item["tubes"]))
+        reported_vs_plan = counts.get("defect", 0) + counts.get("incomplete", 0) + counts.get("NDD", 0)
+        coverage.append({
+            "unit": item["unit"], "outage": item["outage"],
+            "counts": counts,
+            "plan_denominator": denom,
+            "reported_vs_plan": reported_vs_plan,
+            "coverageRate_vs_plan": round(reported_vs_plan / denom * 100, 2) if denom else 0,
+        })
     map_stats = {}
     for site in analysis.SITE_LABELS:
         data = [(s, u, n, r) for s, u, n, r in scoped if s == site]
@@ -371,6 +404,34 @@ def build(service, query):
                                             "index": analysis.sequence(outage)[2],
                                             "label": f"第{analysis.sequence(outage)[2]:03d}次大修"}
                                            for outage in ordered_outages]})
+    labels = [f"0–{thresholds[0]}%"] + [
+        f"{low}–{high}%" for low, high in zip(thresholds, thresholds[1:])
+    ] + [f"≥{thresholds[-1]}%"]
+    buckets = [{"label": label, "tubes": 0, "defects": 0} for label in labels]
+    tube_total = defect_total = 0
+    for item in latest.values():
+        for tube in item["tubes"]:
+            if tube["coverage"] != "missing":
+                tube_total += 1
+            if tube["max_depth"] is not None:
+                buckets[sum(tube["max_depth"] >= threshold for threshold in thresholds)]["tubes"] += 1
+            for finding in tube["findings"]:
+                if str(finding.get("indication") or "").strip().upper() != "WAR":
+                    continue
+                defect_total += 1
+                depth = finding.get("depth")
+                if depth is not None:
+                    buckets[sum(depth >= threshold for threshold in thresholds)]["defects"] += 1
+    new_counts = []
+    for item in latest.values():
+        earlier = [entry for entry in snapshots
+                   if entry["unit"] == item["unit"] and entry["order"] < item["order"]]
+        if not earlier:
+            continue
+        previous = max(earlier, key=lambda entry: entry["order"])
+        old = {tube["tube"] for tube in previous["tubes"] if tube["coverage"] == "defect"}
+        new_counts.append(sum(tube["coverage"] == "defect" and tube["tube"] not in old
+                              for tube in item["tubes"]))
     return {"source": "当前数据库 / statistical_findings（当前版本及人工统计选择）",
             "scope": {"sites": sorted(sites), "unit": selected_unit, "outage": selected_outage},
             "sites": analysis.SITE_LABELS, "site_summary": site_summary,
@@ -383,6 +444,9 @@ def build(service, query):
             "coverage": coverage, "map": map_stats,
             "summary": {"records": len(scoped), "units": len(latest), "outages": len(snapshots),
                         "expected_tubes": len(latest) * 50,
+                        "tube_total": tube_total, "defect_total": defect_total,
+                        "bucket_defects": buckets,
+                        "new_defects": sum(new_counts) if new_counts else None,
                         "reported_tubes": sum(50 - c["counts"].get("missing", 0) for c in coverage),
                         "missing_tubes": sum(c["counts"].get("missing", 0) for c in coverage)},
             "quality": {"invalid_outage_rows": invalid, "unparsed_wear_positions": unknown_positions,

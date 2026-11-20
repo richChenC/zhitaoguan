@@ -424,9 +424,9 @@ class Preferences(QObject):
         levels, colors = data.get("depth_levels"), data.get("depth_colors")
         if isinstance(data.get("ndd_color"), str) and re.fullmatch(r"#[0-9a-fA-F]{6}", data["ndd_color"]):
             values["ndd_color"] = data["ndd_color"]
-        if (isinstance(levels, list) and len(levels) in (2, 3)
+        if (isinstance(levels, list) and 1 <= len(levels) <= 6
                 and all(type(value) is int and 0 <= value <= 100 for value in levels)
-                and sorted(levels) == levels
+                and all(low <= high for low, high in zip(levels, levels[1:]))
                 and isinstance(colors, list) and len(colors) == len(levels) + 1
                 and all(isinstance(value, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", value) for value in colors)):
             values.update(depth_levels=list(levels), depth_colors=list(colors))

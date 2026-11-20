@@ -439,6 +439,7 @@ def deduplicate_database() -> dict:
 # Keep this allow-list explicit: account, security, configuration and recovery
 # records must survive a business-data reset.
 CLEAR_DATABASE_TABLES = (
+    "outage_plan_tubes", "outage_plans",
     "import_batch_reports", "import_batch_artifacts", "import_finding_changes",
     "import_finding_sources", "import_state_changes", "inspection_state_candidates",
     "validation_issues", "file_artifacts", "import_excel_mappings", "import_batches",
@@ -1068,6 +1069,7 @@ def init_db(path=None) -> None:
     with data_source.SQLiteProvider(target).connect() as db:
         db.execute('PRAGMA journal_mode=WAL')
         local_security.seed(db)
+    ensure_plans_migrated()
 
 
 def is_indication_record(finding: Finding) -> bool:
@@ -1160,9 +1162,13 @@ def indication_columns(finding: Finding, policy: str) -> dict:
     columns["source_indication"] = source
     classification = analysis_reporting.blank_indication_class(finding)
     if classification == "war_candidate":
-        columns["indication_resolution"] = "bulk_war" if policy == "fill_war" else "review"
-        if policy == "fill_war":
-            columns["indication"] = "WAR"
+        if policy == "fill_ndd":
+            columns["indication"] = "NDD"
+            columns["indication_resolution"] = "bulk_ndd"
+        else:
+            columns["indication_resolution"] = "bulk_war" if policy == "fill_war" else "review"
+            if policy == "fill_war":
+                columns["indication"] = "WAR"
     elif classification == "ndd":
         # Keep source_indication for traceability, but persist a canonical
         # conclusion so all downstream views use the same NDD semantics.
@@ -1174,14 +1180,15 @@ def indication_columns(finding: Finding, policy: str) -> dict:
 
 
 def audit_indication_resolution(db: sqlite3.Connection, finding_id: int, columns: dict) -> None:
-    if columns.get("indication_resolution") != "bulk_war":
+    action = columns.get("indication_resolution")
+    if action not in {"bulk_war", "bulk_ndd"}:
         return
-    exists = db.execute("SELECT 1 FROM indication_resolution_audit WHERE finding_id=? AND action='bulk_war'", (finding_id,)).fetchone()
+    exists = db.execute("SELECT 1 FROM indication_resolution_audit WHERE finding_id=? AND action=?", (finding_id, action)).fetchone()
     if not exists:
         db.execute("""INSERT INTO indication_resolution_audit(
             finding_id,changed_at,source_indication,resolved_indication,action,source_path
         ) VALUES(?,?,?,?,?,?)""", (finding_id, datetime.now().isoformat(timespec="seconds"),
-            columns.get("source_indication", ""), "WAR", "bulk_war",
+            columns.get("source_indication", ""), columns.get("indication", ""), action,
             columns.get("report_path") or columns.get("filepath") or ""))
 
 
@@ -1416,7 +1423,7 @@ def validate_report_confirmation(directory, selected_reports, confirmation):
 
 
 @import_audit.tracked("directory")
-def import_directory(directory: str, selected_reports: list[str] | None = None, blank_indication_policy: str = "", operator: str = "", _audit=None, report_confirmation=None) -> dict:
+def import_directory(directory: str, selected_reports: list[str] | None = None, blank_indication_policy: str = "", operator: str = "", _audit=None, report_confirmation=None, plan_id: str | None = None) -> dict:
     with task_progress.phase(0, 8):
         confirmed = validate_report_confirmation(directory, selected_reports, report_confirmation) if report_confirmation is not None else None
     if selected_reports is None:
@@ -1461,7 +1468,7 @@ def import_directory(directory: str, selected_reports: list[str] | None = None, 
         if is_indication_record(finding) and not finding.indication.strip():
             import_audit.issue(audit_db, batch_id, "BLANK_INDICATION", "检测记录缺少三字符，保留原值并需人工核查",
                 finding.report_path, "warning", field="indication", payload=asdict(finding))
-    if blank_indication["count"] and blank_indication_policy not in {"review", "fill_war"}:
+    if blank_indication["count"] and blank_indication_policy not in {"review", "fill_war", "fill_ndd"}:
         task_progress.wait_for_confirmation()
         return {"requires_indication_decision": True, "blank_indication": blank_indication,
                 "reports": len(reports), "parsed": len(processed["findings"]), "source_total": len(processed["report_rows"]),
@@ -1469,6 +1476,7 @@ def import_directory(directory: str, selected_reports: list[str] | None = None, 
                 "ndd_auto": resolution["ndd_auto"], "war_candidate": resolution["war_candidate"],
                 "review": resolution["war_candidate"], "errors": errors}
     state_entries = []
+    imported_thimble_ids: set[int] = set()
     with nullcontext(audit_db) as db:
         for finding in task_progress.iterate(processed["findings"], "写入检测记录", span=(70, 94)):
             parsed += 1
@@ -1478,6 +1486,7 @@ def import_directory(directory: str, selected_reports: list[str] | None = None, 
                 import_audit.issue(db, batch_id, "UNIT_OUTAGE_MISMATCH",
                     "SUM 大修或机组信息缺失/不一致，该记录隔离未入库", finding.report_path, payload=raw_columns)
                 continue
+            imported_thimble_ids.add(int(finding.thimble_id))
             columns = indication_columns(finding, blank_indication_policy)
             columns["business_key"] = finding_business_key(raw_columns)
             columns["imported_at"] = datetime.now().isoformat(timespec="seconds")
@@ -1499,6 +1508,10 @@ def import_directory(directory: str, selected_reports: list[str] | None = None, 
                 db.execute("UPDATE findings SET indication='WAR',source_indication=?,indication_resolution='bulk_war' WHERE id=?",
                            (columns.get("source_indication", ""), finding_row["id"]))
                 audit_indication_resolution(db, finding_row["id"], columns)
+            elif finding_row and columns["indication_resolution"] == "bulk_ndd":
+                db.execute("UPDATE findings SET indication='NDD',source_indication=?,indication_resolution='bulk_ndd' WHERE id=?",
+                           (columns.get("source_indication", ""), finding_row["id"]))
+                audit_indication_resolution(db, finding_row["id"], columns)
             elif finding_row and columns["indication_resolution"] == "auto_ndd":
                 db.execute("UPDATE findings SET indication='NDD',source_indication=?,indication_resolution='auto_ndd' WHERE id=?",
                            (columns.get("source_indication", ""), finding_row["id"]))
@@ -1514,6 +1527,28 @@ def import_directory(directory: str, selected_reports: list[str] | None = None, 
                             source=f"{finding.report_path} · {finding.calgroup} · {finding.filename} · {field_name} · 记录{finding_row['id']}"))
         with task_progress.phase(94, 99):
             state_summary = inspection_states.recognize_import(sys.modules[__name__], db, batch_id, state_entries)
+        # 计划清单一致性审计
+        if plan_id and batch_id:
+            try:
+                plan_result = validate_import_against_plan(db, plan_id, sorted(imported_thimble_ids))
+                if plan_result.get("plan_empty"):
+                    import_audit.issue(db, batch_id, "PLAN_MISMATCH",
+                                       f"计划 #{plan_id} 的管号清单为空，无法校验导入范围",
+                                       directory, "warning")
+                else:
+                    if plan_result["out_plan"]:
+                        import_audit.issue(db, batch_id, "PLAN_MISMATCH",
+                                           f"导入了 {len(plan_result['out_plan'])} 根不在计划内的管号："
+                                           f"{plan_result['out_plan'][:10]}{'…' if len(plan_result['out_plan']) > 10 else ''}",
+                                           directory, "warning")
+                    if plan_result["plan_missing"]:
+                        import_audit.issue(db, batch_id, "PLAN_MISMATCH",
+                                           f"计划清单中有 {len(plan_result['plan_missing'])} 根管号本次未导入："
+                                           f"{plan_result['plan_missing'][:10]}{'…' if len(plan_result['plan_missing']) > 10 else ''}",
+                                           directory, "info")
+            except Exception as exc:
+                import_audit.issue(db, batch_id, "PLAN_MISMATCH",
+                                   f"计划清单校验失败：{exc}", directory, "warning")
     return {"reports": len(reports), "parsed": parsed, "source_total": len(processed["report_rows"]),
             "parsed_total": len(processed["findings"]), "inserted": inserted, "updated": 0,
             "skipped": skipped, "ndd_auto": resolution["ndd_auto"],
@@ -1749,11 +1784,12 @@ def _normalize_mapping_override(mapping: dict, book) -> tuple[str, int, dict[str
 
 @import_audit.tracked("excel")
 def import_excel_file(filename: str, blank_indication_policy: str = "", operator: str = "",
-                      _audit=None, mapping: dict | None = None, expected_sha256: str = "") -> dict:
+                      _audit=None, mapping: dict | None = None, expected_sha256: str = "",
+                      plan_id: str | None = None) -> dict:
     if not blank_indication_policy:
         try:
             with task_progress.phase(0, 35):
-                check = import_excel_file(filename, "check", operator, mapping=mapping, expected_sha256=expected_sha256)
+                check = import_excel_file(filename, "check", operator, mapping=mapping, expected_sha256=expected_sha256, plan_id=plan_id)
         except Exception as check_error:
             # 预检是只读阶段。打开、解析或校验失败时必须保留第一现场，
             # 不能为了“继续导入”再次进入 review 写入路径。
@@ -1764,8 +1800,8 @@ def import_excel_file(filename: str, blank_indication_policy: str = "", operator
             check["requires_indication_decision"] = True
             return check
         with task_progress.phase(35, 99):
-            return import_excel_file(filename, "review", operator, mapping=mapping, expected_sha256=expected_sha256)
-    if blank_indication_policy not in {"check", "review", "fill_war"}:
+            return import_excel_file(filename, "review", operator, mapping=mapping, expected_sha256=expected_sha256, plan_id=plan_id)
+    if blank_indication_policy not in {"check", "review", "fill_war", "fill_ndd"}:
         raise ValueError("三字符处理方式无效，请重新确认")
     dry_run = blank_indication_policy == "check"
     source = Path(filename).expanduser().resolve()
@@ -1781,7 +1817,9 @@ def import_excel_file(filename: str, blank_indication_policy: str = "", operator
     aliases = excel_field_aliases()
     selection_evidence = []
     sheet_results: list[dict] = []
+    skipped_sheets: list[str] = []
     inserted = updated = skipped = parsed = 0
+    imported_thimble_ids: set[int] = set()
     invalid_rows: list[int] = []
     invalid_count = 0
     pending: list[dict] = []
@@ -1858,6 +1896,14 @@ def import_excel_file(filename: str, blank_indication_policy: str = "", operator
                         state_rows.append((sheet.title, row_number, payload))
                     break
 
+        handled = {sheet.title for sheet, _, _, _ in targets} | {title for title, _, _ in state_rows}
+        skipped_sheets = [
+            sheet.title for sheet in book.worksheets
+            if sheet.title not in handled and sheet.title not in {"RPT导入说明", "报告版本确认"}
+            and any(value not in (None, "") for row in sheet.iter_rows(min_row=1, max_row=5, values_only=True)
+                    for value in row)
+        ]
+
         original_headers = {sheet.title: sheet_header_values(sheet, header_row)
                             for sheet, header_row, _, _ in targets}
         if rpt_metadata:
@@ -1891,6 +1937,10 @@ def import_excel_file(filename: str, blank_indication_policy: str = "", operator
                     json.dumps({"origin": "imported_workbook", "source": str(source),
                                 "candidates": selection_evidence}, ensure_ascii=False, default=str), batch_id))
             import_audit.artifact(db, batch_id, source)
+            for title in skipped_sheets:
+                import_audit.issue(db, batch_id, "SHEET_SKIPPED",
+                                   f"工作表“{title}”未识别到有效表头，已跳过",
+                                   f"{source} · {title}", "warning")
         row_total = sum(len(target[3]) for target in targets)
         row_done = 0
         duplicate_cache: dict[tuple, list[dict]] = {}
@@ -1944,6 +1994,7 @@ def import_excel_file(filename: str, blank_indication_policy: str = "", operator
                             source, sheet=sheet.title, row=row_number, field="机组号", payload=row)
                     continue
                 sheet_parsed += 1
+                imported_thimble_ids.add(int(thimble_id))
                 expected_position = position_for(unit_id, thimble_id)
                 normalized_position = re.sub(r"([A-Z])0+(\d)", r"\1\2", str(row["在堆芯内的位置"] or expected_position).strip().upper())
                 finding = Finding(
@@ -2077,6 +2128,10 @@ def import_excel_file(filename: str, blank_indication_policy: str = "", operator
                     db.execute("UPDATE findings SET indication='WAR',source_indication=?,indication_resolution='bulk_war' WHERE id=?",
                                (columns.get("source_indication", ""), finding_id))
                     audit_indication_resolution(db, finding_id, columns)
+                elif finding_id and columns["indication_resolution"] == "bulk_ndd":
+                    db.execute("UPDATE findings SET indication='NDD',source_indication=?,indication_resolution='bulk_ndd' WHERE id=?",
+                               (columns.get("source_indication", ""), finding_id))
+                    audit_indication_resolution(db, finding_id, columns)
                 elif finding_id and columns["indication_resolution"] == "auto_ndd":
                     db.execute("UPDATE findings SET indication='NDD',source_indication=?,indication_resolution='auto_ndd' WHERE id=?",
                                (columns.get("source_indication", ""), finding_id))
@@ -2140,6 +2195,28 @@ def import_excel_file(filename: str, blank_indication_policy: str = "", operator
                     state_summary["skipped"] += 1
                     import_audit.issue(db, batch_id, "INVALID_MAINTENANCE_EVENT", str(error),
                                        source, sheet=sheet_name, row=row_number, payload=payload)
+        # 计划清单一致性审计（plan 未指定时跳过；不阻断导入）
+        if plan_id and batch_id:
+            try:
+                plan_result = validate_import_against_plan(db, plan_id, sorted(imported_thimble_ids))
+                if plan_result.get("plan_empty"):
+                    import_audit.issue(db, batch_id, "PLAN_MISMATCH",
+                                       f"计划 #{plan_id} 的管号清单为空，无法校验导入范围",
+                                       source, "warning")
+                else:
+                    if plan_result["out_plan"]:
+                        import_audit.issue(db, batch_id, "PLAN_MISMATCH",
+                                           f"导入了 {len(plan_result['out_plan'])} 根不在计划内的管号："
+                                           f"{plan_result['out_plan'][:10]}{'…' if len(plan_result['out_plan']) > 10 else ''}",
+                                           source, "warning")
+                    if plan_result["plan_missing"]:
+                        import_audit.issue(db, batch_id, "PLAN_MISMATCH",
+                                           f"计划清单中有 {len(plan_result['plan_missing'])} 根管号本次未导入："
+                                           f"{plan_result['plan_missing'][:10]}{'…' if len(plan_result['plan_missing']) > 10 else ''}",
+                                           source, "info")
+            except Exception as exc:
+                import_audit.issue(db, batch_id, "PLAN_MISMATCH",
+                                   f"计划清单校验失败：{exc}", source, "warning")
     first = sheet_results[0]
     blank_summary = blank_indication_summary(pending)
     resolution = import_resolution_summary(pending, blank_indication_policy)
@@ -4846,10 +4923,217 @@ def api_recycle_purge(batch_id):
 
 
 # ============================================================
+# 大修计划（outage_plans）- 项目管理模块
+# ============================================================
+
+def _utcnow_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def get_plan(db, plan_id: str) -> dict | None:
+    row = db.execute("SELECT * FROM outage_plans WHERE id=?", (plan_id,)).fetchone()
+    if not row:
+        return None
+    tubes = [r[0] for r in db.execute(
+        "SELECT thimble_id FROM outage_plan_tubes WHERE plan_id=? ORDER BY thimble_id", (plan_id,)).fetchall()]
+    result = dict(row)
+    result["planned_tubes"] = tubes
+    result["tube_count"] = len(tubes)
+    return result
+
+
+def list_plans(db, site: str | None = None, unit: int | None = None, status: str | None = None) -> list[dict]:
+    sql = ["SELECT * FROM outage_plans WHERE 1=1"]
+    params: list = []
+    if site:
+        sql.append("AND site_code=?")
+        params.append(site.upper())
+    if unit:
+        sql.append("AND unit_id=?")
+        params.append(unit)
+    if status:
+        sql.append("AND status=?")
+        params.append(status)
+    sql.append("ORDER BY planned_at DESC")
+    rows = [dict(r) for r in db.execute(" ".join(sql), params).fetchall()]
+    return rows
+
+
+def create_plan(db, plan_code: str, site_code: str, unit_id: int, title: str,
+                outage: str | None = None, planned_tubes: list[int] | None = None,
+                status: str = "active") -> str:
+    plan_code = str(plan_code).strip()
+    site_code = str(site_code).strip().upper()
+    title = str(title).strip()
+    if not plan_code or not site_code or not title:
+        raise ValueError("plan_code / site_code / title 均不可为空")
+    if status not in ("active", "completed", "archived"):
+        raise ValueError(f"status 非法: {status}")
+    db.execute("SELECT 1 FROM outage_plans WHERE plan_code=?", (plan_code,))
+    if db.execute("SELECT 1 FROM outage_plans WHERE plan_code=?", (plan_code,)).fetchone():
+        raise ValueError(f"plan_code 已存在: {plan_code}")
+    plan_id = uuid.uuid4().hex
+    db.execute("""INSERT INTO outage_plans(id, plan_code, site_code, unit_id, outage, title, planned_at, status)
+                  VALUES(?,?,?,?,?,?,?,?)""",
+               (plan_id, plan_code, site_code, int(unit_id), outage or None, title, _utcnow_iso(), status))
+    if planned_tubes:
+        db.executemany("INSERT OR IGNORE INTO outage_plan_tubes(plan_id, thimble_id) VALUES(?,?)",
+                       [(plan_id, int(tube)) for tube in planned_tubes if 1 <= int(tube) <= 999])
+    return plan_id
+
+
+def update_plan(db, plan_id: str, **fields) -> bool:
+    allowed = {"title", "status"}
+    updates = {k: v for k, v in fields.items() if k in allowed}
+    if not updates:
+        return False
+    sets = ", ".join(f"{k}=?" for k in updates)
+    params = list(updates.values()) + [plan_id]
+    db.execute(f"UPDATE outage_plans SET {sets} WHERE id=?", params)
+    changed = db.execute("SELECT changes()").fetchone()[0]
+    if "planned_tubes" in fields and isinstance(fields["planned_tubes"], list):
+        db.execute("DELETE FROM outage_plan_tubes WHERE plan_id=?", (plan_id,))
+        db.executemany("INSERT INTO outage_plan_tubes(plan_id, thimble_id) VALUES(?,?)",
+                       [(plan_id, int(t)) for t in fields["planned_tubes"] if 1 <= int(t) <= 999])
+    return changed > 0
+
+
+def add_plan_tubes(db, plan_id: str, thimble_ids: list[int]) -> int:
+    rows = [(plan_id, int(t)) for t in thimble_ids if 1 <= int(t) <= 999]
+    if not rows:
+        return 0
+    db.executemany("INSERT OR IGNORE INTO outage_plan_tubes(plan_id, thimble_id) VALUES(?,?)", rows)
+    return db.execute("SELECT changes()").fetchone()[0]
+
+
+def remove_plan_tube(db, plan_id: str, thimble_id: int) -> bool:
+    db.execute("DELETE FROM outage_plan_tubes WHERE plan_id=? AND thimble_id=?", (plan_id, int(thimble_id)))
+    return db.execute("SELECT changes()").fetchone()[0] > 0
+
+
+def delete_plan_metadata(db, plan_id: str) -> bool:
+    db.execute("DELETE FROM outage_plan_tubes WHERE plan_id=?", (plan_id,))
+    db.execute("DELETE FROM outage_plans WHERE id=?", (plan_id,))
+    return db.execute("SELECT changes()").fetchone()[0] > 0
+
+
+def delete_scope_data(site_code: str, unit_id: int, outage: str) -> dict:
+    """清空指定 (site, unit, outage) 的检测数据（不含计划元数据）。操作前自动备份。"""
+    import server  # self-reference for circular calls
+    backup = create_database_backup(
+        note=f"删除 {site_code} {unit_id}号机 {outage} 检测数据前自动备份",
+        kind="pre_delete_scope",
+    )
+    backup["verification"] = validate_backup_file(backup["path"])
+    with connect() as db:
+        scope_sql = ("site_prefix_sql(outage)=? AND unit_id=? AND outage=?"
+                     if False else "(unit_id=? AND TRIM(COALESCE(outage,''))=? AND "
+                     + analysis_reporting.site_prefix_sql("outage") + "=?)")
+        params = (unit_id, str(outage).strip().upper(), str(site_code).strip().upper())
+        tables = ("indication_resolution_audit", "import_finding_changes", "import_finding_sources",
+                  "finding_edit_history", "duplicate_records", "findings")
+        deleted_counts = {}
+        for table in tables:
+            deleted_counts[table] = db.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE id IN (SELECT id FROM findings WHERE {scope_sql})",
+                params).fetchone()[0] if table != "findings" else 0
+        deleted_counts["findings"] = db.execute(
+            f"SELECT COUNT(*) FROM findings WHERE {scope_sql}", params).fetchone()[0]
+        deleted_counts["tube_states"] = db.execute(
+            "SELECT COUNT(*) FROM tube_states WHERE unit_id=? AND TRIM(COALESCE(outage,''))=?",
+            (unit_id, str(outage).strip().upper())).fetchone()[0]
+        db.execute(f"DELETE FROM findings WHERE {scope_sql}", params)
+        db.execute("DELETE FROM tube_states WHERE unit_id=? AND TRIM(COALESCE(outage,''))=?",
+                   (unit_id, str(outage).strip().upper()))
+        _log_operation("delete_scope", f"{site_code}/{unit_id}/{outage}",
+                       f"删除范围数据: findings {deleted_counts.get('findings',0)}, "
+                       f"tube_states {deleted_counts.get('tube_states',0)}; 备份 {backup['path']}",
+                       deleted_counts.get("findings", 0) + deleted_counts.get("tube_states", 0),
+                       backup_file=backup["path"], connection=db)
+    return {"ok": True, "deleted": deleted_counts, "backup": backup}
+
+
+def plan_checklist(db, plan_id: str) -> set[int]:
+    return {r[0] for r in db.execute(
+        "SELECT thimble_id FROM outage_plan_tubes WHERE plan_id=?", (plan_id,)).fetchall()}
+
+
+def validate_import_against_plan(db, plan_id: str, thimble_ids: list[int]) -> dict:
+    """返回 {in_plan: [...], out_plan: [...], missing_count: n, extra_count: n}。"""
+    checklist = plan_checklist(db, plan_id)
+    if not checklist:
+        return {"plan_empty": True, "in_plan": [], "out_plan": [], "checklist": []}
+    thimble_set = set(thimble_ids)
+    in_plan = sorted(tube for tube in thimble_set if tube in checklist)
+    out_plan = sorted(tube for tube in thimble_set if tube not in checklist)
+    return {"in_plan": in_plan, "out_plan": out_plan,
+            "plan_missing": sorted(checklist - thimble_set),
+            "plan_extra": out_plan}
+
+
+def migrate_legacy_outages_to_plans() -> dict:
+    """为既有 (site, unit, outage) 组合自动生成迁移计划（幂等）。"""
+    import server
+    result = {"migrated": 0, "skipped": 0, "plans": []}
+    with connect() as db:
+        combinations = db.execute(f"""
+            SELECT DISTINCT {analysis_reporting.site_prefix_sql('outage')} site_code,
+                   unit_id, TRIM(COALESCE(outage,'')) outage
+            FROM statistical_findings WHERE is_deleted=0 AND TRIM(COALESCE(outage,''))<>''
+            ORDER BY outage DESC""").fetchall()
+        for row in combinations:
+            site_code, unit_id, outage = row["site_code"], row["unit_id"], row["outage"]
+            plan_code = f"{outage}-迁移"
+            existing = db.execute("SELECT id FROM outage_plans WHERE plan_code=?", (plan_code,)).fetchone()
+            if existing:
+                result["skipped"] += 1
+                continue
+            label = analysis_reporting.SITE_LABELS.get(site_code, site_code)
+            title = f"{label} {unit_id}号机 {outage}"
+            db.execute("BEGIN")
+            try:
+                plan_id = create_plan(db, plan_code, site_code, unit_id, title, outage, status="archived")
+                known = {r[0] for r in db.execute(
+                    f"SELECT DISTINCT thimble_id FROM findings WHERE is_deleted=0 "
+                    f"AND unit_id=? AND TRIM(COALESCE(outage,''))=? "
+                    f"AND {analysis_reporting.site_prefix_sql('outage')}=?",
+                    (unit_id, outage, site_code)).fetchall()}
+                merged = sorted(known | set(range(1, 51)))
+                add_plan_tubes(db, plan_id, merged)
+                db.execute("COMMIT")
+                result["migrated"] += 1
+                result["plans"].append({"plan_id": plan_id, "plan_code": plan_code, "tube_count": len(merged)})
+            except Exception:
+                db.execute("ROLLBACK")
+                raise
+        _log_operation("migrate_legacy_outages", "all",
+                       f"迁移生成 {result['migrated']} 条大修计划，跳过 {result['skipped']} 条已存在",
+                       result["migrated"])
+    return result
+
+
+def ensure_plans_migrated() -> None:
+    """应用启动时若计划表明细但 findings 有存量，自动执行迁移。幂等。"""
+    try:
+        with connect() as db:
+            plan_count = db.execute("SELECT COUNT(*) FROM outage_plans").fetchone()[0]
+            finding_count = db.execute("SELECT COUNT(*) FROM findings WHERE is_deleted=0").fetchone()[0]
+        if finding_count > 0 and plan_count == 0:
+            migrate_legacy_outages_to_plans()
+    except Exception:
+        LOGGER.exception("ensure_plans_migrated 执行失败（忽略，非阻断）")
+
+
+# ============================================================
 # 统计分析 - 真实数据 API
 # ============================================================
 
-def api_analytics_summary(site=None):
+def api_analytics_summary(site=None, levels=None):
+    thresholds = sorted({int(value) for value in (levels or [])
+                         if str(value).strip().isdigit() and 0 <= int(value) <= 100})
+    if not thresholds:
+        thresholds = [30, 50]
     where = ["f.is_deleted=0"]
     params = []
     if site and site != "all":
@@ -4891,8 +5175,55 @@ def api_analytics_summary(site=None):
 
         site_name = _site_name_from_code(top_tube["site_code"]) if top_tube else ""
 
+        lazy = db.execute(f"""
+            SELECT f.outage, f.unit_id, f.thimble_id, f.percent, f.indication
+            FROM statistical_findings f
+            WHERE f.is_deleted=0 AND {wsql}
+        """, params).fetchall()
+
+    labels = [f"0–{thresholds[0]}%"] + [
+        f"{low}–{high}%" for low, high in zip(thresholds, thresholds[1:])
+    ] + [f"≥{thresholds[-1]}%"]
+    buckets = [{"label": label, "tubes": 0, "defects": 0} for label in labels]
+    tube_depths = {}
+    unit_rounds = defaultdict(dict)
+    for item in lazy:
+        try:
+            tube_key = (item["unit_id"], int(item["thimble_id"]))
+        except (TypeError, ValueError):
+            continue
+        depth = item["percent"] if analysis_reporting.numeric(item["percent"]) else None
+        if depth is not None and 0 <= depth <= 100:
+            tube_depths[tube_key] = max(tube_depths.get(tube_key, depth), depth)
+            if str(item["indication"] or "").strip().upper() == "WAR":
+                buckets[sum(depth >= threshold for threshold in thresholds)]["defects"] += 1
+        try:
+            order = analysis_reporting.sequence(item["outage"])[2]
+        except (TypeError, ValueError):
+            continue
+        unit_rounds[item["unit_id"]].setdefault(order, {})[item["thimble_id"]] = \
+            str(item["indication"] or "").strip().upper() == "WAR"
+    for depth in tube_depths.values():
+        buckets[sum(depth >= threshold for threshold in thresholds)]["tubes"] += 1
+    new_counts = []
+    for rounds in unit_rounds.values():
+        orders = sorted(rounds)
+        if len(orders) < 2:
+            continue
+        current = rounds[orders[-1]]
+        previous = rounds[orders[-2]]
+        new_counts.append(sum(
+            is_war and not previous.get(tube, False) for tube, is_war in current.items()))
+    new_value = sum(new_counts) if new_counts else None
     return {
         "totalTubes": row["tubes"] or 0,
+        "tube_total": len(tube_depths) or row["tubes"] or 0,
+        "defect_total": sum(1 for item in lazy
+                            if str(item["indication"] or "").strip().upper() == "WAR"),
+        "defectTotal": sum(1 for item in lazy
+                           if str(item["indication"] or "").strip().upper() == "WAR"),
+        "bucket_defects": buckets,
+        "new_defects": new_value,
         "activeDefects": row["findings"] or 0,
         "runningUnits": units["u"] or 0,
         "activeOutages": active_outages["c"] or 0,
@@ -5231,11 +5562,35 @@ class Handler(SimpleHTTPRequestHandler):
                     q.get("category", [""])[0], q.get("page", ["1"])[0], q.get("size", ["50"])[0]))
 
             if parsed.path == "/api/analytics/summary":
-                return self.json_response(api_analytics_summary(parse_qs(parsed.query).get("site", ["all"])[0]))
+                query = parse_qs(parsed.query)
+                return self.json_response(api_analytics_summary(
+                    query.get("site", ["all"])[0], query.get("levels", [""])[0].split(",")))
             if parsed.path == "/api/analytics/bases":
                 return self.json_response({"bases": api_analytics_bases()})
             if parsed.path == "/api/analytics/group-trend":
                 return self.json_response(api_analytics_group_trend(parse_qs(parsed.query).get("site", ["all"])[0]))
+            if parsed.path == "/api/plans":
+                q = parse_qs(parsed.query)
+                site = q.get("site", [""])[0] or None
+                unit_raw = q.get("unit", [""])[0]
+                unit = int(unit_raw) if unit_raw.isdigit() else None
+                status = q.get("status", [""])[0] or None
+                with connect() as db:
+                    return self.json_response({"items": list_plans(db, site=site, unit=unit, status=status)})
+            if parsed.path.startswith("/api/plans/"):
+                plan_id = parsed.path.rsplit("/", 1)[-1]
+                with connect() as db:
+                    plan = get_plan(db, plan_id)
+                if not plan:
+                    return self.json_response({"error": "plan 不存在"}, HTTPStatus.NOT_FOUND)
+                return self.json_response(plan)
+            if parsed.path == "/api/plans/migration-status":
+                with connect() as db:
+                    return self.json_response({
+                        "plan_count": db.execute("SELECT COUNT(*) FROM outage_plans").fetchone()[0],
+                        "tube_link_count": db.execute("SELECT COUNT(*) FROM outage_plan_tubes").fetchone()[0],
+                        "finding_count": db.execute("SELECT COUNT(*) FROM findings WHERE is_deleted=0").fetchone()[0],
+                    })
             if parsed.path == "/api/analytics/p-position":
                 return self.json_response(api_analytics_p_position(parse_qs(parsed.query).get("site", ["all"])[0]))
             if parsed.path == "/api/analytics/tube-status":
@@ -5307,9 +5662,9 @@ class Handler(SimpleHTTPRequestHandler):
             if path == "/api/report-options": return self.json_response({"reports": report_options(data.get("path", ""))})
             if path == "/api/discover-server": return self.json_response(discover_server_sources(data.get("path", "")))
             if path == "/api/import":
-                return self.json_response(import_directory(data.get("path", ""), data.get("reports"), data.get("blank_indication_policy", ""), local_security.actor(), report_confirmation=data.get("report_confirmation") or {}))
+                return self.json_response(import_directory(data.get("path", ""), data.get("reports"), data.get("blank_indication_policy", ""), local_security.actor(), report_confirmation=data.get("report_confirmation") or {}, plan_id=data.get("plan_id")))
             if path == "/api/import-excel":
-                return self.json_response(import_excel_file(data.get("path", ""), data.get("blank_indication_policy", ""), local_security.actor(), mapping=data.get("mapping") or None, expected_sha256=data.get("expected_sha256") or ""))
+                return self.json_response(import_excel_file(data.get("path", ""), data.get("blank_indication_policy", ""), local_security.actor(), mapping=data.get("mapping") or None, expected_sha256=data.get("expected_sha256") or "", plan_id=data.get("plan_id")))
             if path == "/api/import-excel-inspect":
                 return self.json_response(inspect_excel_file(data.get("path", "")))
             if path == "/api/import-directory-preview":
@@ -5357,7 +5712,69 @@ class Handler(SimpleHTTPRequestHandler):
             if path == "/api/clear":
                 if data.get("confirmed") is not True:
                     return self.json_response({"error": "清空操作必须明确确认"}, 400)
+                if "password" in data and not local_security.verify_actor_password(
+                        sys.modules[__name__], data.get("password")):
+                    return self.json_response({"error": "管理员口令不正确"}, HTTPStatus.FORBIDDEN)
                 return self.json_response(clear_database())
+            if path == "/api/plans":
+                try:
+                    with connect() as db:
+                        plan_id = create_plan(
+                            db, data["plan_code"], data["site_code"], int(data["unit_id"]),
+                            data["title"], data.get("outage"), data.get("planned_tubes"),
+                            data.get("status", "active"))
+                        db.execute("COMMIT")
+                    return self.json_response(get_plan(connect(), plan_id))
+                except KeyError as exc:
+                    return self.json_response({"error": f"缺少字段: {exc.args[0]}"}, 400)
+                except ValueError as exc:
+                    return self.json_response({"error": str(exc)}, 400)
+            if path.startswith("/api/plans/") and path.endswith("/tubes"):
+                plan_id = path.split("/")[3]
+                ids = data.get("thimble_ids") or []
+                with connect() as db:
+                    added = add_plan_tubes(db, plan_id, ids)
+                return self.json_response({"ok": True, "added": added})
+            if path.startswith("/api/plans/") and "/tubes/" in path:
+                parts = path.split("/")
+                plan_id = parts[3]
+                thimble_id = int(parts[5])
+                with connect() as db:
+                    removed = remove_plan_tube(db, plan_id, thimble_id)
+                return self.json_response({"ok": True, "removed": removed})
+            if path == "/api/plans/migrate-legacy":
+                result = migrate_legacy_outages_to_plans()
+                return self.json_response(result)
+            # PUT /api/plans/{id} — 用 POST + _method 或 /update 后缀
+            if path.startswith("/api/plans/") and path.endswith("/update"):
+                plan_id = path.split("/")[3]
+                with connect() as db:
+                    if not get_plan(db, plan_id):
+                        return self.json_response({"error": "plan 不存在"}, HTTPStatus.NOT_FOUND)
+                    changed = update_plan(db, plan_id,
+                                          title=data.get("title"),
+                                          status=data.get("status"),
+                                          planned_tubes=data.get("planned_tubes"))
+                    db.execute("COMMIT")
+                    plan = get_plan(connect(), plan_id)
+                return self.json_response({"ok": True, "changed": changed, "plan": plan})
+            if path.startswith("/api/plans/") and path.endswith("/delete"):
+                plan_id = path.split("/")[3]
+                with connect() as db:
+                    if not get_plan(db, plan_id):
+                        return self.json_response({"error": "plan 不存在"}, HTTPStatus.NOT_FOUND)
+                    delete_plan_metadata(db, plan_id)
+                    db.execute("COMMIT")
+                return self.json_response({"ok": True, "plan_id": plan_id})
+            if path == "/api/scope/delete":
+                site = (data.get("site_code") or data.get("site") or "").strip().upper()
+                unit = int(data.get("unit_id") or data.get("unit") or 0)
+                outage = (data.get("outage") or "").strip().upper()
+                if not site or not unit or not outage:
+                    return self.json_response({"error": "需要 site_code, unit_id, outage"}, 400)
+                if data.get("confirmed") is not True:
+                    return self.json_response({"error": "删除操作必须明确 confirmed=true"}, 400)
+                return self.json_response(delete_scope_data(site, unit, outage))
             if path == "/api/export-folder-excel":
                 return self.json_response(export_directory_excel(data.get("path", ""), data.get("reports"), data.get("report_policy", "manual"), report_confirmation=data.get("report_confirmation") or {}))
             if path == "/api/state":
