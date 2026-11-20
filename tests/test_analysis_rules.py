@@ -75,7 +75,7 @@ class AnalysisRulesTests(unittest.TestCase):
     def test_version_five_upgrade_preserves_old_rows_and_makes_safety_backup(self):
         with server.connect() as db:
             db.execute("ALTER TABLE analysis_rules DROP COLUMN parent_version")
-            db.execute("DELETE FROM schema_migrations WHERE version=6")
+            db.execute("DELETE FROM schema_migrations WHERE version>=6")
             db.execute("PRAGMA user_version=5")
             before = [tuple(row) for row in db.execute("SELECT * FROM analysis_rules")]
         server.init_db()
@@ -83,7 +83,7 @@ class AnalysisRulesTests(unittest.TestCase):
             after = [tuple(row) for row in db.execute("SELECT * FROM analysis_rules")]
         self.assertEqual([row[:-1] for row in after], before)
         self.assertTrue(all(row[-1] == 0 for row in after))
-        self.assertEqual(schema_migrations.validate(self.db, True), 6)
+        self.assertEqual(schema_migrations.validate(self.db, True), schema_migrations.VERSION)
         self.assertEqual(len(list((self.db.parent / "backups").glob("migration-*.db"))), 1)
         server.init_db()
         self.assertEqual(len(list((self.db.parent / "backups").glob("migration-*.db"))), 1)

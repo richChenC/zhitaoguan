@@ -10,7 +10,7 @@ try:
 except ImportError:
     from database_runtime import GATE
 
-VERSION = 6
+VERSION = 7
 class ClosingConnection(sqlite3.Connection):
     def close(self):
         try:
@@ -52,6 +52,17 @@ VERSIONS = ((1, '001_legacy_business_baseline', ()),
             )),
             (6, '006_analysis_rule_lineage', (
                 "ALTER TABLE analysis_rules ADD COLUMN parent_version INTEGER NOT NULL DEFAULT 0",
+            )),
+            (7, '007_outage_plans_and_tubes', (
+                "CREATE TABLE IF NOT EXISTS outage_plans("
+                "id TEXT PRIMARY KEY, plan_code TEXT NOT NULL UNIQUE, site_code TEXT NOT NULL, unit_id INTEGER NOT NULL, "
+                "outage TEXT, title TEXT NOT NULL, planned_at TEXT NOT NULL, "
+                "status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','completed','archived')))",
+                "CREATE TABLE IF NOT EXISTS outage_plan_tubes("
+                "plan_id TEXT NOT NULL REFERENCES outage_plans(id) ON DELETE CASCADE, "
+                "thimble_id INTEGER NOT NULL, PRIMARY KEY(plan_id, thimble_id))",
+                "CREATE INDEX IF NOT EXISTS idx_plan_tubes_thimble ON outage_plan_tubes(thimble_id)",
+                "CREATE INDEX IF NOT EXISTS idx_plans_site_unit ON outage_plans(site_code, unit_id)",
             )))
 
 
@@ -126,7 +137,9 @@ def validate(path, current=False):
                              'export_audits': {'id','event_id','created_at','actor_id','operator','resource','sha256','size_bytes'},
                              'restore_points': {'id','created_at','path','sha256','size_bytes','operator','note','kind'},
                              'backup_policy': {'id','automatic_keep'},
-                             'state_preferences': {'id','shift_direction'}})
+                             'state_preferences': {'id','shift_direction'},
+                             'outage_plans': {'id','plan_code','site_code','unit_id','outage','title','planned_at','status'},
+                             'outage_plan_tubes': {'plan_id','thimble_id'}})
         for table, columns in required.items():
             actual = {r[1] for r in db.execute(f'PRAGMA table_info({table})')}
             if not columns <= actual:
